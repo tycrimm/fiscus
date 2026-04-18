@@ -127,6 +127,33 @@ export const holdings = sqliteTable('holdings', {
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
 });
 
+// ─── expected flows (forward-looking cash events: paychecks, nanny, cap calls, trust) ─
+
+export const expectedFlows = sqliteTable('expected_flows', {
+  id: text('id').primaryKey().$defaultFn(uuid),
+  direction: text('direction', { enum: ['inflow', 'outflow'] }).notNull(),
+  label: text('label').notNull(),                       // "Nanny", "Paycheck — TC", "Grandma trust"
+  accountId: text('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+  illiquidAssetId: text('illiquid_asset_id').references(() => illiquidAssets.id, { onDelete: 'set null' }),
+  owner: text('owner', { enum: ['tyler', 'julianne', 'joint'] }).notNull().default('joint'),
+
+  // amount range — low/high optional, expected required
+  amountLowCents: integer('amount_low_cents'),
+  amountExpectedCents: integer('amount_expected_cents').notNull(),
+  amountHighCents: integer('amount_high_cents'),
+
+  // 'once' = one-off; everything else recurs from nextExpectedAt
+  cadence: text('cadence', {
+    enum: ['once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'annual'],
+  }).notNull(),
+  nextExpectedAt: integer('next_expected_at').notNull(),
+  endsAt: integer('ends_at'),
+
+  notes: text('notes'),
+  archivedAt: integer('archived_at'),
+  createdAt: integer('created_at').notNull().$defaultFn(nowSec),
+});
+
 // ─── Plaid connection + audit log ───────────────────────────────────────────
 
 export const plaidItems = sqliteTable('plaid_items', {

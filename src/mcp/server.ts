@@ -7,6 +7,7 @@ import { makeDb } from './d1-http';
 import * as accounts from '../ops/accounts';
 import * as illiquid from '../ops/illiquid';
 import * as reads from '../ops/reads';
+import * as flows from '../ops/flows';
 
 const db = makeDb() as unknown as import('../db').DB; // sqlite-proxy DB is shape-compatible with the D1 binding DB
 
@@ -191,6 +192,83 @@ server.registerTool(
     inputSchema: { assetId: z.string().uuid() },
   },
   async ({ assetId }) => json(await illiquid.archiveIlliquidAsset(db, assetId)),
+);
+
+// ─── expected flows (forward-facing cash events) ────────────────────────────
+
+server.registerTool(
+  'list_expected_flows',
+  {
+    description:
+      'List all non-archived expected flows (recurring or one-off forward-looking cash events: paychecks, nanny, capital calls, trust distributions).',
+    inputSchema: {},
+  },
+  async () => json(await flows.listExpectedFlows(db)),
+);
+
+server.registerTool(
+  'forecast_flows',
+  {
+    description:
+      'Project all active expected flows into individual occurrences within the next N days. Recurring flows expand into multiple instances; one-offs contribute one if in window.',
+    inputSchema: { windowDays: z.number().int().min(1).max(365).default(30) },
+  },
+  async ({ windowDays }) => json(await flows.forecastFlows(db, windowDays)),
+);
+
+server.registerTool(
+  'add_expected_flow',
+  {
+    description:
+      'Add an expected forward-looking cash event. Use cadence="once" for one-offs (capital call, trust distribution); use weekly/biweekly/monthly/quarterly/annual for recurring (paycheck, nanny, premium). amountExpectedDollars is required; low/high define the range. Optional accountId pins it to a specific account; optional illiquidAssetId links it to a fund (cap calls/distributions).',
+    inputSchema: {
+      direction: z.enum(['inflow', 'outflow']),
+      label: z.string().min(1).max(200),
+      cadence: z.enum(['once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'annual']),
+      nextExpectedDate: z.string().max(30).describe('ISO date, e.g. "2026-12-31"'),
+      amountExpectedDollars: z.number().finite(),
+      amountLowDollars: z.number().finite().optional(),
+      amountHighDollars: z.number().finite().optional(),
+      accountId: z.string().uuid().optional(),
+      illiquidAssetId: z.string().uuid().optional(),
+      owner: z.enum(['tyler', 'julianne', 'joint']).default('joint'),
+      endsDate: z.string().max(30).optional().describe('ISO date; recurring flows stop after this'),
+      notes: z.string().max(2000).optional(),
+    },
+  },
+  async (input) => json(await flows.addExpectedFlow(db, input)),
+);
+
+server.registerTool(
+  'update_expected_flow',
+  {
+    description:
+      'Update one or more fields on an existing expected flow. Pass only the fields you want to change.',
+    inputSchema: {
+      id: z.string().uuid(),
+      label: z.string().min(1).max(200).optional(),
+      cadence: z.enum(['once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'annual']).optional(),
+      nextExpectedDate: z.string().max(30).optional(),
+      amountExpectedDollars: z.number().finite().optional(),
+      amountLowDollars: z.number().finite().nullable().optional(),
+      amountHighDollars: z.number().finite().nullable().optional(),
+      owner: z.enum(['tyler', 'julianne', 'joint']).optional(),
+      endsDate: z.string().max(30).nullable().optional(),
+      notes: z.string().max(2000).nullable().optional(),
+      accountId: z.string().uuid().nullable().optional(),
+      illiquidAssetId: z.string().uuid().nullable().optional(),
+    },
+  },
+  async ({ id, ...patch }) => json(await flows.updateExpectedFlow(db, id, patch)),
+);
+
+server.registerTool(
+  'archive_expected_flow',
+  {
+    description: 'Soft-archive an expected flow so it stops appearing in forecasts.',
+    inputSchema: { id: z.string().uuid() },
+  },
+  async ({ id }) => json(await flows.archiveExpectedFlow(db, id)),
 );
 
 // ─── start ──────────────────────────────────────────────────────────────────

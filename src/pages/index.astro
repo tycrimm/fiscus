@@ -2,16 +2,19 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { netWorth, listAccounts, listIlliquidAssets } from '../ops/reads';
-import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
+import { forecastFlows } from '../ops/flows';
+import { fmtUSD, fmtUSDsigned, fmtDate, prettyKind, pluralize } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
 
 const d = db(env.DB);
-const [nw, accounts, illiquid] = await Promise.all([
+const FORECAST_DAYS = 30;
+const [nw, accounts, illiquid, projected] = await Promise.all([
   netWorth(d),
   listAccounts(d),
   listIlliquidAssets(d),
+  forecastFlows(d, FORECAST_DAYS),
 ]);
 
 const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
@@ -62,6 +65,12 @@ const lastSyncedAt = accounts.reduce<number | null>(
   (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
   null,
 );
+
+const inflows = projected.filter((p) => p.direction === 'inflow');
+const outflows = projected.filter((p) => p.direction === 'outflow');
+const inflowCents = inflows.reduce((acc, p) => acc + p.amountExpectedCents, 0);
+const outflowCents = outflows.reduce((acc, p) => acc + p.amountExpectedCents, 0);
+const netFlowCents = inflowCents - outflowCents;
 
 const hasAny = accounts.length > 0 || illiquid.length > 0;
 ---
@@ -154,6 +163,48 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                 ))}
               </div>
             ))}
+          </LedgerSection>
+        )}
+
+        {projected.length > 0 && (
+          <LedgerSection
+            title={`Upcoming · Next ${FORECAST_DAYS} Days`}
+            count={pluralize(projected.length, 'event')}
+            subtotal={fmtUSDsigned(netFlowCents)}
+            negSubtotal={netFlowCents < 0}
+          >
+            {inflows.length > 0 && (
+              <div class="inst-group">
+                <div class="inst-row">
+                  <span class="inst-name">Expected Inflow</span>
+                  <span class="inst-total num">{fmtUSD.format(inflowCents / 100)}</span>
+                </div>
+                {inflows.map((p) => (
+                  <div class="flow-row">
+                    <span class="flow-date">{fmtDate(p.date)}</span>
+                    <span class="flow-label">{p.label}</span>
+                    <span class:list={['flow-owner', p.owner]}>{p.owner}</span>
+                    <span class="flow-amt num">{fmtUSD.format(p.amountExpectedCents / 100)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {outflows.length > 0 && (
+              <div class="inst-group">
+                <div class="inst-row">
+                  <span class="inst-name">Expected Outflow</span>
+                  <span class="inst-total num neg">{fmtUSD.format(-outflowCents / 100)}</span>
+                </div>
+                {outflows.map((p) => (
+                  <div class="flow-row">
+                    <span class="flow-date">{fmtDate(p.date)}</span>
+                    <span class="flow-label">{p.label}</span>
+                    <span class:list={['flow-owner', p.owner]}>{p.owner}</span>
+                    <span class="flow-amt num neg">{fmtUSD.format(-p.amountExpectedCents / 100)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </LedgerSection>
         )}
 
@@ -272,6 +323,37 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     text-align: right;
   }
   .inst-group .kind-row:last-child { padding-bottom: var(--space-3); }
+
+  .flow-row {
+    display: grid;
+    grid-template-columns: 4rem 1fr auto auto;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) + var(--space-6));
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .flow-date {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+  }
+  .flow-label { font-size: var(--size-sm); }
+  .flow-owner {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .flow-owner.joint { color: var(--fg-muted); font-weight: 400; }
+  .flow-amt {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .inst-group .flow-row:last-child { padding-bottom: var(--space-3); }
 
   @media (max-width: 52rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
