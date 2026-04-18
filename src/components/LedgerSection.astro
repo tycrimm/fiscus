@@ -1,0 +1,86 @@
+---
+interface Props {
+  title: string;
+  count: string;
+  subtotal: string;
+  negSubtotal?: boolean;
+}
+const { title, count, subtotal, negSubtotal = false } = Astro.props;
+---
+<section class="ledger-section">
+  <button class="head" type="button">
+    <span class="marker" aria-hidden="true">[–]</span>
+    <span class="title">{title}</span>
+    <span class="count">{count}</span>
+    <span class:list={['subtotal', 'num', { neg: negSubtotal }]}>{subtotal}</span>
+  </button>
+  <div class="body">
+    <slot />
+  </div>
+</section>
+
+<style>
+  .ledger-section { border: 1px solid var(--rule); }
+  .head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-4);
+    background: var(--bg-subtle);
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .head:hover { background: #f5f5f5; }
+  .ledger-section.collapsed .head { border-bottom: none; }
+  .ledger-section.collapsed .body { display: none; }
+
+  .marker {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    width: 1.5rem;
+  }
+  .title {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .count {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .subtotal {
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  @media (max-width: 36rem) {
+    .head { grid-template-columns: auto 1fr auto; row-gap: var(--space-1); }
+    .count { grid-column: 2 / -1; text-align: right; }
+    .subtotal { grid-column: 2 / -1; text-align: right; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.ledger-section > .head').forEach((head) => {
+    head.addEventListener('click', () => {
+      const section = head.closest('.ledger-section');
+      if (!section) return;
+      section.classList.toggle('collapsed');
+      const marker = head.querySelector('.marker');
+      if (marker) marker.textContent = section.classList.contains('collapsed') ? '[+]' : '[–]';
+    });
+  });
+</script>

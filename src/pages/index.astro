@@ -2,7 +2,10 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { netWorth, listAccounts, listIlliquidAssets } from '../ops/reads';
+import { fmtUSD, fmtUSDsigned, fmtDate, money, prettyKind, pluralize } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
+import LedgerSection from '../components/LedgerSection.astro';
+import LedgerRow from '../components/LedgerRow.astro';
 
 const d = db(env.DB);
 const [nw, accounts, illiquid] = await Promise.all([
@@ -17,26 +20,11 @@ const other = accounts.filter((a) => !a.is_liability && !['checking', 'savings',
 const liab = accounts.filter((a) => !!a.is_liability);
 
 const sumAccts = (rows: typeof accounts) => rows.reduce((acc, r) => acc + (r.latest_cents ?? 0), 0);
-const cashTotalCents = sumAccts(cash);
-const investTotalCents = sumAccts(invest);
-const otherTotalCents = sumAccts(other);
-const liabTotalCents = sumAccts(liab);
-const illiquidTotalCents = illiquid.reduce((acc, r) => acc + r.current_value_cents, 0);
-
-const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const fmtUSDsigned = (cents: number) => {
-  const neg = cents < 0;
-  const abs = fmtUSD.format(Math.abs(cents) / 100);
-  return neg ? `−${abs}` : abs;
-};
-const fmtDate = (sec: number | null | undefined) =>
-  sec ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
-const money = (cents: number | null | undefined, liab = false) => {
-  if (cents == null) return '—';
-  const dollars = cents / 100;
-  return fmtUSD.format(liab ? -dollars : dollars);
-};
-const prettyKind = (k: string) => k.replace(/_/g, ' ');
+const cashTotal = sumAccts(cash);
+const investTotal = sumAccts(invest);
+const otherTotal = sumAccts(other);
+const liabTotal = sumAccts(liab);
+const illiquidTotal = illiquid.reduce((acc, r) => acc + r.current_value_cents, 0);
 
 const hasAny = accounts.length > 0 || illiquid.length > 0;
 ---
@@ -61,121 +49,76 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
 
       <div class="ledger-main">
         {cash.length > 0 && (
-          <section class="ledger-section">
-            <button class="ledger-section-head" type="button">
-              <span class="marker" aria-hidden="true">[–]</span>
-              <span class="title">Cash &amp; Equivalents</span>
-              <span class="count">{cash.length} {cash.length === 1 ? 'account' : 'accounts'}</span>
-              <span class="subtotal num">{fmtUSDsigned(cashTotalCents)}</span>
-            </button>
-            <div class="ledger-section-body">
-              {cash.map((a) => (
-                <div class="ledger-row">
-                  <div class="primary">
-                    <span class="acc-name">{a.name}</span>
-                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
-                  </div>
-                  <span class="bal num">{money(a.latest_cents)}</span>
-                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          <LedgerSection title="Cash & Equivalents" count={pluralize(cash.length, 'account')} subtotal={fmtUSDsigned(cashTotal)}>
+            {cash.map((a) => (
+              <LedgerRow
+                name={a.name}
+                sub={`${a.institution} · ${prettyKind(a.kind)}`}
+                amount={money(a.latest_cents)}
+                asOf={fmtDate(a.latest_as_of)}
+              />
+            ))}
+          </LedgerSection>
         )}
 
         {invest.length > 0 && (
-          <section class="ledger-section">
-            <button class="ledger-section-head" type="button">
-              <span class="marker" aria-hidden="true">[–]</span>
-              <span class="title">Investments</span>
-              <span class="count">{invest.length} {invest.length === 1 ? 'account' : 'accounts'}</span>
-              <span class="subtotal num">{fmtUSDsigned(investTotalCents)}</span>
-            </button>
-            <div class="ledger-section-body">
-              {invest.map((a) => (
-                <div class="ledger-row">
-                  <div class="primary">
-                    <span class="acc-name">{a.name}</span>
-                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
-                  </div>
-                  <span class="bal num">{money(a.latest_cents)}</span>
-                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          <LedgerSection title="Investments" count={pluralize(invest.length, 'account')} subtotal={fmtUSDsigned(investTotal)}>
+            {invest.map((a) => (
+              <LedgerRow
+                name={a.name}
+                sub={`${a.institution} · ${prettyKind(a.kind)}`}
+                amount={money(a.latest_cents)}
+                asOf={fmtDate(a.latest_as_of)}
+              />
+            ))}
+          </LedgerSection>
         )}
 
         {illiquid.length > 0 && (
-          <section class="ledger-section">
-            <button class="ledger-section-head" type="button">
-              <span class="marker" aria-hidden="true">[–]</span>
-              <span class="title">Illiquid</span>
-              <span class="count">{illiquid.length} {illiquid.length === 1 ? 'position' : 'positions'}</span>
-              <span class="subtotal num">{fmtUSDsigned(illiquidTotalCents)}</span>
-            </button>
-            <div class="ledger-section-body">
-              {illiquid.map((ia) => (
-                <div class="ledger-row">
-                  <div class="primary">
-                    <span class="acc-name">{ia.name}</span>
-                    <span class="acc-inst">
-                      {prettyKind(ia.kind)}
-                      {ia.investment_count > 0 && ` · ${ia.investment_count} ${ia.investment_count === 1 ? 'position' : 'positions'}`}
-                    </span>
-                  </div>
-                  <span class="bal num">{fmtUSD.format(ia.current_value_cents / 100)}</span>
-                  <span class="asof">—</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          <LedgerSection title="Illiquid" count={pluralize(illiquid.length, 'position')} subtotal={fmtUSDsigned(illiquidTotal)}>
+            {illiquid.map((ia) => (
+              <LedgerRow
+                name={ia.name}
+                sub={ia.investment_count > 0
+                  ? `${prettyKind(ia.kind)} · ${pluralize(ia.investment_count, 'position')}`
+                  : prettyKind(ia.kind)}
+                amount={fmtUSD.format(ia.current_value_cents / 100)}
+                asOf="—"
+              />
+            ))}
+          </LedgerSection>
         )}
 
         {other.length > 0 && (
-          <section class="ledger-section">
-            <button class="ledger-section-head" type="button">
-              <span class="marker" aria-hidden="true">[–]</span>
-              <span class="title">Other</span>
-              <span class="count">{other.length} {other.length === 1 ? 'account' : 'accounts'}</span>
-              <span class="subtotal num">{fmtUSDsigned(otherTotalCents)}</span>
-            </button>
-            <div class="ledger-section-body">
-              {other.map((a) => (
-                <div class="ledger-row">
-                  <div class="primary">
-                    <span class="acc-name">{a.name}</span>
-                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
-                  </div>
-                  <span class="bal num">{money(a.latest_cents)}</span>
-                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          <LedgerSection title="Other" count={pluralize(other.length, 'account')} subtotal={fmtUSDsigned(otherTotal)}>
+            {other.map((a) => (
+              <LedgerRow
+                name={a.name}
+                sub={`${a.institution} · ${prettyKind(a.kind)}`}
+                amount={money(a.latest_cents)}
+                asOf={fmtDate(a.latest_as_of)}
+              />
+            ))}
+          </LedgerSection>
         )}
 
         {liab.length > 0 && (
-          <section class="ledger-section">
-            <button class="ledger-section-head" type="button">
-              <span class="marker" aria-hidden="true">[–]</span>
-              <span class="title">Liabilities</span>
-              <span class="count">{liab.length} {liab.length === 1 ? 'account' : 'accounts'}</span>
-              <span class="subtotal num neg">{fmtUSDsigned(-liabTotalCents)}</span>
-            </button>
-            <div class="ledger-section-body">
-              {liab.map((a) => (
-                <div class="ledger-row">
-                  <div class="primary">
-                    <span class="acc-name">{a.name}</span>
-                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
-                  </div>
-                  <span class="bal num neg">{money(a.latest_cents, true)}</span>
-                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          <LedgerSection
+            title="Liabilities"
+            count={pluralize(liab.length, 'account')}
+            subtotal={fmtUSDsigned(-liabTotal)}
+            negSubtotal
+          >
+            {liab.map((a) => (
+              <LedgerRow
+                name={a.name}
+                sub={`${a.institution} · ${prettyKind(a.kind)}`}
+                amount={money(a.latest_cents, true)}
+                asOf={fmtDate(a.latest_as_of)}
+                negAmount
+              />
+            ))}
+          </LedgerSection>
         )}
       </div>
     </div>
@@ -235,78 +178,6 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
 
   .ledger-main { display: grid; gap: var(--space-6); }
 
-  .ledger-section { border: 1px solid var(--rule); }
-  .ledger-section-head {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    gap: var(--space-4);
-    align-items: baseline;
-    padding: var(--space-4);
-    background: var(--bg-subtle);
-    border: none;
-    border-bottom: 1px solid var(--rule);
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    font: inherit;
-    color: inherit;
-    letter-spacing: normal;
-    text-transform: none;
-  }
-  .ledger-section-head:hover { background: #f5f5f5; }
-  .ledger-section.collapsed .ledger-section-head { border-bottom: none; }
-  .ledger-section.collapsed .ledger-section-body { display: none; }
-
-  .ledger-section-head .marker {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    width: 1.5rem;
-  }
-  .ledger-section-head .title {
-    font-size: var(--size-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-weight: 500;
-  }
-  .ledger-section-head .count {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-  .ledger-section-head .subtotal {
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-  }
-
-  .ledger-row {
-    display: grid;
-    grid-template-columns: 1fr auto 5rem;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--rule);
-    align-items: baseline;
-    font-size: var(--size-sm);
-  }
-  .ledger-row:last-child { border-bottom: none; }
-  .ledger-row .primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .ledger-row .acc-name { font-size: var(--size-sm); }
-  .ledger-row .acc-inst {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-  .ledger-row .bal { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-  .ledger-row .asof {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-align: right;
-    white-space: nowrap;
-  }
-
   @media (max-width: 52rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
     .rail {
@@ -316,30 +187,4 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     }
     .rail-value { font-size: var(--size-2xl); }
   }
-
-  @media (max-width: 36rem) {
-    .ledger-section-head {
-      grid-template-columns: auto 1fr auto;
-      row-gap: var(--space-1);
-    }
-    .ledger-section-head .count {
-      grid-column: 2 / -1;
-      text-align: right;
-    }
-    .ledger-section-head .subtotal { grid-column: 2 / -1; text-align: right; }
-    .ledger-row { grid-template-columns: 1fr auto; row-gap: var(--space-1); }
-    .ledger-row .asof { grid-column: 1 / -1; text-align: left; }
-  }
 </style>
-
-<script>
-  document.querySelectorAll<HTMLButtonElement>('.ledger-section-head').forEach((head) => {
-    head.addEventListener('click', () => {
-      const section = head.closest('.ledger-section');
-      if (!section) return;
-      section.classList.toggle('collapsed');
-      const marker = head.querySelector('.marker');
-      if (marker) marker.textContent = section.classList.contains('collapsed') ? '[+]' : '[–]';
-    });
-  });
-</script>
