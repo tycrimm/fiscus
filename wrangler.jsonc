@@ -16,5 +16,8 @@
       "migrations_dir": "./drizzle"
     }
   ],
+  "vars": {
+    "PLAID_ENV": "production"
+  },
   "observability": { "enabled": true }
 }

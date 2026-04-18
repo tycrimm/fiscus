@@ -47,6 +47,8 @@ export async function addInvestment(
     entryDate: number | string;
   },
 ) {
+  const entryDate = toUnix(input.entryDate);
+  const costBasisCents = Math.round(input.costBasisDollars * 100);
   const [row] = await d
     .insert(investments)
     .values({
@@ -56,11 +58,21 @@ export async function addInvestment(
       shares: input.shares ?? null,
       pricePerShareCents:
         input.pricePerShareDollars != null ? Math.round(input.pricePerShareDollars * 100) : null,
-      costBasisCents: Math.round(input.costBasisDollars * 100),
-      entryDate: toUnix(input.entryDate),
+      costBasisCents,
+      entryDate,
     })
     .returning();
   if (!row) throw new Error('Investment insert failed');
+  // An investment IS a valuation — cash changed hands at a known price on a known date.
+  // Recording it here means time-series and net-worth reads work without UNION'ing both tables.
+  await d.insert(valuations).values({
+    assetId: input.assetId,
+    investmentId: row.id,
+    valueCents: costBasisCents,
+    basis: 'Entry',
+    note: null,
+    asOf: entryDate,
+  });
   return row;
 }
 

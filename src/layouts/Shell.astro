@@ -20,6 +20,7 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       <a href="/" class="brand">fiscus</a>
       <nav>
         <a href="/" aria-current={active('/') ? 'page' : undefined}>net worth</a>
+        <a href="/connect" aria-current={active('/connect') ? 'page' : undefined}>connect</a>
       </nav>
     </header>
     <slot />

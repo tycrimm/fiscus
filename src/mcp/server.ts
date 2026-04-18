@@ -125,7 +125,7 @@ server.registerTool(
   'add_investment',
   {
     description:
-      'Record a check / commit into an illiquid asset. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required.',
+      'Record a check / commit into an illiquid asset. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down.',
     inputSchema: {
       assetId: z.string(),
       securityType: z

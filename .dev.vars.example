@@ -1,0 +1,7 @@
+# Local Worker secrets for `wrangler dev`. Mirror to production with:
+#   bun run secrets:push
+PLAID_CLIENT_ID=
+PLAID_SECRET=
+# AES-256-GCM key for access_token encryption (32 bytes, base64). Generate with:
+#   bun -e 'console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64"))'
+PLAID_TOKEN_KEY=

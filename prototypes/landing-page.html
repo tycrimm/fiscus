@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fiscus · landing page prototypes</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --bg-subtler: #f5f5f5;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --fg-faint: #999999;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.5rem;
+    --size-2xl: 2.25rem;
+    --size-3xl: 3rem;
+    --size-4xl: 4.5rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+    --space-24: 6rem;
+  }
+
+  *,*::before,*::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--size-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  h1 { font-size: var(--size-lg); letter-spacing: 0.04em; }
+  h2 { font-size: var(--size-base); letter-spacing: 0.06em; }
+  h3 { font-size: var(--size-sm); letter-spacing: 0.08em; }
+
+  a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--fg-muted); }
+  .faint { color: var(--fg-faint); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .upper { text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ------- Variation nav ------- */
+  .var-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule-strong);
+    padding: 0;
+  }
+  .var-nav a {
+    flex: 1;
+    max-width: 16rem;
+    text-align: center;
+    padding: var(--space-4) var(--space-2);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    color: var(--fg-muted);
+    border-right: 1px solid var(--rule);
+    transition: background 0.12s, color 0.12s;
+  }
+  .var-nav a:last-child { border-right: none; }
+  .var-nav a:hover { color: var(--fg); background: var(--bg-subtle); }
+  .var-nav a.active { color: var(--fg); background: var(--fg); color: var(--bg); }
+
+  .var-nav a small {
+    display: block;
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    color: inherit;
+    opacity: 0.6;
+    margin-top: 2px;
+    font-weight: 400;
+  }
+
+  /* ------- section wrapper ------- */
+  .variation {
+    border-bottom: 8px solid var(--fg);
+  }
+  .variation-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    padding: var(--space-6) var(--space-6) 0;
+    max-width: 80rem;
+    margin: 0 auto;
+  }
+  .variation-label strong { color: var(--fg); font-weight: 500; letter-spacing: 0.08em; }
+
+  /* ====================================================
+     VARIATION A — EDITORIAL
+     ==================================================== */
+  .va {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-6) var(--space-24);
+  }
+  .va .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-12);
+  }
+  .va .brand {
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  .va nav {
+    display: flex;
+    gap: var(--space-6);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .va nav a { text-decoration: none; }
+  .va nav a.current { text-decoration: underline; text-underline-offset: 4px; color: var(--fg); }
+  .va nav a:hover { color: var(--fg); }
+
+  .va .hero {
+    margin: var(--space-8) 0 var(--space-16);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .va .hero .label {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .va .hero .value {
+    font-size: var(--size-4xl);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.0;
+  }
+  .va .hero .delta {
+    font-size: var(--size-sm);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    margin-top: var(--space-2);
+  }
+  .va .hero .delta .chip {
+    display: inline-block;
+    border: 1px solid var(--rule-strong);
+    padding: 2px 8px;
+    margin-right: var(--space-2);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .va .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: var(--space-2);
+    margin: var(--space-12) 0 var(--space-4);
+  }
+  .va .section-head .count {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .va .inst-group { margin-bottom: var(--space-8); }
+  .va .inst-title {
+    font-size: var(--size-xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .va .acc-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .va .acc-row:last-child { border-bottom: none; }
+  .va .acc-name { font-size: var(--size-sm); }
+  .va .acc-name .kind { color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.06em; margin-left: var(--space-2); }
+  .va .acc-bal { font-variant-numeric: tabular-nums; font-size: var(--size-sm); text-align: right; }
+  .va .acc-asof { color: var(--fg-muted); font-size: var(--size-xs); text-align: right; min-width: 5rem; }
+
+  .va .illiquid-list {
+    display: grid;
+    gap: 0;
+  }
+  .va .illiquid-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    gap: var(--space-4);
+    align-items: baseline;
+  }
+  .va .illiquid-row .meta { color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+  .va .illiquid-row .val { font-variant-numeric: tabular-nums; font-size: var(--size-sm); }
+
+  .va footer {
+    margin-top: var(--space-16);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  @media (max-width: 40rem) {
+    .va { padding: var(--space-4); }
+    .va .hero .value { font-size: var(--size-3xl); }
+    .va .acc-row { grid-template-columns: 1fr auto; }
+    .va .acc-asof { grid-column: 1 / -1; text-align: left; padding-top: var(--space-1); }
+    .va nav { gap: var(--space-4); }
+    .va .app-header { flex-wrap: wrap; gap: var(--space-2); }
+  }
+
+  /* ====================================================
+     VARIATION B — DASHBOARD
+     ==================================================== */
+  .vb {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-6) var(--space-24);
+  }
+  .vb .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+  .vb .brand { font-weight: 500; letter-spacing: 0.08em; font-size: var(--size-sm); text-transform: uppercase; text-decoration: none; }
+  .vb .app-header nav { display: flex; gap: var(--space-6); font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .vb .app-header nav a { text-decoration: none; }
+  .vb .app-header nav a.current { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
+  .vb .app-header .asof { font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .vb .kpi-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    border: 1px solid var(--rule-strong);
+    border-right: none;
+    border-bottom: none;
+  }
+  .vb .kpi {
+    border-right: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule-strong);
+    padding: var(--space-6);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .vb .kpi .label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .vb .kpi .val {
+    font-size: var(--size-2xl);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .vb .kpi.primary .val { font-size: var(--size-3xl); }
+  .vb .kpi .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vb .trend-card {
+    border: 1px solid var(--rule-strong);
+    border-top: none;
+    padding: var(--space-6);
+    margin-bottom: var(--space-8);
+  }
+  .vb .trend-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--space-4);
+  }
+  .vb .trend-head .scale {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--rule-strong);
+  }
+  .vb .trend-head .scale button {
+    font: inherit;
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg);
+    color: var(--fg-muted);
+    border: none;
+    border-right: 1px solid var(--rule);
+    cursor: pointer;
+  }
+  .vb .trend-head .scale button:last-child { border-right: none; }
+  .vb .trend-head .scale button.active { background: var(--fg); color: var(--bg); }
+  .vb .chart { width: 100%; height: 180px; display: block; }
+  .vb .chart .grid-line { stroke: var(--rule); stroke-width: 1; }
+  .vb .chart .axis-label { font-size: 10px; fill: var(--fg-muted); font-family: ui-monospace, Menlo, monospace; }
+
+  .vb .two-col {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: var(--space-8);
+    margin-bottom: var(--space-8);
+  }
+  .vb .panel { display: grid; gap: 0; }
+  .vb .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-4);
+  }
+  .vb .panel-head .subtotal {
+    font-variant-numeric: tabular-nums;
+    font-size: var(--size-sm);
+  }
+  .vb table { width: 100%; border-collapse: collapse; font-size: var(--size-sm); font-variant-numeric: tabular-nums; }
+  .vb th, .vb td {
+    padding: var(--space-3) var(--space-2);
+    text-align: left;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: baseline;
+  }
+  .vb thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .vb .num-col { text-align: right; white-space: nowrap; }
+  .vb tbody tr:hover { background: var(--bg-subtle); }
+
+  .vb .alloc {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .vb .alloc-bar {
+    display: flex;
+    height: 8px;
+    border: 1px solid var(--fg);
+    overflow: hidden;
+  }
+  .vb .alloc-seg { height: 100%; }
+  .vb .alloc-seg:not(:last-child) { border-right: 1px solid var(--fg); }
+  .vb .alloc-legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--size-xs);
+  }
+  .vb .alloc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .vb .alloc-item .swatch {
+    width: 10px; height: 10px;
+    display: inline-block;
+    margin-right: var(--space-2);
+    border: 1px solid var(--fg);
+  }
+  .vb .alloc-item .name { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; color: var(--fg-muted); }
+  .vb .alloc-item .pct { font-variant-numeric: tabular-nums; }
+
+  .vb .illiquid-panel { }
+  .vb .ill-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    gap: var(--space-4);
+  }
+  .vb .ill-row .name { font-size: var(--size-sm); }
+  .vb .ill-row .meta { font-size: 0.6875rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  .vb .ill-row .val { font-variant-numeric: tabular-nums; font-size: var(--size-sm); text-align: right; }
+  .vb .ill-row .delta { font-size: 0.6875rem; text-align: right; margin-top: 2px; }
+
+  @media (max-width: 64rem) {
+    .vb .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .vb .kpi.primary { grid-column: 1 / -1; }
+    .vb .two-col { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 40rem) {
+    .vb { padding: var(--space-4); }
+    .vb .app-header { flex-wrap: wrap; gap: var(--space-2); }
+    .vb .app-header nav { flex-wrap: wrap; }
+    .vb .kpi-grid { grid-template-columns: 1fr; }
+    .vb .kpi.primary { grid-column: auto; }
+    .vb .kpi .val { font-size: var(--size-xl); }
+    .vb .kpi.primary .val { font-size: var(--size-2xl); }
+    .vb .alloc-legend { grid-template-columns: 1fr; }
+    .vb th:nth-child(3), .vb td:nth-child(3) { display: none; }
+  }
+
+  /* ====================================================
+     VARIATION C — LEDGER SPLIT
+     ==================================================== */
+  .vc {
+    max-width: 84rem;
+    margin: 0 auto;
+  }
+  .vc-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: var(--space-6);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .vc-top .brand { font-weight: 500; letter-spacing: 0.08em; font-size: var(--size-sm); text-transform: uppercase; text-decoration: none; }
+  .vc-top nav { display: flex; gap: var(--space-6); font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .vc-top nav a { text-decoration: none; }
+  .vc-top nav a.current { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
+
+  .vc-body {
+    display: grid;
+    grid-template-columns: 22rem 1fr;
+    min-height: 100vh;
+  }
+
+  .vc-rail {
+    border-right: 1px solid var(--rule-strong);
+    padding: var(--space-8) var(--space-6);
+    background: var(--bg-subtle);
+    position: sticky;
+    top: 49px;
+    align-self: start;
+    max-height: calc(100vh - 49px);
+    overflow-y: auto;
+  }
+  .vc-rail .label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+  }
+  .vc-rail .networth {
+    font-size: var(--size-3xl);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.05;
+    margin-bottom: var(--space-2);
+  }
+  .vc-rail .delta-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    margin-bottom: var(--space-8);
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--rule);
+  }
+  .vc-rail .delta-row .chip {
+    border: 1px solid var(--rule-strong);
+    padding: 2px 6px;
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .vc-rail .breakdown { display: grid; gap: 0; margin-bottom: var(--space-8); }
+  .vc-rail .bd-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-sm);
+    align-items: baseline;
+  }
+  .vc-rail .bd-row .cat {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .vc-rail .bd-row .val { font-variant-numeric: tabular-nums; }
+
+  .vc-rail .chart-mini { width: 100%; height: 80px; margin-bottom: var(--space-3); }
+  .vc-rail .chart-mini path.area { fill: var(--fg); opacity: 0.08; }
+  .vc-rail .chart-mini path.line { fill: none; stroke: var(--fg); stroke-width: 1.5; }
+
+  .vc-rail .meta {
+    font-size: 0.6875rem;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--rule);
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .vc-main {
+    padding: var(--space-8) var(--space-8) var(--space-24);
+  }
+  .vc-section {
+    margin-bottom: var(--space-8);
+    border: 1px solid var(--rule);
+  }
+  .vc-section-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-4) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg-subtle);
+    cursor: pointer;
+    user-select: none;
+  }
+  .vc-section-head .marker {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    width: 1rem;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .vc-section-head .title {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .vc-section-head .count {
+    font-size: 0.6875rem;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .vc-section-head .subtotal {
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .vc-section.collapsed .vc-section-body { display: none; }
+
+  .vc-section-body { padding: 0; }
+  .vc-ledger-row {
+    display: grid;
+    grid-template-columns: 1fr auto 5rem auto;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .vc-ledger-row:last-child { border-bottom: none; }
+  .vc-ledger-row:hover { background: var(--bg-subtle); }
+  .vc-ledger-row .primary { display: flex; flex-direction: column; gap: 2px; }
+  .vc-ledger-row .acc-name { font-size: var(--size-sm); }
+  .vc-ledger-row .acc-inst { font-size: 0.6875rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .vc-ledger-row .bal { font-variant-numeric: tabular-nums; text-align: right; }
+  .vc-ledger-row .delta {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-size: var(--size-xs);
+  }
+  .vc-ledger-row .asof { font-size: var(--size-xs); color: var(--fg-muted); text-align: right; }
+
+  @media (max-width: 64rem) {
+    .vc-body { grid-template-columns: 1fr; }
+    .vc-rail {
+      position: static;
+      max-height: none;
+      border-right: none;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+    .vc-main { padding: var(--space-6) var(--space-4) var(--space-16); }
+  }
+  @media (max-width: 40rem) {
+    .vc-top { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-4); }
+    .vc-rail { padding: var(--space-6) var(--space-4); }
+    .vc-rail .networth { font-size: var(--size-2xl); }
+    .vc-main { padding: var(--space-4); }
+    .vc-section-head { grid-template-columns: auto 1fr auto; row-gap: var(--space-1); }
+    .vc-section-head .count { grid-column: 2 / 4; text-align: right; }
+    .vc-section-head .subtotal { grid-column: 2 / 4; text-align: right; }
+    .vc-ledger-row { grid-template-columns: 1fr auto; row-gap: var(--space-1); }
+    .vc-ledger-row .delta { grid-column: 2; }
+    .vc-ledger-row .asof { grid-column: 1 / -1; color: var(--fg-faint); }
+  }
+</style>
+</head>
+<body>
+
+<nav class="var-nav">
+  <a href="#va" id="nav-a" class="active">A<small>editorial</small></a>
+  <a href="#vb" id="nav-b">B<small>dashboard</small></a>
+  <a href="#vc" id="nav-c">C<small>ledger split</small></a>
+</nav>
+
+<!-- ============================================================
+     VARIATION A — EDITORIAL
+     ============================================================ -->
+<section class="variation" id="va">
+  <div class="variation-label">Variation <strong>A</strong> · Editorial — pure text-forward, one column, maximum data-ink</div>
+  <div class="va">
+    <header class="app-header">
+      <a href="#" class="brand">fiscus</a>
+      <nav>
+        <a href="#" class="current">net worth</a>
+        <a href="#">accounts</a>
+        <a href="#">illiquid</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="label">net worth · as of apr 18, 2026</div>
+      <div class="value">$3,482,194</div>
+      <div class="delta">
+        <span class="chip">30 DAY</span>
+        <span class="pos num">+$42,108</span>
+        <span class="muted">&nbsp;·&nbsp;+1.22%</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Accounts</h2>
+        <span class="count">9 active · liquid $1,204,588</span>
+      </div>
+
+      <div class="inst-group">
+        <div class="inst-title">Chase</div>
+        <div class="acc-row">
+          <div class="acc-name">Primary Checking <span class="kind">checking</span></div>
+          <div class="acc-bal">$18,942</div>
+          <div class="acc-asof muted">Apr 18</div>
+        </div>
+        <div class="acc-row">
+          <div class="acc-name">Joint Savings <span class="kind">savings</span></div>
+          <div class="acc-bal">$72,410</div>
+          <div class="acc-asof muted">Apr 18</div>
+        </div>
+        <div class="acc-row">
+          <div class="acc-name">Sapphire Reserve <span class="kind">credit card</span></div>
+          <div class="acc-bal neg">−$4,218</div>
+          <div class="acc-asof muted">Apr 18</div>
+        </div>
+      </div>
+
+      <div class="inst-group">
+        <div class="inst-title">Fidelity</div>
+        <div class="acc-row">
+          <div class="acc-name">Brokerage <span class="kind">brokerage</span></div>
+          <div class="acc-bal">$612,304</div>
+          <div class="acc-asof muted">Apr 17</div>
+        </div>
+        <div class="acc-row">
+          <div class="acc-name">Roth IRA · Tyler <span class="kind">roth</span></div>
+          <div class="acc-bal">$241,882</div>
+          <div class="acc-asof muted">Apr 17</div>
+        </div>
+        <div class="acc-row">
+          <div class="acc-name">Roth IRA · Sarah <span class="kind">roth</span></div>
+          <div class="acc-bal">$198,771</div>
+          <div class="acc-asof muted">Apr 17</div>
+        </div>
+      </div>
+
+      <div class="inst-group">
+        <div class="inst-title">Vanguard</div>
+        <div class="acc-row">
+          <div class="acc-name">401(k) · Tyler <span class="kind">401k</span></div>
+          <div class="acc-bal">$384,208</div>
+          <div class="acc-asof muted">Apr 16</div>
+        </div>
+      </div>
+
+      <div class="inst-group">
+        <div class="inst-title">Wells Fargo</div>
+        <div class="acc-row">
+          <div class="acc-name">Mortgage · 1842 Walnut <span class="kind">mortgage</span></div>
+          <div class="acc-bal neg">−$482,104</div>
+          <div class="acc-asof muted">Apr 14</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Illiquid</h2>
+        <span class="count">4 positions · $2,760,812</span>
+      </div>
+      <div class="illiquid-list">
+        <div class="illiquid-row">
+          <div>
+            <div>1842 Walnut St</div>
+            <div class="meta">real estate · primary residence</div>
+          </div>
+          <div class="val">$1,285,000</div>
+        </div>
+        <div class="illiquid-row">
+          <div>
+            <div>Stripe (seed, 2019)</div>
+            <div class="meta">private co · 1,042 sh</div>
+          </div>
+          <div class="val">$848,200</div>
+        </div>
+        <div class="illiquid-row">
+          <div>
+            <div>Forerunner Fund VII</div>
+            <div class="meta">fund · $250k committed · 68% called</div>
+          </div>
+          <div class="val">$472,612</div>
+        </div>
+        <div class="illiquid-row">
+          <div>
+            <div>Grandma's gold coins</div>
+            <div class="meta">other · hand-marked</div>
+          </div>
+          <div class="val">$155,000</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>last sync · apr 18, 2026 · 06:42</span>
+      <span>manual &amp; plaid</span>
+    </footer>
+  </div>
+</section>
+
+<!-- ============================================================
+     VARIATION B — DASHBOARD
+     ============================================================ -->
+<section class="variation" id="vb">
+  <div class="variation-label">Variation <strong>B</strong> · Dashboard — KPI grid, trend chart, allocation breakdown</div>
+  <div class="vb">
+    <header class="app-header">
+      <a href="#" class="brand">fiscus</a>
+      <nav>
+        <a href="#" class="current">overview</a>
+        <a href="#">accounts</a>
+        <a href="#">illiquid</a>
+        <a href="#">history</a>
+      </nav>
+      <span class="asof">as of apr 18, 06:42</span>
+    </header>
+
+    <div class="kpi-grid">
+      <div class="kpi primary">
+        <span class="label">net worth</span>
+        <span class="val num">$3,482,194</span>
+        <span class="sub"><span class="pos">+$42,108</span> &nbsp;past 30 days &nbsp;·&nbsp; <span class="pos">+$318,444</span> ytd</span>
+      </div>
+      <div class="kpi">
+        <span class="label">liquid</span>
+        <span class="val num">$1,204,588</span>
+        <span class="sub">6 accounts</span>
+      </div>
+      <div class="kpi">
+        <span class="label">illiquid</span>
+        <span class="val num">$2,760,812</span>
+        <span class="sub">4 positions</span>
+      </div>
+      <div class="kpi">
+        <span class="label">liabilities</span>
+        <span class="val num">$483,206</span>
+        <span class="sub">mortgage &amp; cards</span>
+      </div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-head">
+        <h2>Net worth trend</h2>
+        <div class="scale">
+          <button>1M</button>
+          <button>3M</button>
+          <button>6M</button>
+          <button class="active">1Y</button>
+          <button>ALL</button>
+        </div>
+      </div>
+      <svg class="chart" viewBox="0 0 1000 180" preserveAspectRatio="none" aria-label="net worth trend">
+        <line class="grid-line" x1="0" y1="30" x2="1000" y2="30"></line>
+        <line class="grid-line" x1="0" y1="75" x2="1000" y2="75"></line>
+        <line class="grid-line" x1="0" y1="120" x2="1000" y2="120"></line>
+        <line class="grid-line" x1="0" y1="165" x2="1000" y2="165"></line>
+        <path d="M0,140 L60,132 L120,128 L180,118 L240,124 L300,108 L360,96 L420,104 L480,88 L540,78 L600,82 L660,68 L720,58 L780,52 L840,46 L900,40 L960,34 L1000,30 L1000,180 L0,180 Z" fill="#0a0a0a" opacity="0.05"></path>
+        <path d="M0,140 L60,132 L120,128 L180,118 L240,124 L300,108 L360,96 L420,104 L480,88 L540,78 L600,82 L660,68 L720,58 L780,52 L840,46 L900,40 L960,34 L1000,30" fill="none" stroke="#0a0a0a" stroke-width="1.5"></path>
+        <circle cx="1000" cy="30" r="3" fill="#0a0a0a"></circle>
+        <text class="axis-label" x="8" y="24">$3.5M</text>
+        <text class="axis-label" x="8" y="172">$2.9M</text>
+      </svg>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Accounts</h2>
+          <span class="subtotal num">$1,204,588</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>institution</th>
+              <th>account</th>
+              <th>type</th>
+              <th class="num-col">balance</th>
+              <th class="num-col">as of</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Chase</td><td>Primary Checking</td><td class="muted upper">checking</td><td class="num-col">$18,942</td><td class="num-col muted">Apr 18</td></tr>
+            <tr><td>Chase</td><td>Joint Savings</td><td class="muted upper">savings</td><td class="num-col">$72,410</td><td class="num-col muted">Apr 18</td></tr>
+            <tr><td>Chase</td><td>Sapphire Reserve</td><td class="muted upper">credit</td><td class="num-col neg">−$4,218</td><td class="num-col muted">Apr 18</td></tr>
+            <tr><td>Fidelity</td><td>Brokerage</td><td class="muted upper">taxable</td><td class="num-col">$612,304</td><td class="num-col muted">Apr 17</td></tr>
+            <tr><td>Fidelity</td><td>Roth IRA · Tyler</td><td class="muted upper">roth</td><td class="num-col">$241,882</td><td class="num-col muted">Apr 17</td></tr>
+            <tr><td>Fidelity</td><td>Roth IRA · Sarah</td><td class="muted upper">roth</td><td class="num-col">$198,771</td><td class="num-col muted">Apr 17</td></tr>
+            <tr><td>Vanguard</td><td>401(k) · Tyler</td><td class="muted upper">401k</td><td class="num-col">$384,208</td><td class="num-col muted">Apr 16</td></tr>
+            <tr><td>Wells Fargo</td><td>Mortgage · 1842 Walnut</td><td class="muted upper">mortgage</td><td class="num-col neg">−$482,104</td><td class="num-col muted">Apr 14</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel illiquid-panel">
+        <div class="panel-head">
+          <h2>Illiquid</h2>
+          <span class="subtotal num">$2,760,812</span>
+        </div>
+        <div class="ill-row">
+          <div>
+            <div class="name">1842 Walnut St</div>
+            <div class="meta">real estate · primary</div>
+          </div>
+          <div>
+            <div class="val">$1,285,000</div>
+            <div class="delta muted">marked Mar 31</div>
+          </div>
+        </div>
+        <div class="ill-row">
+          <div>
+            <div class="name">Stripe</div>
+            <div class="meta">private · 1,042 sh · 2019 seed</div>
+          </div>
+          <div>
+            <div class="val">$848,200</div>
+            <div class="delta pos">+$64,000 vs Q4</div>
+          </div>
+        </div>
+        <div class="ill-row">
+          <div>
+            <div class="name">Forerunner Fund VII</div>
+            <div class="meta">fund · $250k / 68% called</div>
+          </div>
+          <div>
+            <div class="val">$472,612</div>
+            <div class="delta muted">Q1 capital account</div>
+          </div>
+        </div>
+        <div class="ill-row">
+          <div>
+            <div class="name">Grandma's gold coins</div>
+            <div class="meta">other · hand-marked</div>
+          </div>
+          <div>
+            <div class="val">$155,000</div>
+            <div class="delta muted">marked Jan 2026</div>
+          </div>
+        </div>
+
+        <div class="panel-head" style="margin-top: 2rem;">
+          <h2>Allocation</h2>
+          <span class="subtotal num">100.0%</span>
+        </div>
+        <div class="alloc">
+          <div class="alloc-bar" role="img" aria-label="allocation bar">
+            <div class="alloc-seg" style="width: 32.4%; background: #0a0a0a;"></div>
+            <div class="alloc-seg" style="width: 24.0%; background: #444;"></div>
+            <div class="alloc-seg" style="width: 21.4%; background: #888;"></div>
+            <div class="alloc-seg" style="width: 11.9%; background: #bbb;"></div>
+            <div class="alloc-seg" style="width: 7.3%; background: #dcdcdc;"></div>
+            <div class="alloc-seg" style="width: 3.0%; background: #f0f0f0;"></div>
+          </div>
+          <div class="alloc-legend">
+            <div class="alloc-item"><span><span class="swatch" style="background:#0a0a0a;"></span><span class="name">real estate</span></span><span class="pct num">32.4%</span></div>
+            <div class="alloc-item"><span><span class="swatch" style="background:#444;"></span><span class="name">equities</span></span><span class="pct num">24.0%</span></div>
+            <div class="alloc-item"><span><span class="swatch" style="background:#888;"></span><span class="name">private</span></span><span class="pct num">21.4%</span></div>
+            <div class="alloc-item"><span><span class="swatch" style="background:#bbb;"></span><span class="name">funds</span></span><span class="pct num">11.9%</span></div>
+            <div class="alloc-item"><span><span class="swatch" style="background:#dcdcdc;"></span><span class="name">cash</span></span><span class="pct num">7.3%</span></div>
+            <div class="alloc-item"><span><span class="swatch" style="background:#f0f0f0;"></span><span class="name">other</span></span><span class="pct num">3.0%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     VARIATION C — LEDGER SPLIT
+     ============================================================ -->
+<section class="variation" id="vc">
+  <div class="variation-label">Variation <strong>C</strong> · Ledger split — sticky left rail, categorized accordion right</div>
+  <div class="vc">
+    <header class="vc-top">
+      <a href="#" class="brand">fiscus</a>
+      <nav>
+        <a href="#" class="current">net worth</a>
+        <a href="#">accounts</a>
+        <a href="#">illiquid</a>
+      </nav>
+    </header>
+
+    <div class="vc-body">
+      <aside class="vc-rail">
+        <div class="label">net worth</div>
+        <div class="networth num">$3,482,194</div>
+        <div class="delta-row">
+          <span class="chip">30D</span>
+          <span class="pos num">+$42,108</span>
+          <span class="faint">·</span>
+          <span class="pos num">+1.22%</span>
+        </div>
+
+        <svg class="chart-mini" viewBox="0 0 300 80" preserveAspectRatio="none">
+          <path class="area" d="M0,62 L30,58 L60,54 L90,48 L120,52 L150,44 L180,38 L210,32 L240,26 L270,20 L300,14 L300,80 L0,80 Z"></path>
+          <path class="line" d="M0,62 L30,58 L60,54 L90,48 L120,52 L150,44 L180,38 L210,32 L240,26 L270,20 L300,14"></path>
+        </svg>
+        <div style="font-size: 0.6875rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-8);">trailing 12 months</div>
+
+        <div class="breakdown">
+          <div class="bd-row"><span class="cat">cash</span><span class="val num">$91,352</span></div>
+          <div class="bd-row"><span class="cat">equities</span><span class="val num">$1,437,165</span></div>
+          <div class="bd-row"><span class="cat">private co</span><span class="val num">$848,200</span></div>
+          <div class="bd-row"><span class="cat">funds</span><span class="val num">$472,612</span></div>
+          <div class="bd-row"><span class="cat">real estate</span><span class="val num">$1,285,000</span></div>
+          <div class="bd-row"><span class="cat">other</span><span class="val num">$155,000</span></div>
+          <div class="bd-row"><span class="cat">liabilities</span><span class="val num neg">−$486,322</span></div>
+        </div>
+
+        <div class="meta">
+          <div>last sync · apr 18, 06:42</div>
+          <div>9 accounts · 4 illiquid</div>
+          <div>plaid + manual</div>
+        </div>
+      </aside>
+
+      <main class="vc-main">
+
+        <div class="vc-section">
+          <div class="vc-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="marker">[–]</span>
+            <span class="title">Cash &amp; Equivalents</span>
+            <span class="count">3 accounts</span>
+            <span class="subtotal num">$87,134</span>
+          </div>
+          <div class="vc-section-body">
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Primary Checking</span>
+                <span class="acc-inst">Chase · checking</span>
+              </div>
+              <span class="bal">$18,942</span>
+              <span class="delta pos num">+$812</span>
+              <span class="asof">Apr 18</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Joint Savings</span>
+                <span class="acc-inst">Chase · savings</span>
+              </div>
+              <span class="bal">$72,410</span>
+              <span class="delta pos num">+$210</span>
+              <span class="asof">Apr 18</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Sapphire Reserve</span>
+                <span class="acc-inst">Chase · credit</span>
+              </div>
+              <span class="bal neg">−$4,218</span>
+              <span class="delta neg num">−$618</span>
+              <span class="asof">Apr 18</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vc-section">
+          <div class="vc-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="marker">[–]</span>
+            <span class="title">Investments</span>
+            <span class="count">4 accounts</span>
+            <span class="subtotal num">$1,437,165</span>
+          </div>
+          <div class="vc-section-body">
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Brokerage</span>
+                <span class="acc-inst">Fidelity · taxable</span>
+              </div>
+              <span class="bal">$612,304</span>
+              <span class="delta pos num">+$18,442</span>
+              <span class="asof">Apr 17</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Roth IRA · Tyler</span>
+                <span class="acc-inst">Fidelity · roth</span>
+              </div>
+              <span class="bal">$241,882</span>
+              <span class="delta pos num">+$6,108</span>
+              <span class="asof">Apr 17</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Roth IRA · Sarah</span>
+                <span class="acc-inst">Fidelity · roth</span>
+              </div>
+              <span class="bal">$198,771</span>
+              <span class="delta pos num">+$4,822</span>
+              <span class="asof">Apr 17</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">401(k) · Tyler</span>
+                <span class="acc-inst">Vanguard · 401k</span>
+              </div>
+              <span class="bal">$384,208</span>
+              <span class="delta pos num">+$11,204</span>
+              <span class="asof">Apr 16</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vc-section">
+          <div class="vc-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="marker">[–]</span>
+            <span class="title">Real Estate</span>
+            <span class="count">1 property</span>
+            <span class="subtotal num">$1,285,000</span>
+          </div>
+          <div class="vc-section-body">
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">1842 Walnut St</span>
+                <span class="acc-inst">primary residence · hand-marked</span>
+              </div>
+              <span class="bal">$1,285,000</span>
+              <span class="delta muted num">—</span>
+              <span class="asof">Mar 31</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vc-section">
+          <div class="vc-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="marker">[–]</span>
+            <span class="title">Private &amp; Funds</span>
+            <span class="count">3 positions</span>
+            <span class="subtotal num">$1,475,812</span>
+          </div>
+          <div class="vc-section-body">
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Stripe (seed)</span>
+                <span class="acc-inst">private co · 1,042 sh · 2019</span>
+              </div>
+              <span class="bal">$848,200</span>
+              <span class="delta pos num">+$64,000</span>
+              <span class="asof">Q1 '26</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Forerunner Fund VII</span>
+                <span class="acc-inst">fund · $250k · 68% called</span>
+              </div>
+              <span class="bal">$472,612</span>
+              <span class="delta pos num">+$8,412</span>
+              <span class="asof">Q1 '26</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Grandma's gold coins</span>
+                <span class="acc-inst">other · hand-marked</span>
+              </div>
+              <span class="bal">$155,000</span>
+              <span class="delta muted num">—</span>
+              <span class="asof">Jan '26</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vc-section">
+          <div class="vc-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="marker">[–]</span>
+            <span class="title">Liabilities</span>
+            <span class="count">2 accounts</span>
+            <span class="subtotal num neg">−$486,322</span>
+          </div>
+          <div class="vc-section-body">
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Mortgage · 1842 Walnut</span>
+                <span class="acc-inst">Wells Fargo · 2.875%</span>
+              </div>
+              <span class="bal neg">−$482,104</span>
+              <span class="delta pos num">+$1,942</span>
+              <span class="asof">Apr 14</span>
+            </div>
+            <div class="vc-ledger-row">
+              <div class="primary">
+                <span class="acc-name">Sapphire Reserve</span>
+                <span class="acc-inst">Chase · credit</span>
+              </div>
+              <span class="bal neg">−$4,218</span>
+              <span class="delta neg num">−$618</span>
+              <span class="asof">Apr 18</span>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Sticky nav highlighting on scroll
+  const sections = ['va', 'vb', 'vc'];
+  const navLinks = {
+    va: document.getElementById('nav-a'),
+    vb: document.getElementById('nav-b'),
+    vc: document.getElementById('nav-c')
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        sections.forEach((id) => navLinks[id].classList.remove('active'));
+        navLinks[entry.target.id].classList.add('active');
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+
+  sections.forEach((id) => observer.observe(document.getElementById(id)));
+
+  // Collapse toggle marker text
+  document.querySelectorAll('.vc-section').forEach((sec) => {
+    const head = sec.querySelector('.vc-section-head');
+    const marker = sec.querySelector('.marker');
+    head.addEventListener('click', () => {
+      marker.textContent = sec.classList.contains('collapsed') ? '[+]' : '[–]';
+    });
+  });
+
+  // Trend scale buttons in variation B
+  document.querySelectorAll('.vb .scale button').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.currentTarget.parentElement.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
