@@ -20,7 +20,10 @@ export const POST: APIRoute = async ({ request }) => {
       const r = await syncItemAccountsAndBalances(d, env as any, it.id);
       results.push({ ok: true, ...r });
     } catch (e) {
-      results.push({ itemId: it.id, ok: false, error: e instanceof Error ? e.message : String(e) });
+      // Never echo Plaid/SDK errors to the client — they can contain request
+      // context. plaid_sync_log already has the full error server-side.
+      console.error('[sync] item failed', it.id, e);
+      results.push({ itemId: it.id, ok: false, error: 'sync failed (see plaid_sync_log)' });
     }
   }
   return new Response(JSON.stringify({ results }), {

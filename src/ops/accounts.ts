@@ -27,6 +27,7 @@ export async function addAccount(
     accountKind?: AccountKind;
     isLiability?: boolean;
     balanceDollars: number;
+    owner?: 'tyler' | 'julianne' | 'joint';
   },
 ) {
   const inst = await findOrCreateInstitution(d, input.institutionName, input.institutionKind ?? 'other');
@@ -37,6 +38,7 @@ export async function addAccount(
       name: input.accountName.trim(),
       kind: input.accountKind ?? 'other',
       isLiability: input.isLiability ?? false,
+      owner: input.owner ?? 'joint',
     })
     .returning();
   if (!acct) throw new Error('Account insert failed');

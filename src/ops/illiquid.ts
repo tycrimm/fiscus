@@ -21,7 +21,7 @@ const toUnix = (v: number | string): number => {
 
 export async function addIlliquidAsset(
   d: DB,
-  input: { kind: IlliquidKind; name: string; notes?: string },
+  input: { kind: IlliquidKind; name: string; notes?: string; owner?: 'tyler' | 'julianne' | 'joint' },
 ) {
   const [row] = await d
     .insert(illiquidAssets)
@@ -29,6 +29,7 @@ export async function addIlliquidAsset(
       kind: input.kind,
       name: input.name.trim(),
       notes: input.notes ?? null,
+      owner: input.owner ?? 'joint',
     })
     .returning();
   if (!row) throw new Error('Illiquid asset insert failed');

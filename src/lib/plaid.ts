@@ -23,9 +23,14 @@ export function makePlaidClient(env: PlaidEnv): PlaidApi {
   return new PlaidApi(config);
 }
 
-// Products we want every Item to enable. Trial production tier covers all of these.
-export const DEFAULT_PRODUCTS: Products[] = [
-  Products.Transactions,
+// Required products: ones every institution we'd ever connect must support.
+// Transactions is the closest thing to universal; brokerages and banks both have it.
+export const REQUIRED_PRODUCTS: Products[] = [Products.Transactions];
+
+// Optional products: enabled when the institution supports them. Listing them
+// here doesn't gate Link, so a Mercury (no liabilities) or a credit-card-only
+// (no investments) connection still succeeds.
+export const OPTIONAL_PRODUCTS: Products[] = [
   Products.Investments,
   Products.Liabilities,
 ];

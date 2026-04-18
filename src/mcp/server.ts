@@ -40,7 +40,7 @@ server.registerTool(
   'get_account',
   {
     description: 'Full detail for one account including the last 100 balance snapshots.',
-    inputSchema: { accountId: z.string() },
+    inputSchema: { accountId: z.string().uuid() },
   },
   async ({ accountId }) => json(await reads.getAccount(db, accountId)),
 );
@@ -58,7 +58,7 @@ server.registerTool(
   'get_illiquid_asset',
   {
     description: 'Full detail for one illiquid asset: investments, recent valuations, and fund_details sidecar if applicable.',
-    inputSchema: { assetId: z.string() },
+    inputSchema: { assetId: z.string().uuid() },
   },
   async ({ assetId }) => json(await reads.getIlliquidAsset(db, assetId)),
 );
@@ -71,16 +71,17 @@ server.registerTool(
     description:
       'Add a manual account at an institution. Creates the institution if one with the same (case-insensitive) name does not already exist. Records an initial balance snapshot.',
     inputSchema: {
-      institutionName: z.string(),
+      institutionName: z.string().min(1).max(200),
       institutionKind: z
         .enum(['bank', 'brokerage', 'credit_card', 'retirement', 'crypto', 'other'])
         .default('other'),
-      accountName: z.string(),
+      accountName: z.string().min(1).max(200),
       accountKind: z
         .enum(['checking', 'savings', 'brokerage', 'credit_card', 'retirement', 'crypto', 'loan', 'other'])
         .default('other'),
-      balanceDollars: z.number(),
+      balanceDollars: z.number().finite(),
       isLiability: z.boolean().default(false),
+      owner: z.enum(['tyler', 'julianne', 'joint']).default('joint'),
     },
   },
   async (input) => json(await accounts.addAccount(db, input)),
@@ -92,8 +93,8 @@ server.registerTool(
     description:
       'Append a new balance snapshot for an account. Append-only — old snapshots are preserved as time-series.',
     inputSchema: {
-      accountId: z.string(),
-      balanceDollars: z.number(),
+      accountId: z.string().uuid(),
+      balanceDollars: z.number().finite(),
     },
   },
   async ({ accountId, balanceDollars }) =>
@@ -114,8 +115,9 @@ server.registerTool(
         'education_529',
         'other',
       ]),
-      name: z.string(),
-      notes: z.string().optional(),
+      name: z.string().min(1).max(200),
+      notes: z.string().max(2000).optional(),
+      owner: z.enum(['tyler', 'julianne', 'joint']).default('joint'),
     },
   },
   async (input) => json(await illiquid.addIlliquidAsset(db, input)),
@@ -127,16 +129,17 @@ server.registerTool(
     description:
       'Record a check / commit into an illiquid asset. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down.',
     inputSchema: {
-      assetId: z.string(),
+      assetId: z.string().uuid(),
       securityType: z
         .string()
+        .max(100)
         .optional()
         .describe('free text, e.g. "Seed Preferred", "A Preferred", "SAFE", "Convertible Note"'),
-      roundLabel: z.string().optional().describe('free text context, e.g. "$35M Series E-2"'),
+      roundLabel: z.string().max(200).optional().describe('free text context, e.g. "$35M Series E-2"'),
       shares: z.number().int().optional(),
-      pricePerShareDollars: z.number().optional(),
-      costBasisDollars: z.number(),
-      entryDate: z.string().describe('ISO date, e.g. "2024-03-08"'),
+      pricePerShareDollars: z.number().finite().optional(),
+      costBasisDollars: z.number().finite(),
+      entryDate: z.string().max(30).describe('ISO date, e.g. "2024-03-08"'),
     },
   },
   async (input) => json(await illiquid.addInvestment(db, input)),
@@ -148,15 +151,16 @@ server.registerTool(
     description:
       'Append a valuation mark. Pass investmentId to mark a specific check (private co rounds). Omit investmentId to mark the asset as a whole (Grandma $50k, loan balance, 529 plan value). Append-only.',
     inputSchema: {
-      assetId: z.string(),
-      investmentId: z.string().optional(),
-      valueDollars: z.number(),
+      assetId: z.string().uuid(),
+      investmentId: z.string().uuid().optional(),
+      valueDollars: z.number().finite(),
       basis: z
         .string()
+        .max(100)
         .optional()
         .describe('e.g. "Last round", "409A", "Own estimate", "Fund report"'),
-      note: z.string().optional(),
-      asOf: z.string().optional().describe('ISO date; defaults to today'),
+      note: z.string().max(1000).optional(),
+      asOf: z.string().max(30).optional().describe('ISO date; defaults to today'),
     },
   },
   async (input) => json(await illiquid.recordValuation(db, input)),
@@ -168,13 +172,13 @@ server.registerTool(
     description:
       'Set or update the fund sidecar (role, committed/called/distributed, carry) for a fund-kind illiquid asset. Upserts.',
     inputSchema: {
-      assetId: z.string(),
+      assetId: z.string().uuid(),
       role: z.enum(['lp', 'gp', 'both']),
-      committedDollars: z.number().optional(),
-      calledDollars: z.number().optional(),
-      distributedDollars: z.number().optional(),
-      carryPct: z.number().optional(),
-      carryVestedPct: z.number().optional(),
+      committedDollars: z.number().finite().optional(),
+      calledDollars: z.number().finite().optional(),
+      distributedDollars: z.number().finite().optional(),
+      carryPct: z.number().finite().optional(),
+      carryVestedPct: z.number().finite().optional(),
     },
   },
   async (input) => json(await illiquid.setFundDetails(db, input)),
@@ -184,7 +188,7 @@ server.registerTool(
   'archive_illiquid_asset',
   {
     description: 'Soft-archive an illiquid asset so it no longer counts in net worth or lists.',
-    inputSchema: { assetId: z.string() },
+    inputSchema: { assetId: z.string().uuid() },
   },
   async ({ assetId }) => json(await illiquid.archiveIlliquidAsset(db, assetId)),
 );
