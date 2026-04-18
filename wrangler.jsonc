@@ -8,5 +8,13 @@
   "routes": [
     { "pattern": "fiscus.crimm.dev", "custom_domain": true }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fiscus",
+      "database_id": "49e2fc4c-fa79-4c50-b854-15c8a9d4e63d",
+      "migrations_dir": "./drizzle"
+    }
+  ],
   "observability": { "enabled": true }
 }

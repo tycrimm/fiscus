@@ -1,0 +1,101 @@
+---
+import { actions } from 'astro:actions';
+
+const result = Astro.getActionResult(actions.addAccount);
+if (result && !result.error) {
+  return Astro.redirect('/');
+}
+const err = result?.error;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>add account · fiscus</title>
+    <style>
+      :root { color-scheme: light dark; --fg: #111; --muted: #666; --rule: #ccc; --err: #b00020; }
+      @media (prefers-color-scheme: dark) { :root { --fg: #eee; --muted: #888; --rule: #444; --err: #ff6b81; } }
+      * { box-sizing: border-box; }
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        max-width: 32rem; margin: 4rem auto; padding: 0 1.5rem;
+        color: var(--fg); line-height: 1.5;
+      }
+      h1 { font-weight: 500; letter-spacing: -0.02em; margin: 0 0 2rem; }
+      form { display: grid; gap: 1rem; }
+      label { display: grid; gap: 0.25rem; font-size: 0.875rem; color: var(--muted); }
+      input, select {
+        font: inherit; color: inherit; background: transparent;
+        padding: 0.5rem; border: 1px solid var(--rule); border-radius: 6px;
+      }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--muted); }
+      button {
+        font: inherit; padding: 0.6rem 1rem; border: 0; border-radius: 6px;
+        background: var(--fg); color: canvas; cursor: pointer;
+      }
+      a { color: inherit; font-size: 0.875rem; }
+      .err { color: var(--err); font-size: 0.875rem; }
+    </style>
+  </head>
+  <body>
+    <h1><a href="/">←</a> add account</h1>
+
+    {err && <p class="err">{err.message}</p>}
+
+    <form method="POST" action={actions.addAccount}>
+      <div class="row">
+        <label>
+          institution
+          <input name="institutionName" placeholder="Schwab" required />
+        </label>
+        <label>
+          institution kind
+          <select name="institutionKind">
+            <option value="bank">bank</option>
+            <option value="brokerage" selected>brokerage</option>
+            <option value="credit_card">credit card</option>
+            <option value="retirement">retirement</option>
+            <option value="crypto">crypto</option>
+            <option value="other">other</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          account name
+          <input name="accountName" placeholder="Joint brokerage" required />
+        </label>
+        <label>
+          account kind
+          <select name="accountKind">
+            <option value="checking">checking</option>
+            <option value="savings">savings</option>
+            <option value="brokerage" selected>brokerage</option>
+            <option value="credit_card">credit card</option>
+            <option value="retirement">retirement</option>
+            <option value="crypto">crypto</option>
+            <option value="loan">loan</option>
+            <option value="other">other</option>
+          </select>
+        </label>
+      </div>
+
+      <label>
+        current balance (USD)
+        <input name="balanceDollars" type="number" step="0.01" placeholder="0.00" required />
+      </label>
+
+      <label class="check">
+        <input type="checkbox" name="isLiability" />
+        this account is a liability (debt) — subtracts from net worth
+      </label>
+
+      <div>
+        <button type="submit">add account</button>
+      </div>
+    </form>
+  </body>
+</html>

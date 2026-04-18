@@ -1,4 +1,48 @@
 ---
+import { sql } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+import { db } from '../db';
+
+const d = db(env.DB);
+
+type Row = {
+  account_id: string;
+  account_name: string;
+  account_kind: string;
+  institution_name: string;
+  is_liability: number;
+  balance_cents: number | null;
+  as_of: number | null;
+};
+
+const { results } = await d.run(sql`
+  SELECT
+    a.id   AS account_id,
+    a.name AS account_name,
+    a.kind AS account_kind,
+    a.is_liability,
+    i.name AS institution_name,
+    (SELECT balance_cents FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS balance_cents,
+    (SELECT as_of        FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS as_of
+  FROM accounts a
+  JOIN institutions i ON i.id = a.institution_id
+  WHERE a.archived_at IS NULL
+  ORDER BY i.name, a.name
+`);
+const rows = results as unknown as Row[];
+
+const netWorthCents = rows.reduce((acc, r) => {
+  const b = r.balance_cents ?? 0;
+  return acc + (r.is_liability ? -b : b);
+}, 0);
+
+const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const fmtDate = (sec: number | null) => sec ? new Date(sec * 1000).toLocaleDateString('en-US') : '—';
+const money = (cents: number | null | undefined, liab = false) => {
+  if (cents == null) return '—';
+  const dollars = cents / 100;
+  return fmtUSD.format(liab ? -dollars : dollars);
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -7,20 +51,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>fiscus</title>
     <style>
-      :root { color-scheme: light dark; }
+      :root { color-scheme: light dark; --fg: #111; --muted: #666; --rule: #e5e5e5; }
+      @media (prefers-color-scheme: dark) { :root { --fg: #eee; --muted: #888; --rule: #222; } }
+      * { box-sizing: border-box; }
       body {
         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-        max-width: 32rem;
-        margin: 6rem auto;
-        padding: 0 1.5rem;
-        line-height: 1.5;
+        max-width: 48rem; margin: 4rem auto; padding: 0 1.5rem;
+        color: var(--fg); line-height: 1.5;
       }
-      h1 { font-weight: 500; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
-      p  { color: #666; margin: 0; }
+      header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2rem; }
+      h1 { font-weight: 500; letter-spacing: -0.02em; margin: 0; }
+      a  { color: inherit; }
+      .net { margin: 1.5rem 0 2.5rem; }
+      .net .label { color: var(--muted); font-size: 0.875rem; }
+      .net .value { font-size: 2.25rem; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      th, td { padding: 0.75rem 0.5rem; text-align: left; border-bottom: 1px solid var(--rule); }
+      th { font-weight: 500; color: var(--muted); font-size: 0.875rem; }
+      td.num { text-align: right; }
+      .muted { color: var(--muted); font-size: 0.875rem; }
+      .empty { color: var(--muted); padding: 2rem 0; text-align: center; }
     </style>
   </head>
   <body>
-    <h1>fiscus</h1>
-    <p>private. behind the gate. step 1.</p>
+    <header>
+      <h1>fiscus</h1>
+      <a href="/accounts/new">+ add account</a>
+    </header>
+
+    <div class="net">
+      <div class="label">net worth</div>
+      <div class="value">{fmtUSD.format(netWorthCents / 100)}</div>
+    </div>
+
+    {rows.length === 0 ? (
+      <p class="empty">no accounts yet. <a href="/accounts/new">add one</a>.</p>
+    ) : (
+      <table>
+        <thead>
+          <tr>
+            <th>institution</th>
+            <th>account</th>
+            <th class="num">balance</th>
+            <th class="num">as of</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr>
+              <td>{r.institution_name}</td>
+              <td>{r.account_name} <span class="muted">· {r.account_kind}</span></td>
+              <td class="num">{money(r.balance_cents, !!r.is_liability)}</td>
+              <td class="num muted">{fmtDate(r.as_of)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
   </body>
 </html>

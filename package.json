@@ -7,14 +7,23 @@
     "build": "astro build",
     "preview": "wrangler dev",
     "deploy": "astro build && wrangler deploy",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply fiscus --local",
+    "db:migrate:remote": "wrangler d1 migrations apply fiscus --remote",
+    "db:studio": "drizzle-kit studio",
+    "cf:types": "wrangler types"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.10",
-    "astro": "^6.1.8"
+    "astro": "^6.1.8",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.8",
+    "@cloudflare/workers-types": "^4.20260418.1",
     "@types/node": "^25.6.0",
+    "drizzle-kit": "^0.31.10",
     "wrangler": "^4.83.0"
   }
 }
