@@ -37,18 +37,18 @@ const items = await listPlaidItems(d);
     </table>
   )}
 
-  <div class="actions" style="margin-top: var(--space-8)">
-    <div class="seg" role="radiogroup" aria-label="owner">
-      <input type="radio" id="own-tyler" name="owner" value="tyler" checked />
-      <label for="own-tyler">tyler</label>
-      <input type="radio" id="own-julianne" name="owner" value="julianne" />
-      <label for="own-julianne">julianne</label>
-      <input type="radio" id="own-joint" name="owner" value="joint" />
-      <label for="own-joint">joint</label>
-    </div>
+  <div class="connect-flow" data-stage="idle" id="flow">
     <button id="connect-btn" type="button">+ connect bank</button>
-    <button id="sync-btn" type="button" class="btn-ghost">sync all</button>
-    <span id="status" class="muted" style="font-size: var(--size-sm)"></span>
+
+    <div class="picker" id="picker">
+      <span class="picker-label">connect for</span>
+      <button class="own-btn" type="button" data-owner="tyler">tyler</button>
+      <button class="own-btn" type="button" data-owner="julianne">julianne</button>
+      <button class="own-btn" type="button" data-owner="joint">joint</button>
+      <button id="cancel-btn" type="button" class="btn-ghost">cancel</button>
+    </div>
+
+    <span id="status" class="muted"></span>
   </div>
 
   <style>
@@ -70,96 +70,132 @@ const items = await listPlaidItems(d);
       letter-spacing: 0.08em;
       margin-left: var(--space-1);
     }
-    #status { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--size-xs); }
-    .actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 
-    /* segmented control — single bordered strip, picked option inverts */
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--fg);
-      line-height: 1;
+    .connect-flow {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      margin-top: var(--space-8);
     }
-    .seg input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-      pointer-events: none;
-    }
-    .seg label {
+
+    /* idle: button visible, picker hidden. picking: inverted. busy: both hidden, status visible. */
+    .connect-flow[data-stage="idle"]    .picker { display: none; }
+    .connect-flow[data-stage="picking"] #connect-btn { display: none; }
+    .connect-flow[data-stage="busy"]    #connect-btn { display: none; }
+    .connect-flow[data-stage="busy"]    .picker { display: none; }
+
+    .picker {
       display: inline-flex;
       align-items: center;
+      gap: 0;
+      border: 1px solid var(--fg);
+    }
+    .picker-label {
       padding: var(--space-3) var(--space-4);
       font-size: var(--size-xs);
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: var(--fg);
-      background: var(--bg);
-      cursor: pointer;
+      color: var(--fg-muted);
       border-right: 1px solid var(--fg);
-      gap: 0;
-      user-select: none;
+      background: var(--bg-subtle);
     }
-    .seg label:last-of-type { border-right: 0; }
-    .seg input:checked + label {
-      background: var(--fg);
-      color: var(--bg);
+    .picker .own-btn {
+      border: 0;
+      border-right: 1px solid var(--fg);
+      background: var(--bg);
+      color: var(--fg);
+      font-size: var(--size-xs);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: var(--space-3) var(--space-4);
+      cursor: pointer;
     }
-    .seg input:focus-visible + label {
-      outline: 2px solid var(--fg);
-      outline-offset: 2px;
+    .picker .own-btn:hover { background: var(--fg); color: var(--bg); }
+    .picker #cancel-btn {
+      border: 0;
+      border-left: 0;
+      background: var(--bg);
+      color: var(--fg-muted);
+      font-size: var(--size-xs);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: var(--space-3) var(--space-4);
+      cursor: pointer;
     }
-    .seg label:hover { background: var(--bg-subtle); }
-    .seg input:checked + label:hover { background: var(--fg); opacity: 0.92; }
+    .picker #cancel-btn:hover { color: var(--fg); }
+
+    #status {
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: var(--size-xs);
+    }
   </style>
 
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" is:inline></script>
   <script is:inline>
     (() => {
-      const btn = document.getElementById('connect-btn');
-      const syncBtn = document.getElementById('sync-btn');
+      const flow = document.getElementById('flow');
+      const connectBtn = document.getElementById('connect-btn');
+      const cancelBtn = document.getElementById('cancel-btn');
       const status = document.getElementById('status');
-      const setStatus = (s) => { if (status) status.textContent = s; };
+      const ownerBtns = document.querySelectorAll('.own-btn');
 
-      btn?.addEventListener('click', async () => {
+      const setStage = (s) => flow.setAttribute('data-stage', s);
+      const setStatus = (s) => { status.textContent = s; };
+      const reset = () => { setStage('idle'); setStatus(''); };
+
+      connectBtn.addEventListener('click', () => {
+        setStatus('');
+        setStage('picking');
+      });
+
+      cancelBtn.addEventListener('click', reset);
+
+      ownerBtns.forEach((b) => {
+        b.addEventListener('click', () => kickOff(b.getAttribute('data-owner')));
+      });
+
+      async function kickOff(owner) {
         try {
+          setStage('busy');
           setStatus('requesting link token…');
           const r = await fetch('/api/plaid/link-token', { method: 'POST' });
           if (!r.ok) throw new Error(await r.text());
           const { link_token } = await r.json();
+
           setStatus('opening plaid…');
           const handler = window.Plaid.create({
             token: link_token,
             onSuccess: async (public_token, metadata) => {
               setStatus('exchanging token + first sync…');
-              const ownerInput = document.querySelector('input[name="owner"]:checked');
-              const owner = ownerInput ? ownerInput.value : 'joint';
               const ex = await fetch('/api/plaid/exchange', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ public_token, institution: metadata.institution, owner }),
               });
-              if (!ex.ok) { setStatus('exchange failed: ' + (await ex.text())); return; }
+              if (!ex.ok) {
+                setStatus('exchange failed: ' + (await ex.text()));
+                setStage('idle');
+                return;
+              }
               setStatus('connected — reloading…');
               setTimeout(() => location.reload(), 600);
             },
-            onExit: (err) => { if (err) setStatus('plaid exit: ' + err.error_message); },
+            onExit: (err) => {
+              if (err) setStatus('plaid exit: ' + err.error_message);
+              setStage('idle');
+            },
           });
           handler.open();
         } catch (e) {
           setStatus('error: ' + (e?.message ?? e));
+          setStage('idle');
         }
-      });
-
-      syncBtn?.addEventListener('click', async () => {
-        setStatus('syncing all items…');
-        const r = await fetch('/api/plaid/sync', { method: 'POST' });
-        const data = await r.json();
-        const failed = data.results.filter((x) => !x.ok).length;
-        setStatus(failed === 0 ? `synced ${data.results.length} items.` : `synced with ${failed} failures.`);
-        setTimeout(() => location.reload(), 1200);
-      });
+      }
     })();
   </script>
 </Shell>
