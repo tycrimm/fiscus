@@ -14,14 +14,43 @@ const [nw, accounts, illiquid] = await Promise.all([
   listIlliquidAssets(d),
 ]);
 
-const byBalanceDesc = (a: typeof accounts[number], b: typeof accounts[number]) =>
-  (b.latest_cents ?? 0) - (a.latest_cents ?? 0);
-
-const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind)).sort(byBalanceDesc);
-const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'crypto'].includes(a.kind)).sort(byBalanceDesc);
-const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'crypto'].includes(a.kind)).sort(byBalanceDesc);
-const liab   = accounts.filter((a) => !!a.is_liability).sort(byBalanceDesc);
+const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
+const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'crypto'].includes(a.kind));
+const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'crypto'].includes(a.kind));
+const liab   = accounts.filter((a) => !!a.is_liability);
 illiquid.sort((a, b) => b.current_value_cents - a.current_value_cents);
+
+type Group = {
+  key: string;
+  institution: string;
+  kind: string;
+  totalCents: number;
+  count: number;
+  latestAsOf: number | null;
+};
+
+function rollup(rows: typeof accounts): Group[] {
+  const groups = new Map<string, Group>();
+  for (const r of rows) {
+    const key = `${r.institution}|${r.kind}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { key, institution: r.institution, kind: r.kind, totalCents: 0, count: 0, latestAsOf: null };
+      groups.set(key, g);
+    }
+    g.totalCents += r.latest_cents ?? 0;
+    g.count += 1;
+    if (r.latest_as_of && (!g.latestAsOf || r.latest_as_of > g.latestAsOf)) {
+      g.latestAsOf = r.latest_as_of;
+    }
+  }
+  return [...groups.values()].sort((a, b) => Math.abs(b.totalCents) - Math.abs(a.totalCents));
+}
+
+const cashGroups   = rollup(cash);
+const investGroups = rollup(invest);
+const otherGroups  = rollup(other);
+const liabGroups   = rollup(liab);
 
 const sumAccts = (rows: typeof accounts) => rows.reduce((acc, r) => acc + (r.latest_cents ?? 0), 0);
 const cashTotal = sumAccts(cash);
@@ -52,27 +81,27 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
       </aside>
 
       <div class="ledger-main">
-        {cash.length > 0 && (
+        {cashGroups.length > 0 && (
           <LedgerSection title="Cash & Equivalents" count={pluralize(cash.length, 'account')} subtotal={fmtUSDsigned(cashTotal)}>
-            {cash.map((a) => (
+            {cashGroups.map((g) => (
               <LedgerRow
-                name={a.name}
-                sub={`${a.institution} · ${prettyKind(a.kind)}`}
-                amount={money(a.latest_cents)}
-                asOf={fmtDate(a.latest_as_of)}
+                name={g.institution}
+                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
+                amount={fmtUSD.format(g.totalCents / 100)}
+                asOf={fmtDate(g.latestAsOf)}
               />
             ))}
           </LedgerSection>
         )}
 
-        {invest.length > 0 && (
+        {investGroups.length > 0 && (
           <LedgerSection title="Investments" count={pluralize(invest.length, 'account')} subtotal={fmtUSDsigned(investTotal)}>
-            {invest.map((a) => (
+            {investGroups.map((g) => (
               <LedgerRow
-                name={a.name}
-                sub={`${a.institution} · ${prettyKind(a.kind)}`}
-                amount={money(a.latest_cents)}
-                asOf={fmtDate(a.latest_as_of)}
+                name={g.institution}
+                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
+                amount={fmtUSD.format(g.totalCents / 100)}
+                asOf={fmtDate(g.latestAsOf)}
               />
             ))}
           </LedgerSection>
@@ -94,33 +123,32 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
           </LedgerSection>
         )}
 
-        {other.length > 0 && (
+        {otherGroups.length > 0 && (
           <LedgerSection title="Other" count={pluralize(other.length, 'account')} subtotal={fmtUSDsigned(otherTotal)}>
-            {other.map((a) => (
+            {otherGroups.map((g) => (
               <LedgerRow
-                name={a.name}
-                sub={`${a.institution} · ${prettyKind(a.kind)}`}
-                amount={money(a.latest_cents)}
-                asOf={fmtDate(a.latest_as_of)}
+                name={g.institution}
+                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
+                amount={fmtUSD.format(g.totalCents / 100)}
+                asOf={fmtDate(g.latestAsOf)}
               />
             ))}
           </LedgerSection>
         )}
 
-        {liab.length > 0 && (
+        {liabGroups.length > 0 && (
           <LedgerSection
             title="Liabilities"
             count={pluralize(liab.length, 'account')}
             subtotal={fmtUSDsigned(-liabTotal)}
             negSubtotal
           >
-            {liab.map((a) => (
+            {liabGroups.map((g) => (
               <LedgerRow
-                name={a.name}
-                sub={`${a.institution} · ${prettyKind(a.kind)}`}
-                owner={a.owner}
-                amount={money(a.latest_cents, true)}
-                asOf={fmtDate(a.latest_as_of)}
+                name={g.institution}
+                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
+                amount={fmtUSD.format(-g.totalCents / 100)}
+                asOf={fmtDate(g.latestAsOf)}
                 negAmount
               />
             ))}
