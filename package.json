@@ -1,0 +1,20 @@
+{
+  "name": "fiscus",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "wrangler dev",
+    "deploy": "astro build && wrangler deploy",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^13.1.10",
+    "astro": "^6.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "wrangler": "^4.83.0"
+  }
+}
