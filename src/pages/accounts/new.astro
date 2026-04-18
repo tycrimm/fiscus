@@ -14,9 +14,16 @@ const err = result?.error;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>add account · fiscus</title>
     <style>
-      :root { color-scheme: light dark; --fg: #111; --muted: #666; --rule: #ccc; --err: #b00020; }
-      @media (prefers-color-scheme: dark) { :root { --fg: #eee; --muted: #888; --rule: #444; --err: #ff6b81; } }
+      :root {
+        color-scheme: light;
+        --bg: #fff;
+        --fg: #111;
+        --muted: #666;
+        --rule: #d4d4d4;
+        --err: #b00020;
+      }
       * { box-sizing: border-box; }
+      html, body { background: var(--bg); }
       body {
         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
         max-width: 32rem; margin: 4rem auto; padding: 0 1.5rem;
@@ -26,14 +33,14 @@ const err = result?.error;
       form { display: grid; gap: 1rem; }
       label { display: grid; gap: 0.25rem; font-size: 0.875rem; color: var(--muted); }
       input, select {
-        font: inherit; color: inherit; background: transparent;
+        font: inherit; color: var(--fg); background: var(--bg);
         padding: 0.5rem; border: 1px solid var(--rule); border-radius: 6px;
       }
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
       .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--muted); }
       button {
         font: inherit; padding: 0.6rem 1rem; border: 0; border-radius: 6px;
-        background: var(--fg); color: canvas; cursor: pointer;
+        background: var(--fg); color: var(--bg); cursor: pointer;
       }
       a { color: inherit; font-size: 0.875rem; }
       .err { color: var(--err); font-size: 0.875rem; }

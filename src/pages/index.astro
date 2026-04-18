@@ -51,9 +51,15 @@ const money = (cents: number | null | undefined, liab = false) => {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>fiscus</title>
     <style>
-      :root { color-scheme: light dark; --fg: #111; --muted: #666; --rule: #e5e5e5; }
-      @media (prefers-color-scheme: dark) { :root { --fg: #eee; --muted: #888; --rule: #222; } }
+      :root {
+        color-scheme: light;
+        --bg: #fff;
+        --fg: #111;
+        --muted: #666;
+        --rule: #e5e5e5;
+      }
       * { box-sizing: border-box; }
+      html, body { background: var(--bg); }
       body {
         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
         max-width: 48rem; margin: 4rem auto; padding: 0 1.5rem;
