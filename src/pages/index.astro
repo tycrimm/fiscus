@@ -2,19 +2,16 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { netWorth, listAccounts, listIlliquidAssets } from '../ops/reads';
-import { forecastFlows, type ProjectedFlow } from '../ops/flows';
-import { fmtUSD, fmtUSDsigned, fmtDate, prettyKind, pluralize } from '../lib/format';
+import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
 
 const d = db(env.DB);
-const FORECAST_DAYS = 30;
-const [nw, accounts, illiquid, projected] = await Promise.all([
+const [nw, accounts, illiquid] = await Promise.all([
   netWorth(d),
   listAccounts(d),
   listIlliquidAssets(d),
-  forecastFlows(d, FORECAST_DAYS),
 ]);
 
 const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
@@ -65,70 +62,6 @@ const lastSyncedAt = accounts.reduce<number | null>(
   (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
   null,
 );
-
-type FlowSummary = {
-  flowId: string;
-  direction: 'inflow' | 'outflow';
-  cadence: string;
-  label: string;
-  meta: string;                  // "Biweekly · 2 events" or "Apr 24" for one-offs
-  count: number;
-  totalCents: number;
-  totalLowCents: number | null;
-  totalHighCents: number | null;
-  amountDisplay: string;         // signed; range if low/high differ
-};
-
-function summarize(items: ProjectedFlow[]): FlowSummary[] {
-  const byFlow = new Map<string, FlowSummary & { firstDate: number }>();
-  for (const p of items) {
-    let s = byFlow.get(p.flowId);
-    if (!s) {
-      s = {
-        flowId: p.flowId,
-        direction: p.direction,
-        cadence: p.cadence,
-        label: p.label,
-        meta: '',
-        count: 0,
-        firstDate: p.date,
-        totalCents: 0,
-        totalLowCents: null,
-        totalHighCents: null,
-        amountDisplay: '',
-      };
-      byFlow.set(p.flowId, s);
-    }
-    s.count += 1;
-    s.totalCents += p.amountExpectedCents;
-    if (p.amountLowCents != null) s.totalLowCents = (s.totalLowCents ?? 0) + p.amountLowCents;
-    if (p.amountHighCents != null) s.totalHighCents = (s.totalHighCents ?? 0) + p.amountHighCents;
-    if (p.date < s.firstDate) s.firstDate = p.date;
-  }
-  return [...byFlow.values()].map((s) => {
-    const sign = s.direction === 'outflow' ? -1 : 1;
-    const meta = s.cadence === 'once'
-      ? fmtDate(s.firstDate)
-      : `${prettyKind(s.cadence)} · ${pluralize(s.count, 'event')}`;
-    const hasRange =
-      s.totalLowCents != null &&
-      s.totalHighCents != null &&
-      s.totalLowCents !== s.totalHighCents;
-    const amountDisplay = hasRange
-      ? `${fmtUSD.format((sign * (s.totalLowCents ?? 0)) / 100)} – ${fmtUSD.format((sign * (s.totalHighCents ?? 0)) / 100)}`
-      : fmtUSD.format((sign * s.totalCents) / 100);
-    return { ...s, meta, amountDisplay };
-  });
-}
-
-const summaries = summarize(projected).sort((a, b) => b.totalCents - a.totalCents);
-const inflowSummaries = summaries.filter((s) => s.direction === 'inflow');
-const outflowSummaries = summaries.filter((s) => s.direction === 'outflow');
-const inflowEvents = projected.filter((p) => p.direction === 'inflow').length;
-const outflowEvents = projected.filter((p) => p.direction === 'outflow').length;
-const inflowCents = inflowSummaries.reduce((acc, s) => acc + s.totalCents, 0);
-const outflowCents = outflowSummaries.reduce((acc, s) => acc + s.totalCents, 0);
-const netFlowCents = inflowCents - outflowCents;
 
 const hasAny = accounts.length > 0 || illiquid.length > 0;
 ---
@@ -222,54 +155,6 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
               </div>
             ))}
           </LedgerSection>
-        )}
-
-        {summaries.length > 0 && (
-          <div class="upcoming">
-            <div class="upcoming-cols">
-              {inflowSummaries.length > 0 && (
-                <LedgerSection
-                  title={`Receiving · ${FORECAST_DAYS}d`}
-                  count={pluralize(inflowEvents, 'event')}
-                  subtotal={fmtUSDsigned(inflowCents)}
-                >
-                  {inflowSummaries.map((s) => (
-                    <div class="flow-row">
-                      <div class="flow-primary">
-                        <span class="flow-label">{s.label}</span>
-                        <span class="flow-meta">{s.meta}</span>
-                      </div>
-                      <span class="flow-amt num">{s.amountDisplay}</span>
-                    </div>
-                  ))}
-                </LedgerSection>
-              )}
-              {outflowSummaries.length > 0 && (
-                <LedgerSection
-                  title={`Paying · ${FORECAST_DAYS}d`}
-                  count={pluralize(outflowEvents, 'event')}
-                  subtotal={fmtUSDsigned(-outflowCents)}
-                  negSubtotal
-                >
-                  {outflowSummaries.map((s) => (
-                    <div class="flow-row">
-                      <div class="flow-primary">
-                        <span class="flow-label">{s.label}</span>
-                        <span class="flow-meta">{s.meta}</span>
-                      </div>
-                      <span class="flow-amt num neg">{s.amountDisplay}</span>
-                    </div>
-                  ))}
-                </LedgerSection>
-              )}
-            </div>
-            <div class="upcoming-net">
-              <span class="net-label">Net · Next {FORECAST_DAYS} Days</span>
-              <span class:list={['net-amt', 'num', { neg: netFlowCents < 0 }]}>
-                {fmtUSDsigned(netFlowCents)}
-              </span>
-            </div>
-          </div>
         )}
 
         {liabInsts.length > 0 && (
@@ -387,62 +272,6 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     text-align: right;
   }
   .inst-group .kind-row:last-child { padding-bottom: var(--space-2); }
-
-  .upcoming { display: grid; gap: var(--space-2); }
-  .upcoming-cols {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-    align-items: start;
-  }
-  .upcoming-net {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: baseline;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--rule);
-    background: var(--bg-subtle);
-  }
-  .net-label {
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--fg-muted);
-  }
-  .net-amt {
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-  }
-  .net-amt.neg { color: var(--fg); }
-
-  .flow-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--rule);
-    align-items: baseline;
-  }
-  .flow-row:last-child { border-bottom: none; }
-  .flow-primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .flow-label { font-size: var(--size-sm); }
-  .flow-meta {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-  .flow-amt {
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  @media (max-width: 52rem) {
-    .upcoming-cols { grid-template-columns: 1fr; }
-  }
 
   @media (max-width: 52rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
