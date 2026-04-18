@@ -1,79 +1,345 @@
 ---
-import { sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
+import { netWorth, listAccounts, listIlliquidAssets } from '../ops/reads';
 import Shell from '../layouts/Shell.astro';
 
 const d = db(env.DB);
+const [nw, accounts, illiquid] = await Promise.all([
+  netWorth(d),
+  listAccounts(d),
+  listIlliquidAssets(d),
+]);
 
-type Row = {
-  account_id: string;
-  account_name: string;
-  account_kind: string;
-  institution_name: string;
-  is_liability: number;
-  balance_cents: number | null;
-  as_of: number | null;
-};
+const cash = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
+const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'crypto'].includes(a.kind));
+const other = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'crypto'].includes(a.kind));
+const liab = accounts.filter((a) => !!a.is_liability);
 
-const { results } = await d.run(sql`
-  SELECT
-    a.id   AS account_id,
-    a.name AS account_name,
-    a.kind AS account_kind,
-    a.is_liability,
-    i.name AS institution_name,
-    (SELECT balance_cents FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS balance_cents,
-    (SELECT as_of        FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS as_of
-  FROM accounts a
-  JOIN institutions i ON i.id = a.institution_id
-  WHERE a.archived_at IS NULL
-  ORDER BY i.name, a.name
-`);
-const rows = results as unknown as Row[];
-
-const netWorthCents = rows.reduce((acc, r) => {
-  const b = r.balance_cents ?? 0;
-  return acc + (r.is_liability ? -b : b);
-}, 0);
+const sumAccts = (rows: typeof accounts) => rows.reduce((acc, r) => acc + (r.latest_cents ?? 0), 0);
+const cashTotalCents = sumAccts(cash);
+const investTotalCents = sumAccts(invest);
+const otherTotalCents = sumAccts(other);
+const liabTotalCents = sumAccts(liab);
+const illiquidTotalCents = illiquid.reduce((acc, r) => acc + r.current_value_cents, 0);
 
 const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const fmtDate = (sec: number | null) =>
-  sec ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+const fmtUSDsigned = (cents: number) => {
+  const neg = cents < 0;
+  const abs = fmtUSD.format(Math.abs(cents) / 100);
+  return neg ? `−${abs}` : abs;
+};
+const fmtDate = (sec: number | null | undefined) =>
+  sec ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
 const money = (cents: number | null | undefined, liab = false) => {
   if (cents == null) return '—';
   const dollars = cents / 100;
   return fmtUSD.format(liab ? -dollars : dollars);
 };
+const prettyKind = (k: string) => k.replace(/_/g, ' ');
+
+const hasAny = accounts.length > 0 || illiquid.length > 0;
 ---
 <Shell>
-  <section class="hero">
-    <div class="label">net worth</div>
-    <div class="value">{fmtUSD.format(netWorthCents / 100)}</div>
-  </section>
-
-  {rows.length === 0 ? (
+  {!hasAny ? (
     <p class="empty">no accounts yet. ask an agent to add one.</p>
   ) : (
-    <table>
-      <thead>
-        <tr>
-          <th>institution</th>
-          <th>account</th>
-          <th class="num-col">balance</th>
-          <th class="num-col">as of</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr>
-            <td>{r.institution_name}</td>
-            <td>{r.account_name} <span class="muted">· {r.account_kind.replace('_', ' ')}</span></td>
-            <td class="num-col">{money(r.balance_cents, !!r.is_liability)}</td>
-            <td class="num-col muted">{fmtDate(r.as_of)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div class="ledger">
+      <aside class="rail">
+        <div class="rail-label">net worth</div>
+        <div class="rail-value num">{fmtUSD.format(nw.total_usd)}</div>
+
+        <div class="rail-breakdown">
+          <div class="bd-row"><span class="cat">liquid</span><span class="val num">{fmtUSD.format(nw.liquid_usd)}</span></div>
+          <div class="bd-row"><span class="cat">illiquid</span><span class="val num">{fmtUSD.format(nw.illiquid_usd)}</span></div>
+        </div>
+
+        <div class="rail-meta">
+          <div>{accounts.length} accounts · {illiquid.length} illiquid</div>
+        </div>
+      </aside>
+
+      <div class="ledger-main">
+        {cash.length > 0 && (
+          <section class="ledger-section">
+            <button class="ledger-section-head" type="button">
+              <span class="marker" aria-hidden="true">[–]</span>
+              <span class="title">Cash &amp; Equivalents</span>
+              <span class="count">{cash.length} {cash.length === 1 ? 'account' : 'accounts'}</span>
+              <span class="subtotal num">{fmtUSDsigned(cashTotalCents)}</span>
+            </button>
+            <div class="ledger-section-body">
+              {cash.map((a) => (
+                <div class="ledger-row">
+                  <div class="primary">
+                    <span class="acc-name">{a.name}</span>
+                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
+                  </div>
+                  <span class="bal num">{money(a.latest_cents)}</span>
+                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {invest.length > 0 && (
+          <section class="ledger-section">
+            <button class="ledger-section-head" type="button">
+              <span class="marker" aria-hidden="true">[–]</span>
+              <span class="title">Investments</span>
+              <span class="count">{invest.length} {invest.length === 1 ? 'account' : 'accounts'}</span>
+              <span class="subtotal num">{fmtUSDsigned(investTotalCents)}</span>
+            </button>
+            <div class="ledger-section-body">
+              {invest.map((a) => (
+                <div class="ledger-row">
+                  <div class="primary">
+                    <span class="acc-name">{a.name}</span>
+                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
+                  </div>
+                  <span class="bal num">{money(a.latest_cents)}</span>
+                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {illiquid.length > 0 && (
+          <section class="ledger-section">
+            <button class="ledger-section-head" type="button">
+              <span class="marker" aria-hidden="true">[–]</span>
+              <span class="title">Illiquid</span>
+              <span class="count">{illiquid.length} {illiquid.length === 1 ? 'position' : 'positions'}</span>
+              <span class="subtotal num">{fmtUSDsigned(illiquidTotalCents)}</span>
+            </button>
+            <div class="ledger-section-body">
+              {illiquid.map((ia) => (
+                <div class="ledger-row">
+                  <div class="primary">
+                    <span class="acc-name">{ia.name}</span>
+                    <span class="acc-inst">
+                      {prettyKind(ia.kind)}
+                      {ia.investment_count > 0 && ` · ${ia.investment_count} ${ia.investment_count === 1 ? 'position' : 'positions'}`}
+                    </span>
+                  </div>
+                  <span class="bal num">{fmtUSD.format(ia.current_value_cents / 100)}</span>
+                  <span class="asof">—</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {other.length > 0 && (
+          <section class="ledger-section">
+            <button class="ledger-section-head" type="button">
+              <span class="marker" aria-hidden="true">[–]</span>
+              <span class="title">Other</span>
+              <span class="count">{other.length} {other.length === 1 ? 'account' : 'accounts'}</span>
+              <span class="subtotal num">{fmtUSDsigned(otherTotalCents)}</span>
+            </button>
+            <div class="ledger-section-body">
+              {other.map((a) => (
+                <div class="ledger-row">
+                  <div class="primary">
+                    <span class="acc-name">{a.name}</span>
+                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
+                  </div>
+                  <span class="bal num">{money(a.latest_cents)}</span>
+                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {liab.length > 0 && (
+          <section class="ledger-section">
+            <button class="ledger-section-head" type="button">
+              <span class="marker" aria-hidden="true">[–]</span>
+              <span class="title">Liabilities</span>
+              <span class="count">{liab.length} {liab.length === 1 ? 'account' : 'accounts'}</span>
+              <span class="subtotal num neg">{fmtUSDsigned(-liabTotalCents)}</span>
+            </button>
+            <div class="ledger-section-body">
+              {liab.map((a) => (
+                <div class="ledger-row">
+                  <div class="primary">
+                    <span class="acc-name">{a.name}</span>
+                    <span class="acc-inst">{a.institution} · {prettyKind(a.kind)}</span>
+                  </div>
+                  <span class="bal num neg">{money(a.latest_cents, true)}</span>
+                  <span class="asof">{fmtDate(a.latest_as_of)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
   )}
 </Shell>
+
+<style>
+  .ledger {
+    display: grid;
+    grid-template-columns: 16rem 1fr;
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  .rail {
+    position: sticky;
+    top: var(--space-4);
+    display: grid;
+    gap: var(--space-6);
+  }
+  .rail-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .rail-value {
+    font-size: var(--size-3xl);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin-top: calc(-1 * var(--space-4));
+  }
+  .rail-breakdown { display: grid; gap: 0; }
+  .bd-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .bd-row:first-child { border-top: 1px solid var(--rule); }
+  .bd-row .cat {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .rail-meta {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .ledger-main { display: grid; gap: var(--space-6); }
+
+  .ledger-section { border: 1px solid var(--rule); }
+  .ledger-section-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-4);
+    background: var(--bg-subtle);
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .ledger-section-head:hover { background: #f5f5f5; }
+  .ledger-section.collapsed .ledger-section-head { border-bottom: none; }
+  .ledger-section.collapsed .ledger-section-body { display: none; }
+
+  .ledger-section-head .marker {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    width: 1.5rem;
+  }
+  .ledger-section-head .title {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .ledger-section-head .count {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .ledger-section-head .subtotal {
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  .ledger-row {
+    display: grid;
+    grid-template-columns: 1fr auto 5rem;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .ledger-row:last-child { border-bottom: none; }
+  .ledger-row .primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ledger-row .acc-name { font-size: var(--size-sm); }
+  .ledger-row .acc-inst {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .ledger-row .bal { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .ledger-row .asof {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 52rem) {
+    .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
+    .rail {
+      position: static;
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--rule);
+    }
+    .rail-value { font-size: var(--size-2xl); }
+  }
+
+  @media (max-width: 36rem) {
+    .ledger-section-head {
+      grid-template-columns: auto 1fr auto;
+      row-gap: var(--space-1);
+    }
+    .ledger-section-head .count {
+      grid-column: 2 / -1;
+      text-align: right;
+    }
+    .ledger-section-head .subtotal { grid-column: 2 / -1; text-align: right; }
+    .ledger-row { grid-template-columns: 1fr auto; row-gap: var(--space-1); }
+    .ledger-row .asof { grid-column: 1 / -1; text-align: left; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.ledger-section-head').forEach((head) => {
+    head.addEventListener('click', () => {
+      const section = head.closest('.ledger-section');
+      if (!section) return;
+      section.classList.toggle('collapsed');
+      const marker = head.querySelector('.marker');
+      if (marker) marker.textContent = section.classList.contains('collapsed') ? '[+]' : '[–]';
+    });
+  });
+</script>
