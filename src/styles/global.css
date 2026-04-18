@@ -84,8 +84,8 @@ a {
 
 .app-header {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
+  gap: var(--space-8);
   border-bottom: 1px solid var(--rule);
   padding-bottom: var(--space-4);
   margin-bottom: var(--space-8);
