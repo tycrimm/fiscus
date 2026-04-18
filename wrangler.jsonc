@@ -5,7 +5,7 @@
   "compatibility_date": "2026-04-01",
   "compatibility_flags": ["nodejs_compat"],
   "triggers": {
-    "crons": ["0 */6 * * *"]
+    "crons": ["0 10 * * *"]
   },
   "account_id": "3a4e7fc1a9c832398e17f80121fe67f9",
   "routes": [
