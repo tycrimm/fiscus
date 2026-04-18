@@ -13,7 +13,8 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title === 'fiscus' ? 'fiscus' : `${title} · fiscus`}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title === 'fiscus' ? 'FISCUS' : `${title.toUpperCase()} · FISCUS`}</title>
   </head>
   <body>
     <header class="app-header">
