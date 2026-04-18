@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fiscus — tabular (dense)</title>
+<style>
+  :root {
+    color-scheme: light;
+
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --bg-alt: #f5f5f5;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --fg-dim: #999999;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --rule-heavy: #0a0a0a;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --size-xs: 0.6875rem;
+    --size-sm: 0.8125rem;
+    --size-base: 0.9375rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.375rem;
+    --size-2xl: 2rem;
+    --size-3xl: 2.75rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.375rem;
+    --space-3: 0.5rem;
+    --space-4: 0.75rem;
+    --space-5: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+
+    --fill-cash: #0a0a0a;
+    --fill-invest: #404040;
+    --fill-illiquid: #808080;
+    --fill-liab: #b00020;
+    --fill-track: #ececec;
+
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: var(--size-base);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .num { font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .neg { color: var(--neg); }
+  .pos { color: var(--pos); }
+  .muted { color: var(--fg-muted); }
+
+  /* ---------- proto nav ---------- */
+  .proto-nav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule-heavy);
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    padding: var(--space-3) var(--space-6);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .proto-nav .brand { font-weight: 500; }
+  .proto-nav .crumb { color: var(--fg-muted); }
+  .proto-nav .crumb::before { content: '▸ '; color: var(--fg-dim); }
+  .proto-nav .status {
+    margin-left: auto;
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+  .proto-nav .status .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--pos);
+    margin-right: var(--space-2);
+    vertical-align: 0.5px;
+  }
+
+  /* ---------- container ---------- */
+  .page {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: var(--space-6);
+  }
+
+  /* ---------- metrics strip ---------- */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    border: 1px solid var(--rule-heavy);
+    margin-bottom: var(--space-2);
+  }
+  .metric {
+    padding: var(--space-4) var(--space-5);
+    border-right: 1px solid var(--rule);
+    display: grid;
+    gap: 2px;
+  }
+  .metric:last-child { border-right: none; }
+  .metric .lbl {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  .metric .val {
+    font-size: var(--size-lg);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--mono);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .metric .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- allocation strip (under metrics) ---------- */
+  .alloc-strip {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-3) var(--space-5);
+    border: 1px solid var(--rule-heavy);
+    border-top: none;
+    margin-bottom: var(--space-8);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .alloc-strip .lbl { color: var(--fg-muted); }
+  .alloc-strip .bar {
+    display: grid;
+    grid-auto-flow: column;
+    height: 0.5rem;
+    gap: 2px;
+  }
+  .alloc-strip .bar .seg.cash { background: var(--fill-cash); }
+  .alloc-strip .bar .seg.invest { background: var(--fill-invest); }
+  .alloc-strip .bar .seg.illiquid { background: var(--fill-illiquid); }
+  .alloc-strip .pcts {
+    font-family: var(--mono);
+    color: var(--fg);
+    letter-spacing: 0.02em;
+  }
+  .alloc-strip .pcts .dim { color: var(--fg-muted); }
+
+  /* ---------- table ---------- */
+  .tbl-wrap { border: 1px solid var(--rule-heavy); }
+  table.ledger {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+  }
+  table.ledger thead th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--rule-heavy);
+    font-size: var(--size-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    white-space: nowrap;
+    vertical-align: baseline;
+  }
+  table.ledger .col-num { text-align: right; font-family: var(--mono); }
+  table.ledger tbody td {
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: baseline;
+  }
+  table.ledger tbody tr:hover { background: var(--bg-subtle); }
+  table.ledger tbody tr.account td.col-num,
+  table.ledger tbody tr.subtotal td.col-num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* account rows */
+  .account .name {
+    font-weight: 500;
+  }
+  .account .meta {
+    display: block;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+    margin-top: 1px;
+  }
+  .account .inst {
+    color: var(--fg);
+  }
+  .account .kind {
+    font-family: var(--mono);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* group header row */
+  tr.group {
+    background: var(--bg-alt);
+    border-top: 1px solid var(--rule-heavy);
+  }
+  tr.group td {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule-strong);
+    cursor: pointer;
+    user-select: none;
+  }
+  tr.group td.col-num {
+    font-family: var(--mono);
+    font-size: var(--size-sm);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  tr.group .marker {
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    margin-right: var(--space-3);
+  }
+  tr.group .group-count {
+    color: var(--fg-muted);
+    font-weight: 400;
+    margin-left: var(--space-3);
+    letter-spacing: 0.08em;
+  }
+  tr.group .chip {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: var(--space-3);
+    vertical-align: 1px;
+  }
+  tr.group .chip.cash { background: var(--fill-cash); }
+  tr.group .chip.invest { background: var(--fill-invest); }
+  tr.group .chip.illiquid { background: var(--fill-illiquid); }
+  tr.group .chip.liab { background: var(--fill-liab); }
+
+  /* collapsed state */
+  tbody.collapsed tr.account { display: none; }
+
+  /* reconciliation footer */
+  .recon {
+    margin-top: var(--space-8);
+    border: 1px solid var(--rule-heavy);
+  }
+  .recon table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+  }
+  .recon td {
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  .recon td.val {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: var(--size-sm);
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--fg);
+  }
+  .recon tr.total td {
+    background: var(--bg-subtle);
+    border-top: 2px solid var(--fg);
+    border-bottom: none;
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .recon tr.total td.val {
+    font-size: var(--size-lg);
+    font-weight: 500;
+  }
+
+  /* footer meta */
+  .footer-meta {
+    margin-top: var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+
+  /* responsive */
+  @media (max-width: 68rem) {
+    .metrics { grid-template-columns: repeat(3, 1fr); }
+    .metric:nth-child(3) { border-right: none; }
+    .metric:nth-child(-n+3) { border-bottom: 1px solid var(--rule); }
+  }
+  @media (max-width: 48rem) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .metric:nth-child(2n) { border-right: none; }
+    .metric:nth-child(-n+4) { border-bottom: 1px solid var(--rule); }
+    table.ledger thead th.col-inst,
+    table.ledger tbody td.col-inst,
+    table.ledger thead th.col-pctgross,
+    table.ledger tbody td.col-pctgross { display: none; }
+  }
+  @media (max-width: 36rem) {
+    table.ledger thead th.col-kind,
+    table.ledger tbody td.col-kind,
+    table.ledger thead th.col-asof,
+    table.ledger tbody td.col-asof { display: none; }
+    .alloc-strip { grid-template-columns: 1fr; gap: var(--space-2); }
+  }
+</style>
+</head>
+<body>
+
+<nav class="proto-nav">
+  <span class="brand">fiscus</span>
+  <span class="crumb">ledger</span>
+  <span class="status"><span class="dot"></span>synced 2m ago · 2026-04-18 09:42 pst</span>
+</nav>
+
+<main class="page">
+
+  <!-- metrics strip -->
+  <div class="metrics">
+    <div class="metric">
+      <span class="lbl">net worth</span>
+      <span class="val">$1,090,300.00</span>
+      <span class="sub">assets − liabilities</span>
+    </div>
+    <div class="metric">
+      <span class="lbl">gross assets</span>
+      <span class="val">$1,706,500.00</span>
+      <span class="sub">12 accounts · 4 illiquid</span>
+    </div>
+    <div class="metric">
+      <span class="lbl">liabilities</span>
+      <span class="val neg">−$616,200.00</span>
+      <span class="sub">2 accounts</span>
+    </div>
+    <div class="metric">
+      <span class="lbl">liquidity</span>
+      <span class="val">58.7%</span>
+      <span class="sub">liquid / gross</span>
+    </div>
+    <div class="metric">
+      <span class="lbl">leverage</span>
+      <span class="val">36.1%</span>
+      <span class="sub">debt / gross</span>
+    </div>
+    <div class="metric">
+      <span class="lbl">top position</span>
+      <span class="val">44.5%</span>
+      <span class="sub">stripe seed</span>
+    </div>
+  </div>
+
+  <!-- allocation strip -->
+  <div class="alloc-strip">
+    <span class="lbl">allocation</span>
+    <div class="bar" style="grid-template-columns: 12.05fr 46.64fr 41.31fr;">
+      <div class="seg cash"></div>
+      <div class="seg invest"></div>
+      <div class="seg illiquid"></div>
+    </div>
+    <span class="pcts">
+      <span class="dim">cash</span> 12.0%
+      &nbsp;·&nbsp;
+      <span class="dim">invest</span> 46.6%
+      &nbsp;·&nbsp;
+      <span class="dim">illiquid</span> 41.3%
+    </span>
+  </div>
+
+  <!-- main table -->
+  <div class="tbl-wrap">
+    <table class="ledger">
+      <thead>
+        <tr>
+          <th class="col-name">Name</th>
+          <th class="col-inst">Institution</th>
+          <th class="col-kind">Kind</th>
+          <th class="col-pctgross col-num">% Gross</th>
+          <th class="col-pctnw col-num">% NW</th>
+          <th class="col-asof col-num">As of</th>
+          <th class="col-bal col-num">Balance</th>
+        </tr>
+      </thead>
+
+      <tbody class="group-body">
+        <tr class="group">
+          <td colspan="5">
+            <span class="marker">[–]</span>
+            <span class="chip cash"></span>
+            Cash &amp; Equivalents
+            <span class="group-count">3 accounts</span>
+          </td>
+          <td class="col-num">12.05%</td>
+          <td class="col-num">$205,600.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Chase Checking</span>
+            <span class="meta">0.01% apy · acct ****4218</span>
+          </td>
+          <td class="col-inst inst">Chase</td>
+          <td class="col-kind kind">checking</td>
+          <td class="col-num col-pctgross">1.66%</td>
+          <td class="col-num col-pctnw">2.60%</td>
+          <td class="col-num col-asof">Apr 17</td>
+          <td class="col-num col-bal">$28,400.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Chase Savings</span>
+            <span class="meta">0.50% apy · acct ****8810</span>
+          </td>
+          <td class="col-inst inst">Chase</td>
+          <td class="col-kind kind">savings</td>
+          <td class="col-num col-pctgross">3.82%</td>
+          <td class="col-num col-pctnw">5.98%</td>
+          <td class="col-num col-asof">Apr 17</td>
+          <td class="col-num col-bal">$65,200.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Ally HYSA</span>
+            <span class="meta">4.35% apy · acct ****6172</span>
+          </td>
+          <td class="col-inst inst">Ally</td>
+          <td class="col-kind kind">savings</td>
+          <td class="col-num col-pctgross">6.56%</td>
+          <td class="col-num col-pctnw">10.27%</td>
+          <td class="col-num col-asof">Apr 17</td>
+          <td class="col-num col-bal">$112,000.00</td>
+        </tr>
+      </tbody>
+
+      <tbody class="group-body">
+        <tr class="group">
+          <td colspan="5">
+            <span class="marker">[–]</span>
+            <span class="chip invest"></span>
+            Investments
+            <span class="group-count">5 accounts</span>
+          </td>
+          <td class="col-num">46.64%</td>
+          <td class="col-num">$795,900.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Fidelity Brokerage</span>
+            <span class="meta">taxable · acct ****3394 · 23 holdings</span>
+          </td>
+          <td class="col-inst inst">Fidelity</td>
+          <td class="col-kind kind">brokerage</td>
+          <td class="col-num col-pctgross">20.04%</td>
+          <td class="col-num col-pctnw">31.37%</td>
+          <td class="col-num col-asof">Apr 15</td>
+          <td class="col-num col-bal">$342,000.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Vanguard 401k · Tyler</span>
+            <span class="meta">tax-deferred · acct ****0117 · 6 holdings</span>
+          </td>
+          <td class="col-inst inst">Vanguard</td>
+          <td class="col-kind kind">retirement</td>
+          <td class="col-num col-pctgross">12.80%</td>
+          <td class="col-num col-pctnw">20.04%</td>
+          <td class="col-num col-asof">Apr 15</td>
+          <td class="col-num col-bal">$218,500.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Vanguard 401k · Rachel</span>
+            <span class="meta">tax-deferred · acct ****0552 · 5 holdings</span>
+          </td>
+          <td class="col-inst inst">Vanguard</td>
+          <td class="col-kind kind">retirement</td>
+          <td class="col-num col-pctgross">9.63%</td>
+          <td class="col-num col-pctnw">15.07%</td>
+          <td class="col-num col-asof">Apr 15</td>
+          <td class="col-num col-bal">$164,300.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Fidelity Roth IRA</span>
+            <span class="meta">tax-free · acct ****7720 · 4 holdings</span>
+          </td>
+          <td class="col-inst inst">Fidelity</td>
+          <td class="col-kind kind">retirement</td>
+          <td class="col-num col-pctgross">2.85%</td>
+          <td class="col-num col-pctnw">4.47%</td>
+          <td class="col-num col-asof">Apr 15</td>
+          <td class="col-num col-bal">$48,700.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Coinbase</span>
+            <span class="meta">btc 0.184 · eth 4.22 · sol 68.4</span>
+          </td>
+          <td class="col-inst inst">Coinbase</td>
+          <td class="col-kind kind">crypto</td>
+          <td class="col-num col-pctgross">1.31%</td>
+          <td class="col-num col-pctnw">2.05%</td>
+          <td class="col-num col-asof">Apr 17</td>
+          <td class="col-num col-bal">$22,400.00</td>
+        </tr>
+      </tbody>
+
+      <tbody class="group-body">
+        <tr class="group">
+          <td colspan="5">
+            <span class="marker">[–]</span>
+            <span class="chip illiquid"></span>
+            Illiquid
+            <span class="group-count">4 positions</span>
+          </td>
+          <td class="col-num">41.31%</td>
+          <td class="col-num">$705,000.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Stripe Seed</span>
+            <span class="meta">private co · vintage 2019 · 3 checks · last mark mar 2025 · 4.9x moic</span>
+          </td>
+          <td class="col-inst inst">—</td>
+          <td class="col-kind kind">private_co</td>
+          <td class="col-num col-pctgross">28.42%</td>
+          <td class="col-num col-pctnw">44.48%</td>
+          <td class="col-num col-asof">Mar '25</td>
+          <td class="col-num col-bal">$485,000.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Forerunner Ventures III</span>
+            <span class="meta">fund · vintage 2022 · 2 capital calls · $103k called · 1.24x tvpi</span>
+          </td>
+          <td class="col-inst inst">Forerunner</td>
+          <td class="col-kind kind">fund</td>
+          <td class="col-num col-pctgross">7.50%</td>
+          <td class="col-num col-pctnw">11.74%</td>
+          <td class="col-num col-asof">Q1 '26</td>
+          <td class="col-num col-bal">$128,000.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Grandma $50k</span>
+            <span class="meta">gift earmark · unallocated · aunt j trustee</span>
+          </td>
+          <td class="col-inst inst">—</td>
+          <td class="col-kind kind">gift_earmark</td>
+          <td class="col-num col-pctgross">2.93%</td>
+          <td class="col-num col-pctnw">4.59%</td>
+          <td class="col-num col-asof">—</td>
+          <td class="col-num col-bal">$50,000.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">529 · Hazel</span>
+            <span class="meta">education · vintage 2023 · utma oh · $400/mo contrib</span>
+          </td>
+          <td class="col-inst inst">Fidelity</td>
+          <td class="col-kind kind">529</td>
+          <td class="col-num col-pctgross">2.46%</td>
+          <td class="col-num col-pctnw">3.85%</td>
+          <td class="col-num col-asof">Apr 01</td>
+          <td class="col-num col-bal">$42,000.00</td>
+        </tr>
+      </tbody>
+
+      <tbody class="group-body">
+        <tr class="group">
+          <td colspan="5">
+            <span class="marker">[–]</span>
+            <span class="chip liab"></span>
+            Liabilities
+            <span class="group-count">2 accounts</span>
+          </td>
+          <td class="col-num">36.11%</td>
+          <td class="col-num neg">−$616,200.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Mortgage</span>
+            <span class="meta">6.25% apr · 28 yrs remaining · $3,820/mo · orig $680,000</span>
+          </td>
+          <td class="col-inst inst">Wells Fargo</td>
+          <td class="col-kind kind">loan</td>
+          <td class="col-num col-pctgross neg">−35.86%</td>
+          <td class="col-num col-pctnw neg">−56.13%</td>
+          <td class="col-num col-asof">Apr 01</td>
+          <td class="col-num col-bal neg">−$612,000.00</td>
+        </tr>
+        <tr class="account">
+          <td>
+            <span class="name">Amex Platinum</span>
+            <span class="meta">variable apr · autopay full · cycle close may 02</span>
+          </td>
+          <td class="col-inst inst">American Express</td>
+          <td class="col-kind kind">credit_card</td>
+          <td class="col-num col-pctgross neg">−0.25%</td>
+          <td class="col-num col-pctnw neg">−0.39%</td>
+          <td class="col-num col-asof">Apr 17</td>
+          <td class="col-num col-bal neg">−$4,200.00</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- reconciliation -->
+  <div class="recon">
+    <table>
+      <tbody>
+        <tr>
+          <td>gross assets · cash + investments + illiquid</td>
+          <td class="val">$1,706,500.00</td>
+        </tr>
+        <tr>
+          <td>liabilities · mortgage + cards</td>
+          <td class="val neg">−$616,200.00</td>
+        </tr>
+        <tr class="total">
+          <td>net worth</td>
+          <td class="val">$1,090,300.00</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer-meta">
+    <span>12 accounts · 4 illiquid · 5 holdings synced · 2 liabilities</span>
+    <span>fiscus/v0.3 · d1/wnam · drizzle 0.36</span>
+  </div>
+
+</main>
+
+<script>
+  document.querySelectorAll('tr.group').forEach((row) => {
+    row.addEventListener('click', () => {
+      const body = row.closest('tbody');
+      if (!body) return;
+      body.classList.toggle('collapsed');
+      const marker = row.querySelector('.marker');
+      if (marker) marker.textContent = body.classList.contains('collapsed') ? '[+]' : '[–]';
+    });
+  });
+</script>
+
+</body>
+</html>

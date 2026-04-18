@@ -12,9 +12,23 @@ export function fmtUSDsigned(cents: number): string {
   return neg ? `−${abs}` : abs;
 }
 
+const TZ = 'America/Los_Angeles';
+
 export function fmtDate(sec: number | null | undefined): string {
   return sec
-    ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ })
+    : '—';
+}
+
+export function fmtDateTime(sec: number | null | undefined): string {
+  return sec
+    ? new Date(sec * 1000).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: TZ,
+      })
     : '—';
 }
 

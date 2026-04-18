@@ -2,14 +2,12 @@
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { listPlaidItems } from '../ops/plaid';
+import { fmtDateTime } from '../lib/format';
 import * as schema from '../db/schema';
 import Shell from '../layouts/Shell.astro';
 
 const d = drizzle(env.DB, { schema });
 const items = await listPlaidItems(d);
-
-const fmtDate = (sec: number | null) =>
-  sec ? new Date(sec * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
 ---
 <Shell title="connect">
   <h1>connections</h1>
@@ -32,7 +30,7 @@ const fmtDate = (sec: number | null) =>
             <td>{it.institutionName}</td>
             <td><span class="owner-tag">{it.owner}</span></td>
             <td><span class:list={['status-badge', it.status === 'active' ? 'pos' : 'neg']}>{it.status}</span>{it.lastError ? <span class="muted"> · {it.lastError}</span> : null}</td>
-            <td class="num-col muted">{fmtDate(it.lastSyncAt)}</td>
+            <td class="num-col muted">{fmtDateTime(it.lastSyncAt)} <span class="tz">PT</span></td>
           </tr>
         ))}
       </tbody>
@@ -40,12 +38,14 @@ const fmtDate = (sec: number | null) =>
   )}
 
   <div class="actions" style="margin-top: var(--space-8)">
-    <fieldset class="owner-picker">
-      <legend>owner</legend>
-      <label><input type="radio" name="owner" value="tyler" checked /> tyler</label>
-      <label><input type="radio" name="owner" value="julianne" /> julianne</label>
-      <label><input type="radio" name="owner" value="joint" /> joint</label>
-    </fieldset>
+    <div class="seg" role="radiogroup" aria-label="owner">
+      <input type="radio" id="own-tyler" name="owner" value="tyler" checked />
+      <label for="own-tyler">tyler</label>
+      <input type="radio" id="own-julianne" name="owner" value="julianne" />
+      <label for="own-julianne">julianne</label>
+      <input type="radio" id="own-joint" name="owner" value="joint" />
+      <label for="own-joint">joint</label>
+    </div>
     <button id="connect-btn" type="button">+ connect bank</button>
     <button id="sync-btn" type="button" class="btn-ghost">sync all</button>
     <span id="status" class="muted" style="font-size: var(--size-sm)"></span>
@@ -64,31 +64,54 @@ const fmtDate = (sec: number | null) =>
       font-size: var(--size-xs);
       color: var(--fg-muted);
     }
-    #status { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--size-xs); }
-    .actions { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-    .owner-picker {
-      border: 1px solid var(--rule);
-      padding: var(--space-2) var(--space-3);
-      display: flex;
-      gap: var(--space-3);
-      align-items: center;
-    }
-    .owner-picker legend {
-      padding: 0 var(--space-2);
+    .tz {
       font-size: var(--size-xs);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
       color: var(--fg-muted);
+      letter-spacing: 0.08em;
+      margin-left: var(--space-1);
     }
-    .owner-picker label {
-      font-size: var(--size-sm);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      cursor: pointer;
+    #status { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--size-xs); }
+    .actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+
+    /* segmented control — single bordered strip, picked option inverts */
+    .seg {
+      display: inline-flex;
+      border: 1px solid var(--fg);
+      line-height: 1;
+    }
+    .seg input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .seg label {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-1);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--size-xs);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--fg);
+      background: var(--bg);
+      cursor: pointer;
+      border-right: 1px solid var(--fg);
+      gap: 0;
+      user-select: none;
     }
+    .seg label:last-of-type { border-right: 0; }
+    .seg input:checked + label {
+      background: var(--fg);
+      color: var(--bg);
+    }
+    .seg input:focus-visible + label {
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
+    .seg label:hover { background: var(--bg-subtle); }
+    .seg input:checked + label:hover { background: var(--fg); opacity: 0.92; }
   </style>
 
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" is:inline></script>
