@@ -7,14 +7,16 @@ Each step ends in a deployed, useful thing. Always pick up at the lowest uncheck
 ## Status
 
 - [x] **Step 1** — Astro + Cloudflare Workers, deployed to https://fiscus.crimm.dev, gated by Cloudflare Access (One-Time PIN, allowlist: tman7000@gmail.com)
-- [x] **Step 2** — D1 (`fiscus`, id `49e2fc4c-fa79-4c50-b854-15c8a9d4e63d`, WNAM), Drizzle ORM, schema: `institutions` + `accounts` + `balance_snapshots`. Home shows net worth + account list. `/accounts/new` form adds institution + account + first balance snapshot.
-- [ ] **Step 3** — Illiquid assets schema (private company positions, fund LP/GP/carry, valuation_events; manual entry UI)
-- [ ] **Step 4** — Plaid Link + first sandbox account (server link_token, client Link, exchange public_token, AES-GCM encrypted access_token in D1, on-demand balance/tx pull)
-- [ ] **Step 5** — Plaid webhooks + Cloudflare Cron Trigger backstop (~6h cadence, idempotent upserts)
-- [ ] **Step 6** — Connect remaining Plaid institutions (USAA, Schwab, Mercury) — needs Plaid production approval
-- [ ] **Step 7** — IBKR Flex Query integration (positions, NAV, trades, dividends; separate creds in Workers Secrets)
-- [ ] **Step 8** — Net worth dashboard (totals, allocation breakdown, time series from balance_snapshots)
-- [ ] **Step 9** — MCP server for agent read access (writes only later, scoped narrowly)
+- [x] **Step 2** — D1 (`fiscus`, id `49e2fc4c-fa79-4c50-b854-15c8a9d4e63d`, WNAM), Drizzle ORM, schema: `institutions` + `accounts` + `balance_snapshots`. Home shows net worth + account list. Write ops live in `src/ops/accounts.ts` (pure fns, no UI).
+- [ ] **Step 3a** — Illiquid assets schema — **schema only, no UI**. Tables: `illiquid_assets`, `investments`, `valuations`, `fund_details`. Also: `holdings`, `securities` (for brokerage positions, used by Plaid later).
+- [ ] **Step 3b** — **MCP server (local stdio)** exposing read + write tools over all fiscus data. Lands right after 3a so Tyler can enter data by talking to an agent instead of filling forms.
+- [ ] **Step 4** — Plaid Link + first sandbox Item (encrypted access_token, on-demand balance/holdings pull)
+- [ ] **Step 5** — Plaid webhooks + Cloudflare Cron Trigger (~6h backstop)
+- [ ] **Step 6** — Connect remaining Plaid institutions (USAA, Schwab, Mercury, **IBKR via Plaid**) — needs Plaid production approval
+- [ ] **Step 7** — Net worth dashboard (totals, allocation breakdown, time series, daily change)
+- [ ] **Step 8** — Recurring obligations / burn tracking (nanny, insurance, car payments, subscriptions)
+
+> IBKR Flex Query native API dropped — IBKR goes through Plaid too for a uniform integration surface.
 
 ## Stack
 
@@ -33,11 +35,18 @@ Each step ends in a deployed, useful thing. Always pick up at the lowest uncheck
 - Zero Trust team: (set during Step 1; visible at `one.dash.cloudflare.com`)
 - Access application: `fiscus` → policy `JTC` (Allow → `tman7000@gmail.com`)
 
+## Product philosophy
+
+- **No manual write forms.** All writes happen via Plaid sync or by talking to an agent (Claude in Claude Code, or the MCP-enabled agent once 3b ships). The web UI is a read surface: net worth, dashboard, account detail.
+- **Two classes of data:**
+  1. **Hand-entered** (illiquid, obligations, initial balances before Plaid) — land directly in canonical tables via `src/ops/*` functions.
+  2. **Plaid-synced** (accounts, balances, holdings, transactions) — land via Plaid adapters that call the same canonical-layer ops. Raw Plaid payloads kept in an audit log (`plaid_sync_log`) for debugging.
+- Until MCP (step 3b) lands, Claude makes writes via `wrangler d1 execute --remote --command "INSERT INTO ..."` during conversation.
+
 ## Outstanding side-items
 
-- [ ] **Plaid developer signup** (Tyler) — start in Sandbox, then submit for production review (~1-2 weeks). Needed before Step 4 finishes useful work and before Step 6 can begin.
+- [ ] **Plaid developer signup** (Tyler) — dev account created; start in Sandbox, then submit for production review (~1-2 weeks).
 - [ ] **Wife's email** — not yet on the Access allowlist. Add to JTC policy when ready.
-- [ ] **IBKR Flex Query report shape** — decide which fields to pull before Step 7.
 
 ## Security conventions
 

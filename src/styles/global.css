@@ -58,11 +58,12 @@ h3,
 h4 {
   margin: 0;
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
-h1 { font-size: var(--size-xl); }
-h2 { font-size: var(--size-lg); }
-h3 { font-size: var(--size-base); }
+h1 { font-size: var(--size-lg); letter-spacing: 0.04em; }
+h2 { font-size: var(--size-base); letter-spacing: 0.06em; }
+h3 { font-size: var(--size-sm); letter-spacing: 0.08em; }
 
 a {
   color: inherit;
@@ -90,12 +91,19 @@ a {
   margin-bottom: var(--space-8);
 }
 .app-header a { text-decoration: none; }
-.app-header .brand { font-weight: 500; letter-spacing: -0.03em; font-size: var(--size-lg); }
+.app-header .brand {
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  font-size: var(--size-sm);
+  text-transform: uppercase;
+}
 .app-header nav {
   display: flex;
   gap: var(--space-6);
-  font-size: var(--size-sm);
+  font-size: var(--size-xs);
   color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 .app-header nav a { text-decoration: none; }
 .app-header nav a:hover { color: var(--fg); }
@@ -109,7 +117,8 @@ a {
   color: var(--fg-muted);
   font-size: var(--size-xs);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
+  font-weight: 500;
 }
 .hero .value {
   font-size: var(--size-3xl);
@@ -133,11 +142,11 @@ td {
   vertical-align: baseline;
 }
 thead th {
-  font-weight: 400;
+  font-weight: 500;
   color: var(--fg-muted);
   font-size: var(--size-xs);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--rule-strong);
 }
@@ -154,7 +163,8 @@ label {
   font-size: var(--size-xs);
   color: var(--fg-muted);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  font-weight: 500;
 }
 input,
 select,
@@ -209,14 +219,15 @@ textarea:focus {
 button,
 .btn {
   font: inherit;
-  font-size: var(--size-sm);
+  font-size: var(--size-xs);
   padding: var(--space-3) var(--space-6);
   border: 1px solid var(--fg);
   border-radius: 0;
   background: var(--fg);
   color: var(--bg);
   cursor: pointer;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   text-decoration: none;
   display: inline-block;
 }
