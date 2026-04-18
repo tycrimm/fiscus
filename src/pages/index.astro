@@ -14,10 +14,14 @@ const [nw, accounts, illiquid] = await Promise.all([
   listIlliquidAssets(d),
 ]);
 
-const cash = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
-const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'crypto'].includes(a.kind));
-const other = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'crypto'].includes(a.kind));
-const liab = accounts.filter((a) => !!a.is_liability);
+const byBalanceDesc = (a: typeof accounts[number], b: typeof accounts[number]) =>
+  (b.latest_cents ?? 0) - (a.latest_cents ?? 0);
+
+const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind)).sort(byBalanceDesc);
+const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'crypto'].includes(a.kind)).sort(byBalanceDesc);
+const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'crypto'].includes(a.kind)).sort(byBalanceDesc);
+const liab   = accounts.filter((a) => !!a.is_liability).sort(byBalanceDesc);
+illiquid.sort((a, b) => b.current_value_cents - a.current_value_cents);
 
 const sumAccts = (rows: typeof accounts) => rows.reduce((acc, r) => acc + (r.latest_cents ?? 0), 0);
 const cashTotal = sumAccts(cash);
