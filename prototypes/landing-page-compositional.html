@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fiscus — compositional (refined)</title>
+<style>
+  :root {
+    color-scheme: light;
+
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --fg-dim: #999999;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.5rem;
+    --size-2xl: 2.25rem;
+    --size-3xl: 3rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+
+    --fill-cash: #0a0a0a;
+    --fill-invest: #525252;
+    --fill-illiquid: #a3a3a3;
+    --fill-liab: #b00020;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--size-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  .neg { color: var(--neg); }
+  .muted { color: var(--fg-muted); }
+
+  /* ---------- proto nav ---------- */
+  .proto-nav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-6);
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .proto-nav .brand { font-weight: 500; letter-spacing: 0.12em; }
+  .proto-nav .links { display: flex; gap: var(--space-4); margin-left: auto; }
+  .proto-nav a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    padding-bottom: 2px;
+    border-bottom: 1px solid transparent;
+  }
+  .proto-nav a:hover { color: var(--fg); }
+  .proto-nav a.active { color: var(--fg); border-bottom-color: var(--fg); }
+
+  /* ---------- variation frame ---------- */
+  .variation {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: var(--space-12) var(--space-6) var(--space-16);
+    border-bottom: 1px solid var(--rule);
+  }
+  .variation:last-child { border-bottom: none; }
+  .variation > header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--rule);
+  }
+  .variation > header .letter {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    color: var(--fg-muted);
+  }
+  .variation > header h2 {
+    margin: 0;
+    font-size: var(--size-base);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .variation > header .tag {
+    margin-left: auto;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ---------- ledger layout ---------- */
+  .ledger {
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+    gap: var(--space-8);
+    align-items: start;
+  }
+  .rail {
+    position: sticky;
+    top: calc(var(--space-4) + 2.5rem);
+    display: grid;
+    gap: var(--space-6);
+  }
+  .rail-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .rail-value {
+    font-size: var(--size-3xl);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin-top: calc(-1 * var(--space-4));
+  }
+
+  .ledger-main { display: grid; gap: var(--space-6); }
+
+  /* ---------- composition bar (shared) ---------- */
+  .comp-bar {
+    display: grid;
+    grid-auto-flow: column;
+    height: 0.5rem;
+    width: 100%;
+    gap: 2px;
+  }
+  .comp-bar .seg.cash { background: var(--fill-cash); }
+  .comp-bar .seg.invest { background: var(--fill-invest); }
+  .comp-bar .seg.illiquid { background: var(--fill-illiquid); }
+  .comp-bar .seg.liab { background: var(--fill-liab); }
+
+  .comp-pcts {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: var(--space-2);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .comp-pcts > * { display: grid; gap: 0; }
+  .comp-pcts .cat { }
+  .comp-pcts .pct {
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    letter-spacing: 0;
+  }
+
+  /* ---------- ratio block (D1 + D2) ---------- */
+  .ratio-block {
+    display: grid;
+    gap: 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--rule);
+  }
+  .ratio-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    padding: var(--space-2) 0;
+    font-size: var(--size-xs);
+  }
+  .ratio-row .lbl {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .ratio-row .val {
+    font-variant-numeric: tabular-nums;
+    font-size: var(--size-sm);
+  }
+
+  .rail-meta {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ---------- ledger section (shared base) ---------- */
+  .ledger-section { border: 1px solid var(--rule); }
+  .head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto;
+    gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-4);
+    background: var(--bg-subtle);
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+  }
+  .head:hover { background: #f5f5f5; }
+  .ledger-section.collapsed .head { border-bottom: none; }
+  .ledger-section.collapsed .body { display: none; }
+
+  .marker {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    width: 1.5rem;
+  }
+  .title {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .count {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .pct-gross {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    min-width: 3.5rem;
+    text-align: right;
+  }
+  .subtotal {
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    min-width: 7rem;
+    text-align: right;
+  }
+
+  /* ---------- ledger row ---------- */
+  .ledger-row {
+    display: grid;
+    grid-template-columns: 1fr auto 5rem;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .ledger-row:last-child { border-bottom: none; }
+  .ledger-row .primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ledger-row .name { font-size: var(--size-sm); }
+  .ledger-row .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .ledger-row .bal {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .ledger-row .asof {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* ---------- D2: color-tied section headers ---------- */
+  .v-tied .ledger-section { border-left-width: 3px; border-left-style: solid; }
+  .v-tied .ledger-section.cash { border-left-color: var(--fill-cash); }
+  .v-tied .ledger-section.invest { border-left-color: var(--fill-invest); }
+  .v-tied .ledger-section.illiquid { border-left-color: var(--fill-illiquid); }
+  .v-tied .ledger-section.liab { border-left-color: var(--fill-liab); }
+
+  /* ---------- reconciliation block ---------- */
+  .recon {
+    display: grid;
+    gap: 0;
+    margin-top: var(--space-2);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+    border: 1px solid var(--rule);
+    background: var(--bg-subtle);
+  }
+  .recon .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    padding: var(--space-2) 0;
+    font-size: var(--size-sm);
+  }
+  .recon .row + .row { border-top: 1px solid var(--rule); }
+  .recon .row.sum {
+    border-top: 2px solid var(--fg);
+    margin-top: var(--space-1);
+    padding-top: var(--space-3);
+  }
+  .recon .lbl {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  .recon .row.sum .lbl {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .recon .val {
+    font-variant-numeric: tabular-nums;
+  }
+  .recon .row.sum .val {
+    font-size: var(--size-lg);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 52rem) {
+    .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
+    .rail {
+      position: static;
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--rule);
+    }
+    .rail-value { font-size: var(--size-2xl); }
+  }
+  @media (max-width: 36rem) {
+    .variation { padding: var(--space-8) var(--space-4) var(--space-12); }
+    .proto-nav { padding: var(--space-3) var(--space-4); gap: var(--space-3); }
+    .proto-nav .links { gap: var(--space-3); }
+    .ledger-row { grid-template-columns: 1fr auto; row-gap: var(--space-1); }
+    .ledger-row .asof { grid-column: 1 / -1; text-align: left; }
+    .head { grid-template-columns: auto 1fr auto; row-gap: var(--space-1); }
+    .count { grid-column: 2 / -1; text-align: right; }
+    .pct-gross { grid-column: 2 / -1; text-align: right; }
+    .subtotal { grid-column: 2 / -1; text-align: right; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="proto-nav">
+  <span class="brand">fiscus · compositional</span>
+  <span class="links">
+    <a href="#v-tight" data-target="v-tight">D1 · Tight</a>
+    <a href="#v-tied" data-target="v-tied">D2 · Color-tied</a>
+  </span>
+</nav>
+
+<!-- ============================================================
+     D1 — TIGHT (minimal rail, no restated dollars, reconciled ledger)
+     ============================================================ -->
+<section class="variation" id="v-tight">
+  <header>
+    <span class="letter">D1</span>
+    <h2>Tight</h2>
+    <span class="tag">no restated dollars · ledger reconciles</span>
+  </header>
+
+  <div class="ledger">
+    <aside class="rail">
+      <div class="rail-label">net worth</div>
+      <div class="rail-value num">$1,090,300</div>
+
+      <div>
+        <div class="rail-label" style="margin-bottom: var(--space-2);">allocation</div>
+        <div class="comp-bar" style="grid-template-columns: 12.05fr 46.64fr 41.31fr;">
+          <div class="seg cash" title="cash 12.0%"></div>
+          <div class="seg invest" title="investments 46.6%"></div>
+          <div class="seg illiquid" title="illiquid 41.3%"></div>
+        </div>
+        <div class="comp-pcts" style="margin-top: var(--space-3);">
+          <div><div class="pct num">12.0%</div><div class="cat">cash</div></div>
+          <div><div class="pct num">46.6%</div><div class="cat">invest</div></div>
+          <div><div class="pct num">41.3%</div><div class="cat">illiquid</div></div>
+        </div>
+      </div>
+
+      <div class="ratio-block">
+        <div class="ratio-row">
+          <span class="lbl">liquid share</span>
+          <span class="val num">58.7%</span>
+        </div>
+        <div class="ratio-row">
+          <span class="lbl">debt / assets</span>
+          <span class="val num">36.1%</span>
+        </div>
+      </div>
+
+      <div class="rail-meta">12 accounts · 4 illiquid</div>
+    </aside>
+
+    <div class="ledger-main">
+      <section class="ledger-section">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Cash &amp; Equivalents</span>
+          <span class="count">3 accounts</span>
+          <span class="pct-gross num">12.0%</span>
+          <span class="subtotal num">$205,600.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Chase Checking</span><span class="sub">Chase · checking</span></div><span class="bal num">$28,400.00</span><span class="asof">Apr 17</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Chase Savings</span><span class="sub">Chase · savings</span></div><span class="bal num">$65,200.00</span><span class="asof">Apr 17</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Ally HYSA</span><span class="sub">Ally · savings</span></div><span class="bal num">$112,000.00</span><span class="asof">Apr 17</span></div>
+        </div>
+      </section>
+
+      <section class="ledger-section">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Investments</span>
+          <span class="count">5 accounts</span>
+          <span class="pct-gross num">46.6%</span>
+          <span class="subtotal num">$795,900.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Fidelity Brokerage</span><span class="sub">Fidelity · brokerage</span></div><span class="bal num">$342,000.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Vanguard 401k · Tyler</span><span class="sub">Vanguard · retirement</span></div><span class="bal num">$218,500.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Vanguard 401k · Rachel</span><span class="sub">Vanguard · retirement</span></div><span class="bal num">$164,300.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Fidelity Roth IRA</span><span class="sub">Fidelity · retirement</span></div><span class="bal num">$48,700.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Coinbase</span><span class="sub">Coinbase · crypto</span></div><span class="bal num">$22,400.00</span><span class="asof">Apr 17</span></div>
+        </div>
+      </section>
+
+      <section class="ledger-section">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Illiquid</span>
+          <span class="count">4 positions</span>
+          <span class="pct-gross num">41.3%</span>
+          <span class="subtotal num">$705,000.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Stripe Seed</span><span class="sub">private company · 3 positions</span></div><span class="bal num">$485,000.00</span><span class="asof">—</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Forerunner Ventures III</span><span class="sub">fund · 2 positions</span></div><span class="bal num">$128,000.00</span><span class="asof">—</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Grandma $50k</span><span class="sub">gift earmark</span></div><span class="bal num">$50,000.00</span><span class="asof">—</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">529 · Hazel</span><span class="sub">education 529</span></div><span class="bal num">$42,000.00</span><span class="asof">—</span></div>
+        </div>
+      </section>
+
+      <section class="ledger-section">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Liabilities</span>
+          <span class="count">2 accounts</span>
+          <span class="pct-gross num">36.1%</span>
+          <span class="subtotal num neg">−$616,200.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Mortgage</span><span class="sub">Wells Fargo · loan</span></div><span class="bal num neg">−$612,000.00</span><span class="asof">Apr 01</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Amex Platinum</span><span class="sub">American Express · credit card</span></div><span class="bal num neg">−$4,200.00</span><span class="asof">Apr 17</span></div>
+        </div>
+      </section>
+
+      <div class="recon">
+        <div class="row">
+          <span class="lbl">gross assets</span>
+          <span class="val num">$1,706,500.00</span>
+        </div>
+        <div class="row">
+          <span class="lbl">liabilities</span>
+          <span class="val num neg">−$616,200.00</span>
+        </div>
+        <div class="row sum">
+          <span class="lbl">net worth</span>
+          <span class="val num">$1,090,300.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     D2 — COLOR-TIED (bucket colors tie rail to section headers)
+     ============================================================ -->
+<section class="variation v-tied" id="v-tied">
+  <header>
+    <span class="letter">D2</span>
+    <h2>Color-tied</h2>
+    <span class="tag">rail bar colors tie to ledger sections</span>
+  </header>
+
+  <div class="ledger">
+    <aside class="rail">
+      <div class="rail-label">net worth</div>
+      <div class="rail-value num">$1,090,300</div>
+
+      <div>
+        <div class="rail-label" style="margin-bottom: var(--space-2);">allocation</div>
+        <div class="comp-bar" style="grid-template-columns: 12.05fr 46.64fr 41.31fr;">
+          <div class="seg cash"></div>
+          <div class="seg invest"></div>
+          <div class="seg illiquid"></div>
+        </div>
+        <div class="comp-pcts" style="margin-top: var(--space-3);">
+          <div><div class="pct num">12.0%</div><div class="cat">cash</div></div>
+          <div><div class="pct num">46.6%</div><div class="cat">invest</div></div>
+          <div><div class="pct num">41.3%</div><div class="cat">illiquid</div></div>
+        </div>
+      </div>
+
+      <div class="ratio-block">
+        <div class="ratio-row">
+          <span class="lbl">liquid share</span>
+          <span class="val num">58.7%</span>
+        </div>
+        <div class="ratio-row">
+          <span class="lbl">debt / assets</span>
+          <span class="val num">36.1%</span>
+        </div>
+      </div>
+
+      <div class="rail-meta">12 accounts · 4 illiquid</div>
+    </aside>
+
+    <div class="ledger-main">
+      <section class="ledger-section cash">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Cash &amp; Equivalents</span>
+          <span class="count">3 accounts</span>
+          <span class="pct-gross num">12.0%</span>
+          <span class="subtotal num">$205,600.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Chase Checking</span><span class="sub">Chase · checking</span></div><span class="bal num">$28,400.00</span><span class="asof">Apr 17</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Chase Savings</span><span class="sub">Chase · savings</span></div><span class="bal num">$65,200.00</span><span class="asof">Apr 17</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Ally HYSA</span><span class="sub">Ally · savings</span></div><span class="bal num">$112,000.00</span><span class="asof">Apr 17</span></div>
+        </div>
+      </section>
+
+      <section class="ledger-section invest">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Investments</span>
+          <span class="count">5 accounts</span>
+          <span class="pct-gross num">46.6%</span>
+          <span class="subtotal num">$795,900.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Fidelity Brokerage</span><span class="sub">Fidelity · brokerage</span></div><span class="bal num">$342,000.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Vanguard 401k · Tyler</span><span class="sub">Vanguard · retirement</span></div><span class="bal num">$218,500.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Vanguard 401k · Rachel</span><span class="sub">Vanguard · retirement</span></div><span class="bal num">$164,300.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Fidelity Roth IRA</span><span class="sub">Fidelity · retirement</span></div><span class="bal num">$48,700.00</span><span class="asof">Apr 15</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Coinbase</span><span class="sub">Coinbase · crypto</span></div><span class="bal num">$22,400.00</span><span class="asof">Apr 17</span></div>
+        </div>
+      </section>
+
+      <section class="ledger-section illiquid">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Illiquid</span>
+          <span class="count">4 positions</span>
+          <span class="pct-gross num">41.3%</span>
+          <span class="subtotal num">$705,000.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Stripe Seed</span><span class="sub">private company · 3 positions</span></div><span class="bal num">$485,000.00</span><span class="asof">—</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Forerunner Ventures III</span><span class="sub">fund · 2 positions</span></div><span class="bal num">$128,000.00</span><span class="asof">—</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Grandma $50k</span><span class="sub">gift earmark</span></div><span class="bal num">$50,000.00</span><span class="asof">—</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">529 · Hazel</span><span class="sub">education 529</span></div><span class="bal num">$42,000.00</span><span class="asof">—</span></div>
+        </div>
+      </section>
+
+      <section class="ledger-section liab">
+        <button class="head" type="button">
+          <span class="marker" aria-hidden="true">[–]</span>
+          <span class="title">Liabilities</span>
+          <span class="count">2 accounts</span>
+          <span class="pct-gross num">36.1%</span>
+          <span class="subtotal num neg">−$616,200.00</span>
+        </button>
+        <div class="body">
+          <div class="ledger-row"><div class="primary"><span class="name">Mortgage</span><span class="sub">Wells Fargo · loan</span></div><span class="bal num neg">−$612,000.00</span><span class="asof">Apr 01</span></div>
+          <div class="ledger-row"><div class="primary"><span class="name">Amex Platinum</span><span class="sub">American Express · credit card</span></div><span class="bal num neg">−$4,200.00</span><span class="asof">Apr 17</span></div>
+        </div>
+      </section>
+
+      <div class="recon">
+        <div class="row">
+          <span class="lbl">gross assets</span>
+          <span class="val num">$1,706,500.00</span>
+        </div>
+        <div class="row">
+          <span class="lbl">liabilities</span>
+          <span class="val num neg">−$616,200.00</span>
+        </div>
+        <div class="row sum">
+          <span class="lbl">net worth</span>
+          <span class="val num">$1,090,300.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // collapsible sections
+  document.querySelectorAll('.ledger-section > .head').forEach((head) => {
+    head.addEventListener('click', () => {
+      const section = head.closest('.ledger-section');
+      if (!section) return;
+      section.classList.toggle('collapsed');
+      const marker = head.querySelector('.marker');
+      if (marker) marker.textContent = section.classList.contains('collapsed') ? '[+]' : '[–]';
+    });
+  });
+
+  // active-section nav highlighting
+  const navLinks = new Map();
+  document.querySelectorAll('.proto-nav a[data-target]').forEach((a) => {
+    navLinks.set(a.getAttribute('data-target'), a);
+  });
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const link = navLinks.get(entry.target.id);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        navLinks.forEach((l) => l.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+  document.querySelectorAll('.variation').forEach((s) => observer.observe(s));
+</script>
+
+</body>
+</html>

@@ -4,14 +4,18 @@ interface Props {
   sub: string;
   amount: string;
   asOf: string;
+  owner?: 'tyler' | 'julianne' | 'joint';
   negAmount?: boolean;
 }
-const { name, sub, amount, asOf, negAmount = false } = Astro.props;
+const { name, sub, amount, asOf, owner, negAmount = false } = Astro.props;
 ---
 <div class="ledger-row">
   <div class="primary">
     <span class="name">{name}</span>
-    <span class="sub">{sub}</span>
+    <span class="sub">
+      {sub}
+      {owner && <><span class="dot">·</span><span class:list={['owner', owner]}>{owner}</span></>}
+    </span>
   </div>
   <span class:list={['bal', 'num', { neg: negAmount }]}>{amount}</span>
   <span class="asof">{asOf}</span>
@@ -36,6 +40,9 @@ const { name, sub, amount, asOf, negAmount = false } = Astro.props;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
+  .sub .dot { margin: 0 0.4em; opacity: 0.55; }
+  .owner { color: var(--fg); font-weight: 500; }
+  .owner.joint { color: var(--fg-muted); font-weight: 400; }
   .bal { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .asof {
     font-size: var(--size-xs);

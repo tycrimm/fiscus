@@ -72,6 +72,7 @@ type AccountRow = {
   currency: string;
   is_liability: number;
   source: string;
+  owner: 'tyler' | 'julianne' | 'joint';
   latest_cents: number | null;
   latest_as_of: number | null;
 };
@@ -80,7 +81,7 @@ export async function listAccounts(d: DB): Promise<AccountRow[]> {
   return rows<AccountRow>(
     d,
     sql`
-      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source,
+      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source, a.owner,
         (SELECT balance_cents FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS latest_cents,
         (SELECT as_of        FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS latest_as_of
       FROM accounts a
@@ -88,7 +89,7 @@ export async function listAccounts(d: DB): Promise<AccountRow[]> {
       WHERE a.archived_at IS NULL
       ORDER BY i.name, a.name
     `,
-    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'latest_cents', 'latest_as_of'],
+    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'owner', 'latest_cents', 'latest_as_of'],
   );
 }
 
@@ -97,6 +98,7 @@ type IlliquidRow = {
   kind: string;
   name: string;
   notes: string | null;
+  owner: 'tyler' | 'julianne' | 'joint';
   current_value_cents: number;
   total_cost_basis_cents: number;
   investment_count: number;
@@ -114,7 +116,7 @@ export async function listIlliquidAssets(d: DB): Promise<IlliquidRow[]> {
           ) AS rn
         FROM valuations v
       )
-      SELECT ia.id, ia.kind, ia.name, ia.notes,
+      SELECT ia.id, ia.kind, ia.name, ia.notes, ia.owner,
         (SELECT COALESCE(SUM(value_cents), 0) FROM latest_per_leaf WHERE asset_id = ia.id AND rn = 1) AS current_value_cents,
         (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments WHERE asset_id = ia.id AND archived_at IS NULL) AS total_cost_basis_cents,
         (SELECT COUNT(*) FROM investments WHERE asset_id = ia.id AND archived_at IS NULL) AS investment_count
@@ -122,15 +124,15 @@ export async function listIlliquidAssets(d: DB): Promise<IlliquidRow[]> {
       WHERE ia.archived_at IS NULL
       ORDER BY ia.kind, ia.name
     `,
-    ['id', 'kind', 'name', 'notes', 'current_value_cents', 'total_cost_basis_cents', 'investment_count'],
+    ['id', 'kind', 'name', 'notes', 'owner', 'current_value_cents', 'total_cost_basis_cents', 'investment_count'],
   );
 }
 
 export async function getIlliquidAsset(d: DB, assetId: string) {
   const [asset] = await rows<Record<string, unknown>>(
     d,
-    sql`SELECT id, kind, name, notes, archived_at, created_at FROM illiquid_assets WHERE id = ${assetId}`,
-    ['id', 'kind', 'name', 'notes', 'archived_at', 'created_at'],
+    sql`SELECT id, kind, name, notes, owner, archived_at, created_at FROM illiquid_assets WHERE id = ${assetId}`,
+    ['id', 'kind', 'name', 'notes', 'owner', 'archived_at', 'created_at'],
   );
   if (!asset) throw new Error(`Illiquid asset not found: ${assetId}`);
 
@@ -173,12 +175,12 @@ export async function getAccount(d: DB, accountId: string) {
   const [account] = await rows<Record<string, unknown>>(
     d,
     sql`
-      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source,
+      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source, a.owner,
         a.plaid_account_id, a.created_at, a.archived_at
       FROM accounts a JOIN institutions i ON i.id = a.institution_id
       WHERE a.id = ${accountId}
     `,
-    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'plaid_account_id', 'created_at', 'archived_at'],
+    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'owner', 'plaid_account_id', 'created_at', 'archived_at'],
   );
   if (!account) throw new Error(`Account not found: ${accountId}`);
 

@@ -1,0 +1,1 @@
+ALTER TABLE `plaid_items` ADD `owner` text DEFAULT 'joint' NOT NULL;

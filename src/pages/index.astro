@@ -82,6 +82,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                 sub={ia.investment_count > 0
                   ? `${prettyKind(ia.kind)} · ${pluralize(ia.investment_count, 'position')}`
                   : prettyKind(ia.kind)}
+                owner={ia.owner}
                 amount={fmtUSD.format(ia.current_value_cents / 100)}
                 asOf="—"
               />
@@ -113,6 +114,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
               <LedgerRow
                 name={a.name}
                 sub={`${a.institution} · ${prettyKind(a.kind)}`}
+                owner={a.owner}
                 amount={money(a.latest_cents, true)}
                 asOf={fmtDate(a.latest_as_of)}
                 negAmount

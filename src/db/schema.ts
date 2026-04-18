@@ -27,6 +27,9 @@ export const accounts = sqliteTable('accounts', {
   source: text('source', {
     enum: ['manual', 'plaid', 'imported'],
   }).notNull().default('manual'),
+  owner: text('owner', {
+    enum: ['tyler', 'julianne', 'joint'],
+  }).notNull().default('joint'),
   plaidAccountId: text('plaid_account_id'),
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
   archivedAt: integer('archived_at'),
@@ -53,6 +56,9 @@ export const illiquidAssets = sqliteTable('illiquid_assets', {
   }).notNull(),
   name: text('name').notNull(),
   notes: text('notes'),
+  owner: text('owner', {
+    enum: ['tyler', 'julianne', 'joint'],
+  }).notNull().default('joint'),
   archivedAt: integer('archived_at'),
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
 });
@@ -129,6 +135,9 @@ export const plaidItems = sqliteTable('plaid_items', {
   accessTokenEncrypted: text('access_token_encrypted').notNull(),
   institutionPlaidId: text('institution_plaid_id').notNull(),
   institutionName: text('institution_name').notNull(),
+  owner: text('owner', {
+    enum: ['tyler', 'julianne', 'joint'],
+  }).notNull().default('joint'),
   status: text('status', { enum: ['active', 'error', 'revoked'] }).notNull().default('active'),
   cursor: text('cursor'),                             // Plaid transactions sync cursor
   lastSyncAt: integer('last_sync_at'),

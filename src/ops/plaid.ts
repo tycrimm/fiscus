@@ -16,6 +16,7 @@ export async function createPlaidItem(
     plaidItemId: string;
     institutionPlaidId: string;
     institutionName: string;
+    owner: 'tyler' | 'julianne' | 'joint';
   },
 ) {
   const encrypted = await encryptString(args.accessToken, env.PLAID_TOKEN_KEY);
@@ -26,6 +27,7 @@ export async function createPlaidItem(
       accessTokenEncrypted: encrypted,
       institutionPlaidId: args.institutionPlaidId,
       institutionName: args.institutionName,
+      owner: args.owner,
       status: 'active',
     })
     .returning();
@@ -84,6 +86,7 @@ export async function syncItemAccountsAndBalances(d: DB, env: PlaidEnv, itemId: 
         kind: mapAccountKind(a.type, a.subtype),
         currency: a.balances.iso_currency_code ?? 'USD',
         isLiability: isLiab,
+        owner: item.owner,
       });
       if (acct.created) inserted++;
 
@@ -161,6 +164,7 @@ async function upsertAccount(
     kind: 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'crypto' | 'loan' | 'other';
     currency: string;
     isLiability: boolean;
+    owner: 'tyler' | 'julianne' | 'joint';
   },
 ): Promise<UpsertAccountResult> {
   const existing = await d
@@ -169,7 +173,8 @@ async function upsertAccount(
     .where(eq(accounts.plaidAccountId, args.plaidAccountId))
     .limit(1);
   if (existing[0]) {
-    // Only refresh fields that may have changed; preserve archived_at.
+    // Preserve archived_at AND owner — owner may have been manually adjusted
+    // after link. Plaid item's owner only seeds new accounts.
     await d
       .update(accounts)
       .set({
@@ -191,6 +196,7 @@ async function upsertAccount(
       isLiability: args.isLiability,
       source: 'plaid',
       plaidAccountId: args.plaidAccountId,
+      owner: args.owner,
     })
     .returning();
   if (!row) throw new Error('accounts insert failed');

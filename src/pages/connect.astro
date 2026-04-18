@@ -21,6 +21,7 @@ const fmtDate = (sec: number | null) =>
       <thead>
         <tr>
           <th>institution</th>
+          <th>owner</th>
           <th>status</th>
           <th class="num-col">last sync</th>
         </tr>
@@ -29,6 +30,7 @@ const fmtDate = (sec: number | null) =>
         {items.map((it) => (
           <tr>
             <td>{it.institutionName}</td>
+            <td><span class="owner-tag">{it.owner}</span></td>
             <td><span class:list={['status-badge', it.status === 'active' ? 'pos' : 'neg']}>{it.status}</span>{it.lastError ? <span class="muted"> · {it.lastError}</span> : null}</td>
             <td class="num-col muted">{fmtDate(it.lastSyncAt)}</td>
           </tr>
@@ -38,6 +40,12 @@ const fmtDate = (sec: number | null) =>
   )}
 
   <div class="actions" style="margin-top: var(--space-8)">
+    <fieldset class="owner-picker">
+      <legend>owner</legend>
+      <label><input type="radio" name="owner" value="tyler" checked /> tyler</label>
+      <label><input type="radio" name="owner" value="julianne" /> julianne</label>
+      <label><input type="radio" name="owner" value="joint" /> joint</label>
+    </fieldset>
     <button id="connect-btn" type="button">+ connect bank</button>
     <button id="sync-btn" type="button" class="btn-ghost">sync all</button>
     <span id="status" class="muted" style="font-size: var(--size-sm)"></span>
@@ -50,7 +58,37 @@ const fmtDate = (sec: number | null) =>
       font-size: var(--size-xs);
       font-weight: 500;
     }
+    .owner-tag {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: var(--size-xs);
+      color: var(--fg-muted);
+    }
     #status { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--size-xs); }
+    .actions { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+    .owner-picker {
+      border: 1px solid var(--rule);
+      padding: var(--space-2) var(--space-3);
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+    }
+    .owner-picker legend {
+      padding: 0 var(--space-2);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .owner-picker label {
+      font-size: var(--size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
   </style>
 
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" is:inline></script>
@@ -72,10 +110,12 @@ const fmtDate = (sec: number | null) =>
             token: link_token,
             onSuccess: async (public_token, metadata) => {
               setStatus('exchanging token + first sync…');
+              const ownerInput = document.querySelector('input[name="owner"]:checked');
+              const owner = ownerInput ? ownerInput.value : 'joint';
               const ex = await fetch('/api/plaid/exchange', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ public_token, institution: metadata.institution }),
+                body: JSON.stringify({ public_token, institution: metadata.institution, owner }),
               });
               if (!ex.ok) { setStatus('exchange failed: ' + (await ex.text())); return; }
               setStatus('connected — reloading…');

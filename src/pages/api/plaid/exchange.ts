@@ -11,9 +11,17 @@ export const POST: APIRoute = async ({ request }) => {
   const body = (await request.json()) as {
     public_token: string;
     institution?: { institution_id?: string; name?: string };
+    owner?: 'tyler' | 'julianne' | 'joint';
   };
   if (!body?.public_token) {
     return new Response(JSON.stringify({ error: 'public_token required' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  const owner = body.owner ?? 'joint';
+  if (!['tyler', 'julianne', 'joint'].includes(owner)) {
+    return new Response(JSON.stringify({ error: 'invalid owner' }), {
       status: 400,
       headers: { 'content-type': 'application/json' },
     });
@@ -46,6 +54,7 @@ export const POST: APIRoute = async ({ request }) => {
     plaidItemId,
     institutionPlaidId,
     institutionName,
+    owner,
   });
 
   const sync = await syncItemAccountsAndBalances(d, env as any, item.id);
