@@ -1,44 +1,57 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { DB } from '../db';
 
-// Drizzle's sqlite-proxy returns positional arrays for raw sql`...`.
-// This helper maps them to objects via an explicit column list.
+// Drizzle returns different row shapes for raw sql`...` depending on driver:
+//   - D1 binding (Worker runtime)        → rows are OBJECTS keyed by column
+//   - sqlite-proxy /raw (MCP server)     → rows are positional ARRAYS
+// Detect and normalize either way using the explicit column list.
 async function rows<T>(d: DB, query: SQL, cols: readonly string[]): Promise<T[]> {
-  const raw = (await d.all(query)) as unknown[][];
+  const raw = (await d.all(query)) as unknown[];
   return raw.map((r) => {
-    const o: Record<string, unknown> = {};
-    cols.forEach((c, i) => (o[c] = r[i]));
-    return o as T;
+    if (Array.isArray(r)) {
+      const o: Record<string, unknown> = {};
+      cols.forEach((c, i) => (o[c] = r[i]));
+      return o as T;
+    }
+    return r as T;
   });
 }
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0));
 
 export async function netWorth(d: DB) {
-  const liq = (await d.all(sql`
-    SELECT COALESCE(SUM(CASE WHEN a.is_liability THEN -bs.balance_cents ELSE bs.balance_cents END), 0) AS cents
-    FROM accounts a
-    JOIN balance_snapshots bs ON bs.id = (
-      SELECT id FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1
-    )
-    WHERE a.archived_at IS NULL
-  `)) as unknown[][];
-  const liquidCents = num(liq[0]?.[0]);
+  const [liqRow] = await rows<{ cents: number }>(
+    d,
+    sql`
+      SELECT COALESCE(SUM(CASE WHEN a.is_liability THEN -bs.balance_cents ELSE bs.balance_cents END), 0) AS cents
+      FROM accounts a
+      JOIN balance_snapshots bs ON bs.id = (
+        SELECT id FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1
+      )
+      WHERE a.archived_at IS NULL
+    `,
+    ['cents'],
+  );
+  const liquidCents = num(liqRow?.cents);
 
-  const ill = (await d.all(sql`
-    WITH ranked AS (
-      SELECT v.value_cents,
-        ROW_NUMBER() OVER (
-          PARTITION BY v.asset_id, COALESCE(v.investment_id, '__asset_level__')
-          ORDER BY v.as_of DESC
-        ) AS rn
-      FROM valuations v
-      JOIN illiquid_assets ia ON ia.id = v.asset_id
-      WHERE ia.archived_at IS NULL
-    )
-    SELECT COALESCE(SUM(value_cents), 0) FROM ranked WHERE rn = 1
-  `)) as unknown[][];
-  const illiquidCents = num(ill[0]?.[0]);
+  const [illRow] = await rows<{ cents: number }>(
+    d,
+    sql`
+      WITH ranked AS (
+        SELECT v.value_cents,
+          ROW_NUMBER() OVER (
+            PARTITION BY v.asset_id, COALESCE(v.investment_id, '__asset_level__')
+            ORDER BY v.as_of DESC
+          ) AS rn
+        FROM valuations v
+        JOIN illiquid_assets ia ON ia.id = v.asset_id
+        WHERE ia.archived_at IS NULL
+      )
+      SELECT COALESCE(SUM(value_cents), 0) AS cents FROM ranked WHERE rn = 1
+    `,
+    ['cents'],
+  );
+  const illiquidCents = num(illRow?.cents);
 
   const totalCents = liquidCents + illiquidCents;
   return {

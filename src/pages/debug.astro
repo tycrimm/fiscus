@@ -1,0 +1,66 @@
+---
+import { env } from 'cloudflare:workers';
+import { drizzle } from 'drizzle-orm/d1';
+import { sql } from 'drizzle-orm';
+import * as schema from '../db/schema';
+import Shell from '../layouts/Shell.astro';
+
+const d = drizzle(env.DB, { schema });
+
+// Pull every table's contents. Order matters only for readability.
+const tableNames = [
+  'institutions',
+  'accounts',
+  'balance_snapshots',
+  'illiquid_assets',
+  'investments',
+  'valuations',
+  'fund_details',
+  'securities',
+  'holdings',
+  'plaid_items',
+  'plaid_sync_log',
+] as const;
+
+const dump: Record<string, unknown[]> = {};
+for (const t of tableNames) {
+  // Avoid spilling encrypted access tokens into the page
+  const cols = t === 'plaid_items'
+    ? `id, plaid_item_id, institution_plaid_id, institution_name, status, cursor, last_sync_at, last_error, created_at`
+    : t === 'plaid_sync_log'
+      ? `id, item_id, synced_at, kind, ok, error, length(raw_json) AS raw_json_bytes`
+      : '*';
+  const r = await d.run(sql.raw(`SELECT ${cols} FROM ${t} ORDER BY 1 LIMIT 500`));
+  dump[t] = (r as any).results ?? r;
+}
+
+const counts = Object.fromEntries(
+  Object.entries(dump).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]),
+);
+---
+<Shell title="debug">
+  <h1>debug</h1>
+  <p class="muted" style="font-size: var(--size-sm); margin-bottom: var(--space-6)">
+    Raw D1 dump. Encrypted Plaid access tokens are excluded; sync log raw payloads are summarized as byte counts.
+  </p>
+
+  <h2 style="margin-top: var(--space-6)">Counts</h2>
+  <pre class="dump">{JSON.stringify(counts, null, 2)}</pre>
+
+  <h2 style="margin-top: var(--space-6)">Tables</h2>
+  <pre class="dump">{JSON.stringify(dump, null, 2)}</pre>
+</Shell>
+
+<style>
+  pre.dump {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: var(--size-xs);
+    background: var(--bg-subtle);
+    border: 1px solid var(--rule);
+    padding: var(--space-4);
+    overflow: auto;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>

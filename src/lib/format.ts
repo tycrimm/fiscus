@@ -18,7 +18,8 @@ export function fmtDate(sec: number | null | undefined): string {
     : '—';
 }
 
-export const prettyKind = (k: string) => k.replace(/_/g, ' ');
+export const prettyKind = (k: string | null | undefined): string =>
+  (k ?? '').replace(/_/g, ' ').toUpperCase();
 
 export const pluralize = (n: number, singular: string, plural = `${singular}s`) =>
   `${n} ${n === 1 ? singular : plural}`;

@@ -15,7 +15,7 @@ const fmtDate = (sec: number | null) =>
   <h1>connections</h1>
 
   {items.length === 0 ? (
-    <p class="empty">no banks connected yet.</p>
+    <p class="empty">NO BANKS CONNECTED YET.</p>
   ) : (
     <table>
       <thead>
@@ -29,7 +29,7 @@ const fmtDate = (sec: number | null) =>
         {items.map((it) => (
           <tr>
             <td>{it.institutionName}</td>
-            <td><span class={it.status === 'active' ? 'pos' : 'neg'}>{it.status}</span>{it.lastError ? <span class="muted"> · {it.lastError}</span> : null}</td>
+            <td><span class:list={['status-badge', it.status === 'active' ? 'pos' : 'neg']}>{it.status}</span>{it.lastError ? <span class="muted"> · {it.lastError}</span> : null}</td>
             <td class="num-col muted">{fmtDate(it.lastSyncAt)}</td>
           </tr>
         ))}
@@ -42,6 +42,16 @@ const fmtDate = (sec: number | null) =>
     <button id="sync-btn" type="button" class="btn-ghost">sync all</button>
     <span id="status" class="muted" style="font-size: var(--size-sm)"></span>
   </div>
+
+  <style>
+    .status-badge {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: var(--size-xs);
+      font-weight: 500;
+    }
+    #status { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--size-xs); }
+  </style>
 
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" is:inline></script>
   <script is:inline>
