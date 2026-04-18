@@ -66,7 +66,11 @@ export async function syncItemAccountsAndBalances(d: DB, env: PlaidEnv, itemId: 
   let ok = true;
   let errorMsg: string | null = null;
   try {
-    const resp = await plaid.accountsBalanceGet({ access_token: accessToken });
+    // accountsGet (not accountsBalanceGet): Plaid's cached snapshot, refreshed
+    // by Plaid every ~6h on their dime. Free under the Balance product.
+    // accountsBalanceGet forces a real-time pull and is billed at $0.10/call —
+    // overkill for a net-worth view. Switch back if we ever need real-time.
+    const resp = await plaid.accountsGet({ access_token: accessToken });
     raw = resp.data;
 
     const inst = await findOrCreateInstitutionByPlaid(d, {
