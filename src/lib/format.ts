@@ -32,8 +32,13 @@ export function fmtDateTime(sec: number | null | undefined): string {
     : '—';
 }
 
-export const prettyKind = (k: string | null | undefined): string =>
-  (k ?? '').replace(/_/g, ' ').toUpperCase();
+const KIND_DISPLAY: Record<string, string> = {
+  education: '529',
+};
+export const prettyKind = (k: string | null | undefined): string => {
+  const key = (k ?? '').toLowerCase();
+  return KIND_DISPLAY[key] ?? key.replace(/_/g, ' ').toUpperCase();
+};
 
 export const pluralize = (n: number, singular: string, plural = `${singular}s`) =>
   `${n} ${n === 1 ? singular : plural}`;

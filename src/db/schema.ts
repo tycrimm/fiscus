@@ -20,7 +20,7 @@ export const accounts = sqliteTable('accounts', {
   institutionId: text('institution_id').notNull().references(() => institutions.id, { onDelete: 'restrict' }),
   name: text('name').notNull(),
   kind: text('kind', {
-    enum: ['checking', 'savings', 'brokerage', 'credit_card', 'retirement', 'crypto', 'loan', 'other'],
+    enum: ['checking', 'savings', 'brokerage', 'credit_card', 'retirement', 'education', 'crypto', 'loan', 'other'],
   }).notNull().default('other'),
   currency: text('currency').notNull().default('USD'),
   isLiability: integer('is_liability', { mode: 'boolean' }).notNull().default(false),

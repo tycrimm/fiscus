@@ -1,10 +1,12 @@
 ---
 import '../styles/global.css';
+import { fmtDateTime } from '../lib/format';
 
 interface Props {
   title?: string;
+  lastSyncedAt?: number | null;
 }
-const { title = 'fiscus' } = Astro.props;
+const { title = 'fiscus', lastSyncedAt } = Astro.props;
 const path = Astro.url.pathname;
 const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 ---
@@ -24,7 +26,19 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
         <a href="/connect" aria-current={active('/connect') ? 'page' : undefined}>connect</a>
         <a href="/debug" aria-current={active('/debug') ? 'page' : undefined}>debug</a>
       </nav>
+      {lastSyncedAt != null && (
+        <span class="synced">synced {fmtDateTime(lastSyncedAt)}</span>
+      )}
     </header>
     <slot />
+    <style>
+      .app-header .synced {
+        margin-left: auto;
+        font-size: var(--size-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--fg-muted);
+      }
+    </style>
   </body>
 </html>

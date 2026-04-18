@@ -3,7 +3,7 @@ import type { DB } from '../db';
 import { accounts, balanceSnapshots, institutions } from '../db/schema';
 
 export type InstitutionKind = 'bank' | 'brokerage' | 'credit_card' | 'retirement' | 'crypto' | 'other';
-export type AccountKind = 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'crypto' | 'loan' | 'other';
+export type AccountKind = 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'education' | 'crypto' | 'loan' | 'other';
 
 export async function findOrCreateInstitution(d: DB, name: string, kind: InstitutionKind = 'other') {
   const normalized = name.trim();

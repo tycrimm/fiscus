@@ -77,7 +77,7 @@ server.registerTool(
         .default('other'),
       accountName: z.string().min(1).max(200),
       accountKind: z
-        .enum(['checking', 'savings', 'brokerage', 'credit_card', 'retirement', 'crypto', 'loan', 'other'])
+        .enum(['checking', 'savings', 'brokerage', 'credit_card', 'retirement', 'education', 'crypto', 'loan', 'other'])
         .default('other'),
       balanceDollars: z.number().finite(),
       isLiability: z.boolean().default(false),

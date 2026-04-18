@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { netWorth, listAccounts, listIlliquidAssets } from '../ops/reads';
-import { fmtUSD, fmtUSDsigned, fmtDate, money, prettyKind, pluralize } from '../lib/format';
+import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
@@ -15,42 +15,41 @@ const [nw, accounts, illiquid] = await Promise.all([
 ]);
 
 const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
-const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'crypto'].includes(a.kind));
-const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'crypto'].includes(a.kind));
+const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'education', 'crypto'].includes(a.kind));
+const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'education', 'crypto'].includes(a.kind));
 const liab   = accounts.filter((a) => !!a.is_liability);
 illiquid.sort((a, b) => b.current_value_cents - a.current_value_cents);
 
-type Group = {
-  key: string;
-  institution: string;
-  kind: string;
-  totalCents: number;
-  count: number;
-  latestAsOf: number | null;
-};
+type KindLine = { kind: string; count: number; totalCents: number };
+type InstGroup = { institution: string; totalCents: number; kinds: KindLine[] };
 
-function rollup(rows: typeof accounts): Group[] {
-  const groups = new Map<string, Group>();
+function rollupByInstitution(rows: typeof accounts): InstGroup[] {
+  const insts = new Map<string, InstGroup>();
   for (const r of rows) {
-    const key = `${r.institution}|${r.kind}`;
-    let g = groups.get(key);
+    let g = insts.get(r.institution);
     if (!g) {
-      g = { key, institution: r.institution, kind: r.kind, totalCents: 0, count: 0, latestAsOf: null };
-      groups.set(key, g);
+      g = { institution: r.institution, totalCents: 0, kinds: [] };
+      insts.set(r.institution, g);
     }
+    let k = g.kinds.find((x) => x.kind === r.kind);
+    if (!k) {
+      k = { kind: r.kind, count: 0, totalCents: 0 };
+      g.kinds.push(k);
+    }
+    k.count += 1;
+    k.totalCents += r.latest_cents ?? 0;
     g.totalCents += r.latest_cents ?? 0;
-    g.count += 1;
-    if (r.latest_as_of && (!g.latestAsOf || r.latest_as_of > g.latestAsOf)) {
-      g.latestAsOf = r.latest_as_of;
-    }
   }
-  return [...groups.values()].sort((a, b) => Math.abs(b.totalCents) - Math.abs(a.totalCents));
+  for (const g of insts.values()) {
+    g.kinds.sort((a, b) => Math.abs(b.totalCents) - Math.abs(a.totalCents));
+  }
+  return [...insts.values()].sort((a, b) => Math.abs(b.totalCents) - Math.abs(a.totalCents));
 }
 
-const cashGroups   = rollup(cash);
-const investGroups = rollup(invest);
-const otherGroups  = rollup(other);
-const liabGroups   = rollup(liab);
+const cashInsts   = rollupByInstitution(cash);
+const investInsts = rollupByInstitution(invest);
+const otherInsts  = rollupByInstitution(other);
+const liabInsts   = rollupByInstitution(liab);
 
 const sumAccts = (rows: typeof accounts) => rows.reduce((acc, r) => acc + (r.latest_cents ?? 0), 0);
 const cashTotal = sumAccts(cash);
@@ -59,9 +58,14 @@ const otherTotal = sumAccts(other);
 const liabTotal = sumAccts(liab);
 const illiquidTotal = illiquid.reduce((acc, r) => acc + r.current_value_cents, 0);
 
+const lastSyncedAt = accounts.reduce<number | null>(
+  (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
+  null,
+);
+
 const hasAny = accounts.length > 0 || illiquid.length > 0;
 ---
-<Shell>
+<Shell lastSyncedAt={lastSyncedAt}>
   {!hasAny ? (
     <p class="empty">NO ACCOUNTS YET — ASK AN AGENT TO ADD ONE.</p>
   ) : (
@@ -81,28 +85,40 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
       </aside>
 
       <div class="ledger-main">
-        {cashGroups.length > 0 && (
+        {cashInsts.length > 0 && (
           <LedgerSection title="Cash & Equivalents" count={pluralize(cash.length, 'account')} subtotal={fmtUSDsigned(cashTotal)}>
-            {cashGroups.map((g) => (
-              <LedgerRow
-                name={g.institution}
-                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
-                amount={fmtUSD.format(g.totalCents / 100)}
-                asOf={fmtDate(g.latestAsOf)}
-              />
+            {cashInsts.map((inst) => (
+              <div class="inst-group">
+                <div class="inst-row">
+                  <span class="inst-name">{inst.institution}</span>
+                  <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
+                </div>
+                {inst.kinds.map((k) => (
+                  <div class="kind-row">
+                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
+                  </div>
+                ))}
+              </div>
             ))}
           </LedgerSection>
         )}
 
-        {investGroups.length > 0 && (
+        {investInsts.length > 0 && (
           <LedgerSection title="Investments" count={pluralize(invest.length, 'account')} subtotal={fmtUSDsigned(investTotal)}>
-            {investGroups.map((g) => (
-              <LedgerRow
-                name={g.institution}
-                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
-                amount={fmtUSD.format(g.totalCents / 100)}
-                asOf={fmtDate(g.latestAsOf)}
-              />
+            {investInsts.map((inst) => (
+              <div class="inst-group">
+                <div class="inst-row">
+                  <span class="inst-name">{inst.institution}</span>
+                  <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
+                </div>
+                {inst.kinds.map((k) => (
+                  <div class="kind-row">
+                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
+                  </div>
+                ))}
+              </div>
             ))}
           </LedgerSection>
         )}
@@ -117,40 +133,50 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                   : prettyKind(ia.kind)}
                 owner={ia.owner}
                 amount={fmtUSD.format(ia.current_value_cents / 100)}
-                asOf="—"
               />
             ))}
           </LedgerSection>
         )}
 
-        {otherGroups.length > 0 && (
+        {otherInsts.length > 0 && (
           <LedgerSection title="Other" count={pluralize(other.length, 'account')} subtotal={fmtUSDsigned(otherTotal)}>
-            {otherGroups.map((g) => (
-              <LedgerRow
-                name={g.institution}
-                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
-                amount={fmtUSD.format(g.totalCents / 100)}
-                asOf={fmtDate(g.latestAsOf)}
-              />
+            {otherInsts.map((inst) => (
+              <div class="inst-group">
+                <div class="inst-row">
+                  <span class="inst-name">{inst.institution}</span>
+                  <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
+                </div>
+                {inst.kinds.map((k) => (
+                  <div class="kind-row">
+                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
+                  </div>
+                ))}
+              </div>
             ))}
           </LedgerSection>
         )}
 
-        {liabGroups.length > 0 && (
+        {liabInsts.length > 0 && (
           <LedgerSection
             title="Liabilities"
             count={pluralize(liab.length, 'account')}
             subtotal={fmtUSDsigned(-liabTotal)}
             negSubtotal
           >
-            {liabGroups.map((g) => (
-              <LedgerRow
-                name={g.institution}
-                sub={`${prettyKind(g.kind)} · ${pluralize(g.count, 'account')}`}
-                amount={fmtUSD.format(-g.totalCents / 100)}
-                asOf={fmtDate(g.latestAsOf)}
-                negAmount
-              />
+            {liabInsts.map((inst) => (
+              <div class="inst-group">
+                <div class="inst-row">
+                  <span class="inst-name">{inst.institution}</span>
+                  <span class="inst-total num neg">{fmtUSD.format(-inst.totalCents / 100)}</span>
+                </div>
+                {inst.kinds.map((k) => (
+                  <div class="kind-row">
+                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-total num neg">{fmtUSD.format(-k.totalCents / 100)}</span>
+                  </div>
+                ))}
+              </div>
             ))}
           </LedgerSection>
         )}
@@ -211,6 +237,41 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
   }
 
   .ledger-main { display: grid; gap: var(--space-6); }
+
+  .inst-group {
+    border-bottom: 1px solid var(--rule);
+  }
+  .inst-group:last-child { border-bottom: none; }
+  .inst-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    align-items: baseline;
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+  .inst-total { font-variant-numeric: tabular-nums; text-align: right; }
+  .kind-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) + var(--space-6));
+    align-items: baseline;
+  }
+  .kind-label {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .kind-total {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .inst-group .kind-row:last-child { padding-bottom: var(--space-3); }
 
   @media (max-width: 52rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }

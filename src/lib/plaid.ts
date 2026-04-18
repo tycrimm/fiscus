@@ -43,13 +43,14 @@ export const LINK_USER_ID = 'fiscus-household';
 export function mapAccountKind(
   type: string | null | undefined,
   subtype: string | null | undefined,
-): 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'crypto' | 'loan' | 'other' {
+): 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'education' | 'crypto' | 'loan' | 'other' {
   const s = (subtype ?? '').toLowerCase();
   const t = (type ?? '').toLowerCase();
   if (s === 'checking') return 'checking';
   if (s === 'savings' || s === 'cd' || s === 'money market') return 'savings';
   if (t === 'credit') return 'credit_card';
   if (t === 'investment' || t === 'brokerage') {
+    if (['529', 'education savings account'].includes(s)) return 'education';
     if (['ira', 'roth', '401k', '401a', '403b', '457b', 'sep ira', 'simple ira', 'roth 401k'].includes(s)) {
       return 'retirement';
     }
@@ -74,4 +75,17 @@ export function mapInstitutionKind(
 export function isLiabilityType(type: string | null | undefined): boolean {
   const t = (type ?? '').toLowerCase();
   return t === 'credit' || t === 'loan';
+}
+
+// Plaid security `type` → our `securities.kind` enum.
+// Plaid types: equity, etf, mutual fund, fixed income, derivative, cash, crypto, loan, other
+export function mapSecurityKind(
+  type: string | null | undefined,
+): 'public' | 'private' | 'crypto' | 'fund' {
+  const t = (type ?? '').toLowerCase();
+  if (t === 'crypto') return 'crypto';
+  // Mutual funds and ETFs are technically funds, but they trade publicly and
+  // we want our 'fund' kind reserved for hand-entered LP positions. Bucket
+  // them into 'public'.
+  return 'public';
 }

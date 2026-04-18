@@ -4,8 +4,9 @@
 
 import astroApp from '@astrojs/cloudflare/entrypoints/server';
 import { drizzle } from 'drizzle-orm/d1';
-import { listPlaidItems, syncItemAccountsAndBalances } from './ops/plaid';
+import { listPlaidItems, syncItemAccountsAndBalances, syncItemHoldings } from './ops/plaid';
 import * as schema from './db/schema';
+import type { PlaidEnv } from './lib/plaid';
 
 export default {
   fetch: astroApp.fetch,
@@ -21,12 +22,23 @@ export default {
 
 async function runPlaidSync(env: Env): Promise<void> {
   const d = drizzle(env.DB, { schema });
+  const plaidEnv = env as unknown as PlaidEnv;
   const items = await listPlaidItems(d);
+
   for (const it of items) {
+    // 1. Balances — works for every item (Transactions is required at link)
     try {
-      await syncItemAccountsAndBalances(d, env as unknown as import('./lib/plaid').PlaidEnv, it.id);
+      await syncItemAccountsAndBalances(d, plaidEnv, it.id);
     } catch (e) {
-      console.error('[cron] plaid sync failed', it.id, e);
+      console.error('[cron] balance sync failed', it.id, e);
+    }
+    // 2. Holdings — only items with the Investments product (brokerages, IRAs).
+    //    Mercury/checking-only items will throw NO_INVESTMENT_ACCOUNTS or
+    //    PRODUCT_NOT_READY; treat as "not applicable" and continue.
+    try {
+      await syncItemHoldings(d, plaidEnv, it.id);
+    } catch (e) {
+      console.log('[cron] holdings sync skipped', it.id, e instanceof Error ? e.message : String(e));
     }
   }
 }

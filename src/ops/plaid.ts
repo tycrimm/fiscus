@@ -1,8 +1,22 @@
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db';
-import { institutions, accounts, balanceSnapshots, plaidItems, plaidSyncLog } from '../db/schema';
+import {
+  institutions,
+  accounts,
+  balanceSnapshots,
+  securities,
+  holdings,
+  plaidItems,
+  plaidSyncLog,
+} from '../db/schema';
 import { encryptString, decryptString } from '../lib/crypto';
-import { mapAccountKind, mapInstitutionKind, isLiabilityType, type PlaidEnv } from '../lib/plaid';
+import {
+  mapAccountKind,
+  mapInstitutionKind,
+  mapSecurityKind,
+  isLiabilityType,
+  type PlaidEnv,
+} from '../lib/plaid';
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -133,6 +147,88 @@ export async function syncItemAccountsAndBalances(d: DB, env: PlaidEnv, itemId: 
   }
 }
 
+/**
+ * Pulls investment holdings (positions) for one Plaid item. Upserts the
+ * `securities` table by plaid_security_id and appends a snapshot per
+ * position into `holdings` (append-only, same pattern as balance_snapshots).
+ *
+ * Many items don't have the Investments product (Mercury, retail bank
+ * checking, etc.) — Plaid will throw PRODUCT_NOT_READY or
+ * NO_INVESTMENT_ACCOUNTS in that case. Caller should treat throws as
+ * "not applicable, skip" rather than a hard error.
+ */
+export async function syncItemHoldings(d: DB, env: PlaidEnv, itemId: string) {
+  const { accessToken } = await getDecryptedAccessToken(d, env, itemId);
+  const plaid = (await import('../lib/plaid')).makePlaidClient(env);
+
+  let raw: unknown;
+  let ok = true;
+  let errorMsg: string | null = null;
+  try {
+    const resp = await plaid.investmentsHoldingsGet({ access_token: accessToken });
+    raw = resp.data;
+
+    // Map Plaid security_id → our internal securities.id (after upsert)
+    const secIdMap = new Map<string, string>();
+    for (const s of resp.data.securities) {
+      const ourId = await upsertSecurity(d, {
+        plaidSecurityId: s.security_id,
+        ticker: s.ticker_symbol ?? null,
+        cusip: s.cusip ?? null,
+        name: s.name ?? s.ticker_symbol ?? s.security_id,
+        kind: mapSecurityKind(s.type),
+      });
+      secIdMap.set(s.security_id, ourId);
+    }
+
+    // Map Plaid account_id → our internal accounts.id (must already exist
+    // from a prior balance sync — if not, skip this holding)
+    const acctIdMap = new Map<string, string>();
+    for (const a of resp.data.accounts) {
+      const [acct] = await d
+        .select({ id: accounts.id })
+        .from(accounts)
+        .where(eq(accounts.plaidAccountId, a.account_id))
+        .limit(1);
+      if (acct) acctIdMap.set(a.account_id, acct.id);
+    }
+
+    let snapshots = 0;
+    const asOf = nowSec();
+    for (const h of resp.data.holdings) {
+      const ourSecId = secIdMap.get(h.security_id);
+      const ourAcctId = acctIdMap.get(h.account_id);
+      if (!ourSecId || !ourAcctId) continue;
+
+      await d.insert(holdings).values({
+        accountId: ourAcctId,
+        securityId: ourSecId,
+        quantityText: String(h.quantity),
+        valueCents: Math.round((h.institution_value ?? 0) * 100),
+        costBasisCents: h.cost_basis != null ? Math.round(h.cost_basis * 100) : null,
+        asOf,
+        source: 'plaid',
+      });
+      snapshots++;
+    }
+
+    return { itemId, securitiesUpserted: secIdMap.size, holdingsWritten: snapshots };
+  } catch (e) {
+    ok = false;
+    errorMsg = e instanceof Error ? e.message : String(e);
+    raw = { error: errorMsg };
+    throw e;
+  } finally {
+    await d.insert(plaidSyncLog).values({
+      itemId,
+      kind: 'holdings',
+      ok,
+      rawJson: JSON.stringify(raw),
+      error: errorMsg,
+    });
+  }
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 async function findOrCreateInstitutionByPlaid(
@@ -157,6 +253,42 @@ async function findOrCreateInstitutionByPlaid(
   return row;
 }
 
+async function upsertSecurity(
+  d: DB,
+  args: {
+    plaidSecurityId: string;
+    ticker: string | null;
+    cusip: string | null;
+    name: string;
+    kind: 'public' | 'private' | 'crypto' | 'fund';
+  },
+): Promise<string> {
+  const existing = await d
+    .select({ id: securities.id })
+    .from(securities)
+    .where(eq(securities.plaidSecurityId, args.plaidSecurityId))
+    .limit(1);
+  if (existing[0]) {
+    await d
+      .update(securities)
+      .set({ ticker: args.ticker, cusip: args.cusip, name: args.name, kind: args.kind })
+      .where(eq(securities.id, existing[0].id));
+    return existing[0].id;
+  }
+  const [row] = await d
+    .insert(securities)
+    .values({
+      plaidSecurityId: args.plaidSecurityId,
+      ticker: args.ticker,
+      cusip: args.cusip,
+      name: args.name,
+      kind: args.kind,
+    })
+    .returning({ id: securities.id });
+  if (!row) throw new Error('securities insert failed');
+  return row.id;
+}
+
 type UpsertAccountResult = typeof accounts.$inferSelect & { created: boolean };
 
 async function upsertAccount(
@@ -165,7 +297,7 @@ async function upsertAccount(
     institutionId: string;
     plaidAccountId: string;
     name: string;
-    kind: 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'crypto' | 'loan' | 'other';
+    kind: 'checking' | 'savings' | 'brokerage' | 'credit_card' | 'retirement' | 'education' | 'crypto' | 'loan' | 'other';
     currency: string;
     isLiability: boolean;
     owner: 'tyler' | 'julianne' | 'joint';
