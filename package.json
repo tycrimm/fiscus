@@ -12,12 +12,15 @@
     "db:migrate:local": "wrangler d1 migrations apply fiscus --local",
     "db:migrate:remote": "wrangler d1 migrations apply fiscus --remote",
     "db:studio": "drizzle-kit studio",
-    "cf:types": "wrangler types"
+    "cf:types": "wrangler types",
+    "mcp:dev": "bun run src/mcp/server.ts"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.10",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "astro": "^6.1.8",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.8",

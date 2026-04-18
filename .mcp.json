@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fiscus": {
+      "command": "bun",
+      "args": ["run", "src/mcp/server.ts"],
+      "cwd": "/Users/tylercrimm/Development/fiscus"
+    }
+  }
+}

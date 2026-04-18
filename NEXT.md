@@ -9,7 +9,7 @@ Each step ends in a deployed, useful thing. Always pick up at the lowest uncheck
 - [x] **Step 1** — Astro + Cloudflare Workers, deployed to https://fiscus.crimm.dev, gated by Cloudflare Access (One-Time PIN, allowlist: tman7000@gmail.com)
 - [x] **Step 2** — D1 (`fiscus`, id `49e2fc4c-fa79-4c50-b854-15c8a9d4e63d`, WNAM), Drizzle ORM, schema: `institutions` + `accounts` + `balance_snapshots`. Home shows net worth + account list. Write ops live in `src/ops/accounts.ts` (pure fns, no UI).
 - [ ] **Step 3a** — Illiquid assets schema — **schema only, no UI**. Tables: `illiquid_assets`, `investments`, `valuations`, `fund_details`. Also: `holdings`, `securities` (for brokerage positions, used by Plaid later).
-- [ ] **Step 3b** — **MCP server (local stdio)** exposing read + write tools over all fiscus data. Lands right after 3a so Tyler can enter data by talking to an agent instead of filling forms.
+- [x] **Step 3b** — MCP server (local stdio, `src/mcp/server.ts`). 12 tools over Cloudflare's D1 HTTP API. Registered via `.mcp.json` at repo root. Read: `get_net_worth`, `list_accounts`, `get_account`, `list_illiquid_assets`, `get_illiquid_asset`. Write: `add_account`, `update_balance`, `add_illiquid_asset`, `add_investment`, `record_valuation`, `set_fund_details`, `archive_illiquid_asset`.
 - [ ] **Step 4** — Plaid Link + first sandbox Item (encrypted access_token, on-demand balance/holdings pull)
 - [ ] **Step 5** — Plaid webhooks + Cloudflare Cron Trigger (~6h backstop)
 - [ ] **Step 6** — Connect remaining Plaid institutions (USAA, Schwab, Mercury, **IBKR via Plaid**) — needs Plaid production approval
