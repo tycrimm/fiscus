@@ -49,7 +49,7 @@ body {
 body {
   max-width: 64rem;
   margin: 0 auto;
-  padding: var(--space-12) var(--space-6) var(--space-16);
+  padding: var(--space-6) var(--space-6) var(--space-12);
 }
 
 h1,
@@ -85,10 +85,10 @@ a {
 .app-header {
   display: flex;
   align-items: baseline;
-  gap: var(--space-8);
+  gap: var(--space-6);
   border-bottom: 1px solid var(--rule);
-  padding-bottom: var(--space-4);
-  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-6);
 }
 .app-header a { text-decoration: none; }
 .app-header .brand {

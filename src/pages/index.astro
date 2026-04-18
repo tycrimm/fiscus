@@ -303,8 +303,8 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
 <style>
   .ledger {
     display: grid;
-    grid-template-columns: 16rem 1fr;
-    gap: var(--space-8);
+    grid-template-columns: 14rem 1fr;
+    gap: var(--space-6);
     align-items: start;
   }
 
@@ -312,7 +312,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     position: sticky;
     top: var(--space-4);
     display: grid;
-    gap: var(--space-6);
+    gap: var(--space-4);
   }
   .rail-label {
     font-size: var(--size-xs);
@@ -322,17 +322,17 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     font-weight: 500;
   }
   .rail-value {
-    font-size: var(--size-3xl);
+    font-size: var(--size-2xl);
     font-weight: 500;
     letter-spacing: -0.035em;
     line-height: 1.05;
-    margin-top: calc(-1 * var(--space-4));
+    margin-top: calc(-1 * var(--space-2));
   }
   .rail-breakdown { display: grid; gap: 0; }
   .bd-row {
     display: grid;
     grid-template-columns: 1fr auto;
-    padding: var(--space-3) 0;
+    padding: var(--space-2) 0;
     border-bottom: 1px solid var(--rule);
     align-items: baseline;
     font-size: var(--size-sm);
@@ -351,7 +351,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     letter-spacing: 0.08em;
   }
 
-  .ledger-main { display: grid; gap: var(--space-6); }
+  .ledger-main { display: grid; gap: var(--space-4); }
 
   .inst-group {
     border-bottom: 1px solid var(--rule);
@@ -360,8 +360,8 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
   .inst-row {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
     align-items: baseline;
     font-size: var(--size-sm);
     font-weight: 500;
@@ -370,8 +370,8 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
   .kind-row {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: var(--space-4);
-    padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) + var(--space-6));
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-3) var(--space-1) calc(var(--space-3) + var(--space-4));
     align-items: baseline;
   }
   .kind-label {
@@ -386,20 +386,20 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     font-variant-numeric: tabular-nums;
     text-align: right;
   }
-  .inst-group .kind-row:last-child { padding-bottom: var(--space-3); }
+  .inst-group .kind-row:last-child { padding-bottom: var(--space-2); }
 
-  .upcoming { display: grid; gap: var(--space-3); }
+  .upcoming { display: grid; gap: var(--space-2); }
   .upcoming-cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
+    gap: var(--space-3);
     align-items: start;
   }
   .upcoming-net {
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: baseline;
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-3);
     border: 1px solid var(--rule);
     background: var(--bg-subtle);
   }
@@ -419,8 +419,8 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
   .flow-row {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--rule);
     align-items: baseline;
   }
