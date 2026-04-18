@@ -20,7 +20,7 @@ const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings'
 const liab   = accounts.filter((a) => !!a.is_liability);
 illiquid.sort((a, b) => b.current_value_cents - a.current_value_cents);
 
-type KindLine = { kind: string; count: number; totalCents: number };
+type KindLine = { kind: string; count: number; totalCents: number; note: string | null };
 type InstGroup = { institution: string; totalCents: number; kinds: KindLine[] };
 
 function rollupByInstitution(rows: typeof accounts): InstGroup[] {
@@ -33,8 +33,11 @@ function rollupByInstitution(rows: typeof accounts): InstGroup[] {
     }
     let k = g.kinds.find((x) => x.kind === r.kind);
     if (!k) {
-      k = { kind: r.kind, count: 0, totalCents: 0 };
+      k = { kind: r.kind, count: 0, totalCents: 0, note: r.note ?? null };
       g.kinds.push(k);
+    } else {
+      // Multiple accounts in this group — notes only render when the group is a single account.
+      k.note = null;
     }
     k.count += 1;
     k.totalCents += r.latest_cents ?? 0;
@@ -93,9 +96,12 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                   <span class="inst-name">{inst.institution}</span>
                   <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
                 </div>
-                {inst.kinds.map((k) => (
+                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
                   <div class="kind-row">
-                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-label">
+                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
+                      {k.note && <span class="note"> · {k.note}</span>}
+                    </span>
                     <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
                   </div>
                 ))}
@@ -112,9 +118,12 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                   <span class="inst-name">{inst.institution}</span>
                   <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
                 </div>
-                {inst.kinds.map((k) => (
+                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
                   <div class="kind-row">
-                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-label">
+                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
+                      {k.note && <span class="note"> · {k.note}</span>}
+                    </span>
                     <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
                   </div>
                 ))}
@@ -146,9 +155,12 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                   <span class="inst-name">{inst.institution}</span>
                   <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
                 </div>
-                {inst.kinds.map((k) => (
+                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
                   <div class="kind-row">
-                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-label">
+                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
+                      {k.note && <span class="note"> · {k.note}</span>}
+                    </span>
                     <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
                   </div>
                 ))}
@@ -170,9 +182,12 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
                   <span class="inst-name">{inst.institution}</span>
                   <span class="inst-total num neg">{fmtUSD.format(-inst.totalCents / 100)}</span>
                 </div>
-                {inst.kinds.map((k) => (
+                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
                   <div class="kind-row">
-                    <span class="kind-label">{prettyKind(k.kind)} · {pluralize(k.count, 'account')}</span>
+                    <span class="kind-label">
+                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
+                      {k.note && <span class="note"> · {k.note}</span>}
+                    </span>
                     <span class="kind-total num neg">{fmtUSD.format(-k.totalCents / 100)}</span>
                   </div>
                 ))}
@@ -265,6 +280,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
+  .kind-label .note { color: var(--fg); }
   .kind-total {
     font-size: var(--size-xs);
     color: var(--fg-muted);
