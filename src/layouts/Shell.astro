@@ -1,0 +1,28 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+}
+const { title = 'fiscus' } = Astro.props;
+const path = Astro.url.pathname;
+const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title === 'fiscus' ? 'fiscus' : `${title} · fiscus`}</title>
+  </head>
+  <body>
+    <header class="app-header">
+      <a href="/" class="brand">fiscus</a>
+      <nav>
+        <a href="/" aria-current={active('/') ? 'page' : undefined}>net worth</a>
+        <a href="/accounts/new" aria-current={active('/accounts') ? 'page' : undefined}>+ account</a>
+      </nav>
+    </header>
+    <slot />
+  </body>
+</html>

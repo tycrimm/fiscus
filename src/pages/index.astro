@@ -2,6 +2,7 @@
 import { sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
+import Shell from '../layouts/Shell.astro';
 
 const d = db(env.DB);
 
@@ -37,82 +38,42 @@ const netWorthCents = rows.reduce((acc, r) => {
 }, 0);
 
 const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const fmtDate = (sec: number | null) => sec ? new Date(sec * 1000).toLocaleDateString('en-US') : '—';
+const fmtDate = (sec: number | null) =>
+  sec ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 const money = (cents: number | null | undefined, liab = false) => {
   if (cents == null) return '—';
   const dollars = cents / 100;
   return fmtUSD.format(liab ? -dollars : dollars);
 };
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>fiscus</title>
-    <style>
-      :root {
-        color-scheme: light;
-        --bg: #fff;
-        --fg: #111;
-        --muted: #666;
-        --rule: #e5e5e5;
-      }
-      * { box-sizing: border-box; }
-      html, body { background: var(--bg); }
-      body {
-        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-        max-width: 48rem; margin: 4rem auto; padding: 0 1.5rem;
-        color: var(--fg); line-height: 1.5;
-      }
-      header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2rem; }
-      h1 { font-weight: 500; letter-spacing: -0.02em; margin: 0; }
-      a  { color: inherit; }
-      .net { margin: 1.5rem 0 2.5rem; }
-      .net .label { color: var(--muted); font-size: 0.875rem; }
-      .net .value { font-size: 2.25rem; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-      th, td { padding: 0.75rem 0.5rem; text-align: left; border-bottom: 1px solid var(--rule); }
-      th { font-weight: 500; color: var(--muted); font-size: 0.875rem; }
-      td.num { text-align: right; }
-      .muted { color: var(--muted); font-size: 0.875rem; }
-      .empty { color: var(--muted); padding: 2rem 0; text-align: center; }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>fiscus</h1>
-      <a href="/accounts/new">+ add account</a>
-    </header>
+<Shell>
+  <section class="hero">
+    <div class="label">net worth</div>
+    <div class="value">{fmtUSD.format(netWorthCents / 100)}</div>
+  </section>
 
-    <div class="net">
-      <div class="label">net worth</div>
-      <div class="value">{fmtUSD.format(netWorthCents / 100)}</div>
-    </div>
-
-    {rows.length === 0 ? (
-      <p class="empty">no accounts yet. <a href="/accounts/new">add one</a>.</p>
-    ) : (
-      <table>
-        <thead>
+  {rows.length === 0 ? (
+    <p class="empty">no accounts yet. <a href="/accounts/new">add one</a>.</p>
+  ) : (
+    <table>
+      <thead>
+        <tr>
+          <th>institution</th>
+          <th>account</th>
+          <th class="num-col">balance</th>
+          <th class="num-col">as of</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
           <tr>
-            <th>institution</th>
-            <th>account</th>
-            <th class="num">balance</th>
-            <th class="num">as of</th>
+            <td>{r.institution_name}</td>
+            <td>{r.account_name} <span class="muted">· {r.account_kind.replace('_', ' ')}</span></td>
+            <td class="num-col">{money(r.balance_cents, !!r.is_liability)}</td>
+            <td class="num-col muted">{fmtDate(r.as_of)}</td>
           </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr>
-              <td>{r.institution_name}</td>
-              <td>{r.account_name} <span class="muted">· {r.account_kind}</span></td>
-              <td class="num">{money(r.balance_cents, !!r.is_liability)}</td>
-              <td class="num muted">{fmtDate(r.as_of)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </body>
-</html>
+        ))}
+      </tbody>
+    </table>
+  )}
+</Shell>
