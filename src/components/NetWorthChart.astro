@@ -74,12 +74,7 @@ const realDays = series.length - realStart;
 ---
 <section class="nw-chart">
   <header class="nw-head">
-    <div>
-      <span class="nw-label">net worth · last {series.length} days</span>
-      {hasSynthetic && (
-        <span class="nw-tag">{realDays} {realDays === 1 ? 'real day' : 'real days'} · rest is baseline</span>
-      )}
-    </div>
+    <span class="nw-label">net worth · last {series.length} days</span>
     {realDays > 1 && (
       <div class={`nw-delta ${changePos ? 'pos' : 'neg'}`}>
         <span class="num">{changePos ? '+' : '−'}{fmtUSD.format(Math.abs(change) / 100)}</span>
@@ -148,14 +143,6 @@ const realDays = series.length - realStart;
     stroke-dasharray: 3 3;
     stroke-width: 1;
   }
-  .nw-tag {
-    margin-left: var(--space-2);
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
   .nw-axis {
     position: relative;
     height: 1em;
