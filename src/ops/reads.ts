@@ -137,6 +137,36 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
   );
   if (!asset) throw new Error(`Private investment not found: ${assetId}`);
 
+  // Latest-per-leaf summed — same semantic as listPrivateInvestments and netWorth.
+  // Partitions on investment_id with a sentinel so asset-level marks also count.
+  const [valRow] = await rows<{ cents: number }>(
+    d,
+    sql`
+      WITH latest_per_leaf AS (
+        SELECT v.value_cents,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(v.investment_id, '__asset_level__')
+            ORDER BY v.as_of DESC
+          ) AS rn
+        FROM valuations v
+        WHERE v.asset_id = ${assetId}
+      )
+      SELECT COALESCE(SUM(value_cents), 0) AS cents FROM latest_per_leaf WHERE rn = 1
+    `,
+    ['cents'],
+  );
+  const currentValueCents = num(valRow?.cents);
+
+  const [basisRow] = await rows<{ cents: number }>(
+    d,
+    sql`
+      SELECT COALESCE(SUM(cost_basis_cents), 0) AS cents
+      FROM investments WHERE asset_id = ${assetId} AND archived_at IS NULL
+    `,
+    ['cents'],
+  );
+  const costBasisCents = num(basisRow?.cents);
+
   const invs = await rows<Record<string, unknown>>(
     d,
     sql`
@@ -169,7 +199,14 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
     ['asset_id', 'role', 'committed_cents', 'called_cents', 'distributed_cents', 'carry_pct', 'carry_vested_pct', 'created_at'],
   );
 
-  return { asset, investments: invs, valuations: vals, fund_details: fd[0] ?? null };
+  return {
+    asset,
+    investments: invs,
+    valuations: vals,
+    fund_details: fd[0] ?? null,
+    current_value_cents: currentValueCents,
+    cost_basis_cents: costBasisCents,
+  };
 }
 
 export type NetWorthPoint = {
