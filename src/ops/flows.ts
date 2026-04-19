@@ -22,7 +22,7 @@ export async function addExpectedFlow(
     amountLowDollars?: number;
     amountHighDollars?: number;
     accountId?: string;
-    illiquidAssetId?: string;
+    privateInvestmentId?: string;
     owner?: Owner;
     endsDate?: string;
     notes?: string;
@@ -39,7 +39,7 @@ export async function addExpectedFlow(
       amountLowCents: dollarsToCents(input.amountLowDollars),
       amountHighCents: dollarsToCents(input.amountHighDollars),
       accountId: input.accountId ?? null,
-      illiquidAssetId: input.illiquidAssetId ?? null,
+      privateInvestmentId: input.privateInvestmentId ?? null,
       owner: input.owner ?? 'joint',
       endsAt: input.endsDate ? dateToSec(input.endsDate) : null,
       notes: input.notes ?? null,
@@ -78,7 +78,7 @@ export async function updateExpectedFlow(
     endsDate?: string | null;
     notes?: string | null;
     accountId?: string | null;
-    illiquidAssetId?: string | null;
+    privateInvestmentId?: string | null;
   },
 ) {
   const set: Record<string, unknown> = {};
@@ -93,7 +93,7 @@ export async function updateExpectedFlow(
   if (patch.endsDate !== undefined) set.endsAt = patch.endsDate ? dateToSec(patch.endsDate) : null;
   if (patch.notes !== undefined) set.notes = patch.notes;
   if (patch.accountId !== undefined) set.accountId = patch.accountId;
-  if (patch.illiquidAssetId !== undefined) set.illiquidAssetId = patch.illiquidAssetId;
+  if (patch.privateInvestmentId !== undefined) set.privateInvestmentId = patch.privateInvestmentId;
 
   const [row] = await d
     .update(expectedFlows)
@@ -117,7 +117,7 @@ export type ProjectedFlow = {
   amountExpectedCents: number;
   amountHighCents: number | null;
   accountId: string | null;
-  illiquidAssetId: string | null;
+  privateInvestmentId: string | null;
 };
 
 function addCadence(date: number, cadence: Cadence): number {
@@ -164,7 +164,7 @@ export async function forecastFlows(d: DB, windowDays = 30): Promise<ProjectedFl
         amountExpectedCents: f.amountExpectedCents,
         amountHighCents: f.amountHighCents,
         accountId: f.accountId,
-        illiquidAssetId: f.illiquidAssetId,
+        privateInvestmentId: f.privateInvestmentId,
       });
       if (f.cadence === 'once') break;
       cursor = addCadence(cursor, f.cadence);

@@ -48,9 +48,9 @@ export const balanceSnapshots = sqliteTable('balance_snapshots', {
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
 });
 
-// ─── illiquid ───────────────────────────────────────────────────────────────
+// ─── private investments (agent-entered; direct company equity, SAFEs, LP stakes, coinvestments, carry) ─
 
-export const illiquidAssets = sqliteTable('illiquid_assets', {
+export const privateInvestments = sqliteTable('private_investments', {
   id: text('id').primaryKey().$defaultFn(uuid),
   kind: text('kind', {
     enum: ['private_company', 'fund', 'loan_receivable', 'gift_earmark', 'education_529', 'other'],
@@ -66,7 +66,7 @@ export const illiquidAssets = sqliteTable('illiquid_assets', {
 
 export const investments = sqliteTable('investments', {
   id: text('id').primaryKey().$defaultFn(uuid),
-  assetId: text('asset_id').notNull().references(() => illiquidAssets.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').notNull().references(() => privateInvestments.id, { onDelete: 'cascade' }),
   securityType: text('security_type'),                // "Seed Preferred", "SAFE", "A Preferred", free text
   roundLabel: text('round_label'),                    // "$35M Series E-2"
   shares: integer('shares'),
@@ -79,7 +79,7 @@ export const investments = sqliteTable('investments', {
 
 export const valuations = sqliteTable('valuations', {
   id: text('id').primaryKey().$defaultFn(uuid),
-  assetId: text('asset_id').notNull().references(() => illiquidAssets.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').notNull().references(() => privateInvestments.id, { onDelete: 'cascade' }),
   investmentId: text('investment_id').references(() => investments.id, { onDelete: 'cascade' }),
   asOf: integer('as_of').notNull(),
   valueCents: integer('value_cents').notNull(),
@@ -89,7 +89,7 @@ export const valuations = sqliteTable('valuations', {
 });
 
 export const fundDetails = sqliteTable('fund_details', {
-  assetId: text('asset_id').primaryKey().references(() => illiquidAssets.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').primaryKey().references(() => privateInvestments.id, { onDelete: 'cascade' }),
   role: text('role', { enum: ['lp', 'gp', 'both'] }).notNull(),
   committedCents: integer('committed_cents').notNull().default(0),
   calledCents: integer('called_cents').notNull().default(0),
@@ -108,7 +108,7 @@ export const securities = sqliteTable('securities', {
   ticker: text('ticker'),                             // TSLA, AAPL, BTCUSD
   cusip: text('cusip'),
   plaidSecurityId: text('plaid_security_id'),
-  illiquidAssetId: text('illiquid_asset_id').references(() => illiquidAssets.id, { onDelete: 'restrict' }),
+  privateInvestmentId: text('private_investment_id').references(() => privateInvestments.id, { onDelete: 'restrict' }),
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
 }, (t) => ({
   plaidSecUnique: unique().on(t.plaidSecurityId),
@@ -135,7 +135,7 @@ export const expectedFlows = sqliteTable('expected_flows', {
   direction: text('direction', { enum: ['inflow', 'outflow'] }).notNull(),
   label: text('label').notNull(),                       // "Nanny", "Paycheck — TC", "Grandma trust"
   accountId: text('account_id').references(() => accounts.id, { onDelete: 'set null' }),
-  illiquidAssetId: text('illiquid_asset_id').references(() => illiquidAssets.id, { onDelete: 'set null' }),
+  privateInvestmentId: text('private_investment_id').references(() => privateInvestments.id, { onDelete: 'set null' }),
   owner: text('owner', { enum: ['tyler', 'julianne', 'joint'] }).notNull().default('joint'),
 
   // amount range — low/high optional, expected required

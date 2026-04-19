@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db';
-import { illiquidAssets, investments, valuations, fundDetails } from '../db/schema';
+import { privateInvestments, investments, valuations, fundDetails } from '../db/schema';
 
-export type IlliquidKind =
+export type PrivateInvestmentKind =
   | 'private_company'
   | 'fund'
   | 'loan_receivable'
@@ -19,12 +19,12 @@ const toUnix = (v: number | string): number => {
   return Math.floor(t / 1000);
 };
 
-export async function addIlliquidAsset(
+export async function addPrivateInvestment(
   d: DB,
-  input: { kind: IlliquidKind; name: string; notes?: string; owner?: 'tyler' | 'julianne' | 'joint' },
+  input: { kind: PrivateInvestmentKind; name: string; notes?: string; owner?: 'tyler' | 'julianne' | 'joint' },
 ) {
   const [row] = await d
-    .insert(illiquidAssets)
+    .insert(privateInvestments)
     .values({
       kind: input.kind,
       name: input.name.trim(),
@@ -32,7 +32,7 @@ export async function addIlliquidAsset(
       owner: input.owner ?? 'joint',
     })
     .returning();
-  if (!row) throw new Error('Illiquid asset insert failed');
+  if (!row) throw new Error('Private investment insert failed');
   return row;
 }
 
@@ -143,8 +143,8 @@ export async function setFundDetails(
   return row;
 }
 
-export async function archiveIlliquidAsset(d: DB, assetId: string) {
+export async function archivePrivateInvestment(d: DB, assetId: string) {
   const now = Math.floor(Date.now() / 1000);
-  await d.update(illiquidAssets).set({ archivedAt: now }).where(eq(illiquidAssets.id, assetId));
+  await d.update(privateInvestments).set({ archivedAt: now }).where(eq(privateInvestments.id, assetId));
   return { assetId, archivedAt: now };
 }

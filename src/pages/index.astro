@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
-import { netWorth, netWorthSeries, listAccounts, listIlliquidAssets } from '../ops/reads';
+import { netWorth, netWorthSeries, listAccounts, listPrivateInvestments } from '../ops/reads';
 import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
 import { computeDeltas, computeAllocation, topConcentration } from '../lib/metrics';
 import Shell from '../layouts/Shell.astro';
@@ -13,18 +13,18 @@ import AllocationMix from '../components/AllocationMix.astro';
 import Concentration from '../components/Concentration.astro';
 
 const d = db(env.DB);
-const [nw, series, accounts, illiquid] = await Promise.all([
+const [nw, series, accounts, privateInv] = await Promise.all([
   netWorth(d),
   netWorthSeries(d),
   listAccounts(d),
-  listIlliquidAssets(d),
+  listPrivateInvestments(d),
 ]);
 
 const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
 const invest = accounts.filter((a) => !a.is_liability && ['brokerage', 'retirement', 'education', 'crypto'].includes(a.kind));
 const other  = accounts.filter((a) => !a.is_liability && !['checking', 'savings', 'brokerage', 'retirement', 'education', 'crypto'].includes(a.kind));
 const liab   = accounts.filter((a) => !!a.is_liability);
-illiquid.sort((a, b) => b.current_value_cents - a.current_value_cents);
+privateInv.sort((a, b) => b.current_value_cents - a.current_value_cents);
 
 type KindLine = { kind: string; count: number; totalCents: number; note: string | null };
 type InstGroup = { institution: string; totalCents: number; kinds: KindLine[] };
@@ -65,7 +65,7 @@ const cashTotal = sumAccts(cash);
 const investTotal = sumAccts(invest);
 const otherTotal = sumAccts(other);
 const liabTotal = sumAccts(liab);
-const illiquidTotal = illiquid.reduce((acc, r) => acc + r.current_value_cents, 0);
+const privateTotal = privateInv.reduce((acc, r) => acc + r.current_value_cents, 0);
 
 const lastSyncedAt = accounts.reduce<number | null>(
   (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
@@ -73,8 +73,8 @@ const lastSyncedAt = accounts.reduce<number | null>(
 );
 
 const deltas = computeDeltas(series);
-const { categories: allocCategories, totalCents: grossAssetsCents } = computeAllocation(accounts, illiquid);
-const topPositions = topConcentration(accounts, illiquid, grossAssetsCents);
+const { categories: allocCategories, totalCents: grossAssetsCents } = computeAllocation(accounts, privateInv);
+const topPositions = topConcentration(accounts, privateInv, grossAssetsCents);
 
 const deltaRows: Array<{ label: string; d: { cents: number; pct: number } | null }> = [
   { label: '1d',  d: deltas.d1  },
@@ -86,7 +86,7 @@ const deltaRows: Array<{ label: string; d: { cents: number; pct: number } | null
 const signedUSD = (cents: number) => (cents >= 0 ? '+' : '−') + fmtUSD.format(Math.abs(cents) / 100);
 const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 100).toFixed(1) + '%';
 
-const hasAny = accounts.length > 0 || illiquid.length > 0;
+const hasAny = accounts.length > 0 || privateInv.length > 0;
 ---
 <Shell lastSyncedAt={lastSyncedAt}>
   {!hasAny ? (
@@ -99,7 +99,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
 
         <div class="rail-breakdown">
           <div class="bd-row"><span class="cat">liquid</span><span class="val num">{fmtUSD.format(nw.liquid_usd)}</span></div>
-          <div class="bd-row"><span class="cat">illiquid</span><span class="val num">{fmtUSD.format(nw.illiquid_usd)}</span></div>
+          <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
         </div>
 
         <div class="rail-label">change</div>
@@ -120,7 +120,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
         </div>
 
         <div class="rail-meta">
-          <div>{accounts.length} accounts · {illiquid.length} illiquid</div>
+          <div>{accounts.length} accounts · {privateInv.length} private</div>
         </div>
       </aside>
 
@@ -151,16 +151,16 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
           </LedgerSection>
         )}
 
-        {illiquid.length > 0 && (
-          <LedgerSection title="Illiquid" count={pluralize(illiquid.length, 'position')} subtotal={fmtUSDsigned(illiquidTotal)}>
-            {illiquid.map((ia) => (
+        {privateInv.length > 0 && (
+          <LedgerSection title="Private Investments" count={pluralize(privateInv.length, 'position')} subtotal={fmtUSDsigned(privateTotal)}>
+            {privateInv.map((pi) => (
               <LedgerRow
-                name={ia.name}
-                sub={ia.investment_count > 0
-                  ? `${prettyKind(ia.kind)} · ${pluralize(ia.investment_count, 'position')}`
-                  : prettyKind(ia.kind)}
-                owner={ia.owner}
-                amount={fmtUSD.format(ia.current_value_cents / 100)}
+                name={pi.name}
+                sub={pi.investment_count > 0
+                  ? `${prettyKind(pi.kind)} · ${pluralize(pi.investment_count, 'position')}`
+                  : prettyKind(pi.kind)}
+                owner={pi.owner}
+                amount={fmtUSD.format(pi.current_value_cents / 100)}
               />
             ))}
           </LedgerSection>

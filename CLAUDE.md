@@ -13,7 +13,7 @@ The app code runs in two places against the same Cloudflare D1 database (`fiscus
 1. **Astro Worker** at `fiscus.crimm.dev` (gated by Cloudflare Access). Read-only UI surface — net worth dashboard, account/asset detail. Accesses D1 via the `env.DB` binding: `import { env } from 'cloudflare:workers'`. Note: Astro 6 removed `Astro.locals.runtime.env` — do not use the old pattern.
 2. **Local MCP server** (`src/mcp/server.ts`, stdio transport) — exposes read+write tools to Claude Code. Reaches D1 over the Cloudflare HTTP `/raw` endpoint via Drizzle's sqlite-proxy driver (`src/mcp/d1-http.ts`). Auto-registered via `.mcp.json` at the repo root.
 
-**The shared core is `src/ops/{accounts,illiquid,reads}.ts`** — pure functions taking a Drizzle `DB` handle. They work against the Worker binding *and* the HTTP-proxy DB, so the same code mutates state regardless of which runtime invokes it. When adding new write logic, put it in `src/ops/`.
+**The shared core is `src/ops/{accounts,private-investments,reads,flows}.ts`** — pure functions taking a Drizzle `DB` handle. They work against the Worker binding *and* the HTTP-proxy DB, so the same code mutates state regardless of which runtime invokes it. When adding new write logic, put it in `src/ops/`.
 
 ## Product principle: no manual write forms
 
@@ -24,7 +24,7 @@ Until Plaid lands, agent-driven writes are the only ingest path. When the user w
 ## Schema layers (`src/db/schema.ts`)
 
 - **Canonical** (mixed hand-entered + Plaid-projected): `institutions`, `accounts`, `balance_snapshots`, `securities`, `holdings`. `accounts.source` distinguishes manual vs plaid; `plaid_account_id` links back when relevant.
-- **Illiquid** (hand-entered only): `illiquid_assets`, `investments` (one per check), `valuations` (append-only marks; `investment_id` is nullable for asset-level marks like "Grandma $50k"), `fund_details` (sidecar for `kind='fund'`).
+- **Private investments** (hand-entered only; renamed from `illiquid_assets` on 2026-04-19 — the old "illiquid" framing broke down once IPO'd positions entered the picture): `private_investments`, `investments` (one per check/round), `valuations` (append-only marks; `investment_id` is nullable for asset-level marks like "Grandma $50k"), `fund_details` (sidecar for `kind='fund'`). `securities.private_investment_id` bridges an IPO'd position back to its pre-IPO record so cost basis / round history survives.
 - **Plaid connection**: `plaid_items` (encrypted access_token + cursor), `plaid_sync_log` (audit trail of sync payloads). Plaid sync writes *straight into canonical tables* via the same `src/ops/*` functions — no parallel `plaid_raw_*` shadow tables.
 - **Obligations** (step 8, not yet built): `obligations` for nanny/insurance/car/etc.
 

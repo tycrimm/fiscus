@@ -36,6 +36,13 @@
       "when": 1776555727502,
       "tag": "0004_clever_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1776630812156,
+      "tag": "0005_brown_nuke",
+      "breakpoints": true
     }
   ]
 }

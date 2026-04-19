@@ -60,7 +60,7 @@ type AllocAccount = {
   is_liability: number;
   latest_cents: number | null;
 };
-type AllocIlliquid = {
+type AllocPrivate = {
   kind: string;
   current_value_cents: number;
 };
@@ -74,11 +74,11 @@ export type AllocationCategory = {
 
 const CASH_KINDS = new Set(['checking', 'savings']);
 const EQUITY_KINDS = new Set(['brokerage', 'retirement', 'education']);
-const PRIVATE_ILLIQ_KINDS = new Set(['private_company', 'fund']);
+const PRIVATE_KINDS = new Set(['private_company', 'fund']);
 
 export function computeAllocation(
   accounts: AllocAccount[],
-  illiquid: AllocIlliquid[],
+  privateInv: AllocPrivate[],
 ): { categories: AllocationCategory[]; totalCents: number } {
   let cash = 0;
   let equities = 0;
@@ -94,8 +94,8 @@ export function computeAllocation(
     else if (a.kind === 'crypto') crypto += c;
     else other += c;
   }
-  for (const i of illiquid) {
-    if (PRIVATE_ILLIQ_KINDS.has(i.kind)) priv += i.current_value_cents;
+  for (const i of privateInv) {
+    if (PRIVATE_KINDS.has(i.kind)) priv += i.current_value_cents;
     else other += i.current_value_cents;
   }
 
@@ -126,7 +126,7 @@ type ConcAccount = {
   is_liability: number;
   latest_cents: number | null;
 };
-type ConcIlliquid = {
+type ConcPrivate = {
   id: string;
   name: string;
   kind: string;
@@ -143,7 +143,7 @@ export type Position = {
 
 export function topConcentration(
   accounts: ConcAccount[],
-  illiquid: ConcIlliquid[],
+  privateInv: ConcPrivate[],
   totalAssetsCents: number,
   topN = 3,
 ): Position[] {
@@ -159,7 +159,7 @@ export function topConcentration(
       cents,
     });
   }
-  for (const i of illiquid) {
+  for (const i of privateInv) {
     if (i.current_value_cents <= 0) continue;
     positions.push({
       id: i.id,

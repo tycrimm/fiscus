@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { makeDb } from './d1-http';
 import * as accounts from '../ops/accounts';
-import * as illiquid from '../ops/illiquid';
+import * as privateInv from '../ops/private-investments';
 import * as reads from '../ops/reads';
 import * as flows from '../ops/flows';
 
@@ -22,7 +22,7 @@ const json = (value: unknown) => ({
 server.registerTool(
   'get_net_worth',
   {
-    description: 'Current total net worth: liquid (account balances, liabilities flipped) + illiquid (latest valuations).',
+    description: 'Current total net worth: liquid (account balances, liabilities flipped) + private investments (latest valuations).',
     inputSchema: {},
   },
   async () => json(await reads.netWorth(db)),
@@ -32,7 +32,7 @@ server.registerTool(
   'get_net_worth_series',
   {
     description:
-      'Daily net worth time series from earliest snapshot through today (PT). Each point: liquid_cents, illiquid_cents, total_cents. Carry-forward semantics: a day inherits the prior day\'s balance for any account that didn\'t snapshot that day.',
+      'Daily net worth time series from earliest snapshot through today (PT). Each point: liquid_cents, private_cents, total_cents. Carry-forward semantics: a day inherits the prior day\'s balance for any account that didn\'t snapshot that day.',
     inputSchema: {},
   },
   async () => json(await reads.netWorthSeries(db)),
@@ -57,21 +57,21 @@ server.registerTool(
 );
 
 server.registerTool(
-  'list_illiquid_assets',
+  'list_private_investments',
   {
-    description: 'List all non-archived illiquid assets with current aggregate value and total cost basis.',
+    description: 'List all non-archived private investments with current aggregate value and total cost basis.',
     inputSchema: {},
   },
-  async () => json(await reads.listIlliquidAssets(db)),
+  async () => json(await reads.listPrivateInvestments(db)),
 );
 
 server.registerTool(
-  'get_illiquid_asset',
+  'get_private_investment',
   {
-    description: 'Full detail for one illiquid asset: investments, recent valuations, and fund_details sidecar if applicable.',
+    description: 'Full detail for one private investment: rounds/checks, recent valuations, and fund_details sidecar if applicable.',
     inputSchema: { assetId: z.string().uuid() },
   },
-  async ({ assetId }) => json(await reads.getIlliquidAsset(db, assetId)),
+  async ({ assetId }) => json(await reads.getPrivateInvestment(db, assetId)),
 );
 
 // ─── writes ─────────────────────────────────────────────────────────────────
@@ -126,10 +126,10 @@ server.registerTool(
 );
 
 server.registerTool(
-  'add_illiquid_asset',
+  'add_private_investment',
   {
     description:
-      'Create an illiquid asset (private company, fund, loan receivable, 529 plan, gift earmark, or other). Returns the new asset id.',
+      'Create a private investment (private company, fund, loan receivable, 529 plan, gift earmark, or other). Returns the new asset id.',
     inputSchema: {
       kind: z.enum([
         'private_company',
@@ -144,14 +144,14 @@ server.registerTool(
       owner: z.enum(['tyler', 'julianne', 'joint']).default('joint'),
     },
   },
-  async (input) => json(await illiquid.addIlliquidAsset(db, input)),
+  async (input) => json(await privateInv.addPrivateInvestment(db, input)),
 );
 
 server.registerTool(
   'add_investment',
   {
     description:
-      'Record a check / commit into an illiquid asset. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down.',
+      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down.',
     inputSchema: {
       assetId: z.string().uuid(),
       securityType: z
@@ -166,7 +166,7 @@ server.registerTool(
       entryDate: z.string().max(30).describe('ISO date, e.g. "2024-03-08"'),
     },
   },
-  async (input) => json(await illiquid.addInvestment(db, input)),
+  async (input) => json(await privateInv.addInvestment(db, input)),
 );
 
 server.registerTool(
@@ -187,14 +187,14 @@ server.registerTool(
       asOf: z.string().max(30).optional().describe('ISO date; defaults to today'),
     },
   },
-  async (input) => json(await illiquid.recordValuation(db, input)),
+  async (input) => json(await privateInv.recordValuation(db, input)),
 );
 
 server.registerTool(
   'set_fund_details',
   {
     description:
-      'Set or update the fund sidecar (role, committed/called/distributed, carry) for a fund-kind illiquid asset. Upserts.',
+      'Set or update the fund sidecar (role, committed/called/distributed, carry) for a fund-kind private investment. Upserts.',
     inputSchema: {
       assetId: z.string().uuid(),
       role: z.enum(['lp', 'gp', 'both']),
@@ -205,16 +205,16 @@ server.registerTool(
       carryVestedPct: z.number().finite().optional(),
     },
   },
-  async (input) => json(await illiquid.setFundDetails(db, input)),
+  async (input) => json(await privateInv.setFundDetails(db, input)),
 );
 
 server.registerTool(
-  'archive_illiquid_asset',
+  'archive_private_investment',
   {
-    description: 'Soft-archive an illiquid asset so it no longer counts in net worth or lists.',
+    description: 'Soft-archive a private investment so it no longer counts in net worth or lists.',
     inputSchema: { assetId: z.string().uuid() },
   },
-  async ({ assetId }) => json(await illiquid.archiveIlliquidAsset(db, assetId)),
+  async ({ assetId }) => json(await privateInv.archivePrivateInvestment(db, assetId)),
 );
 
 // ─── expected flows (forward-facing cash events) ────────────────────────────
@@ -243,7 +243,7 @@ server.registerTool(
   'add_expected_flow',
   {
     description:
-      'Add an expected forward-looking cash event. Use cadence="once" for one-offs (capital call, trust distribution); use weekly/biweekly/monthly/quarterly/annual for recurring (paycheck, nanny, premium). amountExpectedDollars is required; low/high define the range. Optional accountId pins it to a specific account; optional illiquidAssetId links it to a fund (cap calls/distributions).',
+      'Add an expected forward-looking cash event. Use cadence="once" for one-offs (capital call, trust distribution); use weekly/biweekly/monthly/quarterly/annual for recurring (paycheck, nanny, premium). amountExpectedDollars is required; low/high define the range. Optional accountId pins it to a specific account; optional privateInvestmentId links it to a fund (cap calls/distributions).',
     inputSchema: {
       direction: z.enum(['inflow', 'outflow']),
       label: z.string().min(1).max(200),
@@ -253,7 +253,7 @@ server.registerTool(
       amountLowDollars: z.number().finite().optional(),
       amountHighDollars: z.number().finite().optional(),
       accountId: z.string().uuid().optional(),
-      illiquidAssetId: z.string().uuid().optional(),
+      privateInvestmentId: z.string().uuid().optional(),
       owner: z.enum(['tyler', 'julianne', 'joint']).default('joint'),
       endsDate: z.string().max(30).optional().describe('ISO date; recurring flows stop after this'),
       notes: z.string().max(2000).optional(),
@@ -279,7 +279,7 @@ server.registerTool(
       endsDate: z.string().max(30).nullable().optional(),
       notes: z.string().max(2000).nullable().optional(),
       accountId: z.string().uuid().nullable().optional(),
-      illiquidAssetId: z.string().uuid().nullable().optional(),
+      privateInvestmentId: z.string().uuid().nullable().optional(),
     },
   },
   async ({ id, ...patch }) => json(await flows.updateExpectedFlow(db, id, patch)),

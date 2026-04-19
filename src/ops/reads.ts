@@ -34,7 +34,7 @@ export async function netWorth(d: DB) {
   );
   const liquidCents = num(liqRow?.cents);
 
-  const [illRow] = await rows<{ cents: number }>(
+  const [privRow] = await rows<{ cents: number }>(
     d,
     sql`
       WITH ranked AS (
@@ -44,23 +44,23 @@ export async function netWorth(d: DB) {
             ORDER BY v.as_of DESC
           ) AS rn
         FROM valuations v
-        JOIN illiquid_assets ia ON ia.id = v.asset_id
-        WHERE ia.archived_at IS NULL
+        JOIN private_investments pi ON pi.id = v.asset_id
+        WHERE pi.archived_at IS NULL
       )
       SELECT COALESCE(SUM(value_cents), 0) AS cents FROM ranked WHERE rn = 1
     `,
     ['cents'],
   );
-  const illiquidCents = num(illRow?.cents);
+  const privateCents = num(privRow?.cents);
 
-  const totalCents = liquidCents + illiquidCents;
+  const totalCents = liquidCents + privateCents;
   return {
     total_usd: totalCents / 100,
     liquid_usd: liquidCents / 100,
-    illiquid_usd: illiquidCents / 100,
+    private_usd: privateCents / 100,
     total_cents: totalCents,
     liquid_cents: liquidCents,
-    illiquid_cents: illiquidCents,
+    private_cents: privateCents,
   };
 }
 
@@ -94,7 +94,7 @@ export async function listAccounts(d: DB): Promise<AccountRow[]> {
   );
 }
 
-type IlliquidRow = {
+type PrivateInvestmentRow = {
   id: string;
   kind: string;
   name: string;
@@ -105,8 +105,8 @@ type IlliquidRow = {
   investment_count: number;
 };
 
-export async function listIlliquidAssets(d: DB): Promise<IlliquidRow[]> {
-  return rows<IlliquidRow>(
+export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRow[]> {
+  return rows<PrivateInvestmentRow>(
     d,
     sql`
       WITH latest_per_leaf AS (
@@ -117,25 +117,25 @@ export async function listIlliquidAssets(d: DB): Promise<IlliquidRow[]> {
           ) AS rn
         FROM valuations v
       )
-      SELECT ia.id, ia.kind, ia.name, ia.notes, ia.owner,
-        (SELECT COALESCE(SUM(value_cents), 0) FROM latest_per_leaf WHERE asset_id = ia.id AND rn = 1) AS current_value_cents,
-        (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments WHERE asset_id = ia.id AND archived_at IS NULL) AS total_cost_basis_cents,
-        (SELECT COUNT(*) FROM investments WHERE asset_id = ia.id AND archived_at IS NULL) AS investment_count
-      FROM illiquid_assets ia
-      WHERE ia.archived_at IS NULL
-      ORDER BY ia.kind, ia.name
+      SELECT pi.id, pi.kind, pi.name, pi.notes, pi.owner,
+        (SELECT COALESCE(SUM(value_cents), 0) FROM latest_per_leaf WHERE asset_id = pi.id AND rn = 1) AS current_value_cents,
+        (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS total_cost_basis_cents,
+        (SELECT COUNT(*) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS investment_count
+      FROM private_investments pi
+      WHERE pi.archived_at IS NULL
+      ORDER BY pi.kind, pi.name
     `,
     ['id', 'kind', 'name', 'notes', 'owner', 'current_value_cents', 'total_cost_basis_cents', 'investment_count'],
   );
 }
 
-export async function getIlliquidAsset(d: DB, assetId: string) {
+export async function getPrivateInvestment(d: DB, assetId: string) {
   const [asset] = await rows<Record<string, unknown>>(
     d,
-    sql`SELECT id, kind, name, notes, owner, archived_at, created_at FROM illiquid_assets WHERE id = ${assetId}`,
+    sql`SELECT id, kind, name, notes, owner, archived_at, created_at FROM private_investments WHERE id = ${assetId}`,
     ['id', 'kind', 'name', 'notes', 'owner', 'archived_at', 'created_at'],
   );
-  if (!asset) throw new Error(`Illiquid asset not found: ${assetId}`);
+  if (!asset) throw new Error(`Private investment not found: ${assetId}`);
 
   const invs = await rows<Record<string, unknown>>(
     d,
@@ -175,7 +175,7 @@ export async function getIlliquidAsset(d: DB, assetId: string) {
 export type NetWorthPoint = {
   date: string;            // 'YYYY-MM-DD' in PT
   liquid_cents: number;
-  illiquid_cents: number;
+  private_cents: number;
   total_cents: number;
   synthetic?: boolean;     // true = backfilled baseline before first real snapshot
 };
@@ -212,8 +212,8 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     sql`
       SELECT v.asset_id, v.investment_id, v.value_cents, v.as_of
       FROM valuations v
-      JOIN illiquid_assets ia ON ia.id = v.asset_id
-      WHERE ia.archived_at IS NULL
+      JOIN private_investments pi ON pi.id = v.asset_id
+      WHERE pi.archived_at IS NULL
       ORDER BY v.as_of ASC
     `,
     ['asset_id', 'investment_id', 'value_cents', 'as_of'],
@@ -255,10 +255,10 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
 
     let liquid = 0;
     for (const v of acctState.values()) liquid += v.liability ? -v.balance : v.balance;
-    let illiquid = 0;
-    for (const v of valState.values()) illiquid += v;
+    let priv = 0;
+    for (const v of valState.values()) priv += v;
 
-    series.push({ date: day, liquid_cents: liquid, illiquid_cents: illiquid, total_cents: liquid + illiquid });
+    series.push({ date: day, liquid_cents: liquid, private_cents: priv, total_cents: liquid + priv });
     day = nextYmd(day);
   }
 
@@ -274,7 +274,7 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
       pad.push({
         date: shiftYmd(anchor.date, -k),
         liquid_cents: anchor.liquid_cents,
-        illiquid_cents: anchor.illiquid_cents,
+        private_cents: anchor.private_cents,
         total_cents: anchor.total_cents,
         synthetic: true,
       });
