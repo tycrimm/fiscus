@@ -1,0 +1,356 @@
+---
+import { env } from 'cloudflare:workers';
+import { db } from '../../db';
+import { getPrivateInvestment, privateInvestmentValueSeries } from '../../ops/reads';
+import { fmtUSD, fmtDate, prettyKind, pluralize } from '../../lib/format';
+import Shell from '../../layouts/Shell.astro';
+import PrivateInvestmentChart from '../../components/PrivateInvestmentChart.astro';
+
+const { id } = Astro.params;
+if (!id) return new Response('Not found', { status: 404 });
+
+const d = db(env.DB);
+
+let detail: Awaited<ReturnType<typeof getPrivateInvestment>>;
+try {
+  detail = await getPrivateInvestment(d, id);
+} catch {
+  return new Response('Not found', { status: 404 });
+}
+
+const series = await privateInvestmentValueSeries(d, id);
+
+const asset = detail.asset as {
+  id: string;
+  kind: string;
+  name: string;
+  notes: string | null;
+  owner: 'tyler' | 'julianne' | 'joint';
+};
+
+type Inv = {
+  id: string;
+  security_type: string | null;
+  round_label: string | null;
+  shares: number | null;
+  price_per_share_cents: number | null;
+  cost_basis_cents: number;
+  entry_date: number;
+  latest_value_cents: number | null;
+  latest_as_of: number | null;
+};
+type Val = {
+  id: string;
+  investment_id: string | null;
+  as_of: number;
+  value_cents: number;
+  basis: string | null;
+  note: string | null;
+};
+type Fund = {
+  role: string;
+  committed_cents: number;
+  called_cents: number;
+  distributed_cents: number;
+  carry_pct: number | null;
+  carry_vested_pct: number | null;
+} | null;
+
+const investments = detail.investments as unknown as Inv[];
+const valuations = detail.valuations as unknown as Val[];
+const fund = detail.fund_details as unknown as Fund;
+
+// Sort rounds chronologically (oldest first) for the rounds table.
+const rounds = [...investments].sort((a, b) => a.entry_date - b.entry_date);
+
+const currentValueCents = investments.reduce((acc, r) => acc + (r.latest_value_cents ?? 0), 0);
+const costBasisCents = investments.reduce((acc, r) => acc + r.cost_basis_cents, 0);
+const gainCents = currentValueCents - costBasisCents;
+const gainPct = costBasisCents > 0 ? gainCents / costBasisCents : 0;
+const gainPos = gainCents >= 0;
+
+// Index investments by id so valuations can show which round they mark.
+const invById = new Map(investments.map((r) => [r.id, r]));
+
+const fmtPPS = (cents: number | null) =>
+  cents == null ? '—' : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtShares = (n: number | null) =>
+  n == null ? '—' : n.toLocaleString('en-US');
+const signedUSD = (cents: number) => (cents >= 0 ? '+' : '−') + fmtUSD.format(Math.abs(cents) / 100);
+const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 100).toFixed(1) + '%';
+---
+<Shell title={asset.name}>
+  <div class="detail">
+    <header class="detail-head">
+      <div class="head-top">
+        <a href="/" class="back">← back</a>
+      </div>
+      <h1>{asset.name}</h1>
+      <div class="meta">
+        <span class="kind">{prettyKind(asset.kind)}</span>
+        <span class="dot">·</span>
+        <span class:list={['owner', asset.owner]}>{asset.owner}</span>
+        <span class="dot">·</span>
+        <span>{pluralize(investments.length, 'round')}</span>
+      </div>
+      {asset.notes && <p class="notes">{asset.notes}</p>}
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-label">current value</div>
+        <div class="stat-val num">{fmtUSD.format(currentValueCents / 100)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">cost basis</div>
+        <div class="stat-val num muted">{fmtUSD.format(costBasisCents / 100)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">gain</div>
+        <div class={`stat-val num ${gainPos ? 'pos' : 'neg'}`}>
+          {signedUSD(gainCents)}
+          <span class="gain-pct">{signedPct(gainPct)}</span>
+        </div>
+      </div>
+    </section>
+
+    <PrivateInvestmentChart series={series} />
+
+    {fund && (
+      <section class="block">
+        <h2>Fund terms</h2>
+        <dl class="fund-grid">
+          <dt>Role</dt><dd>{fund.role.toUpperCase()}</dd>
+          <dt>Committed</dt><dd class="num">{fmtUSD.format(fund.committed_cents / 100)}</dd>
+          <dt>Called</dt><dd class="num">{fmtUSD.format(fund.called_cents / 100)}</dd>
+          <dt>Distributed</dt><dd class="num">{fmtUSD.format(fund.distributed_cents / 100)}</dd>
+          {fund.carry_pct != null && (<><dt>Carry</dt><dd class="num">{(fund.carry_pct * 100).toFixed(2)}%</dd></>)}
+          {fund.carry_vested_pct != null && (<><dt>Vested</dt><dd class="num">{(fund.carry_vested_pct * 100).toFixed(2)}%</dd></>)}
+        </dl>
+      </section>
+    )}
+
+    {rounds.length > 0 && (
+      <section class="block">
+        <h2>Rounds</h2>
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Round</th>
+              <th>Security</th>
+              <th class="num-col">Shares</th>
+              <th class="num-col">PPS</th>
+              <th class="num-col">Cost Basis</th>
+              <th class="num-col">Current</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rounds.map((r) => {
+              const cur = r.latest_value_cents ?? 0;
+              const delta = cur - r.cost_basis_cents;
+              const dpos = delta >= 0;
+              return (
+                <tr>
+                  <td>{fmtDate(r.entry_date)}</td>
+                  <td>{r.round_label ?? '—'}</td>
+                  <td>{r.security_type ?? '—'}</td>
+                  <td class="num-col">{fmtShares(r.shares)}</td>
+                  <td class="num-col">{fmtPPS(r.price_per_share_cents)}</td>
+                  <td class="num-col">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
+                  <td class="num-col">
+                    {fmtUSD.format(cur / 100)}
+                    {delta !== 0 && (
+                      <span class={`delta ${dpos ? 'pos' : 'neg'}`}>{signedUSD(delta)}</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    {valuations.length > 0 && (
+      <section class="block">
+        <h2>Valuation marks</h2>
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Basis</th>
+              <th>Applies to</th>
+              <th>Note</th>
+              <th class="num-col">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {valuations.map((v) => {
+              const inv = v.investment_id ? invById.get(v.investment_id) : null;
+              const label = inv
+                ? (inv.round_label ?? inv.security_type ?? 'Round')
+                : 'Asset-level';
+              return (
+                <tr>
+                  <td>{fmtDate(v.as_of)}</td>
+                  <td>{v.basis ?? '—'}</td>
+                  <td>{label}</td>
+                  <td class="note-cell">{v.note ?? ''}</td>
+                  <td class="num-col">{fmtUSD.format(v.value_cents / 100)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+    )}
+  </div>
+</Shell>
+
+<style>
+  .detail {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-4);
+    display: grid;
+    gap: var(--space-6);
+  }
+  .detail-head { display: grid; gap: var(--space-2); }
+  .head-top { display: flex; }
+  .back {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+  .back:hover { color: var(--fg); }
+  h1 {
+    font-size: var(--size-2xl);
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    margin: 0;
+    text-transform: none;
+  }
+  .meta {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+  }
+  .meta .dot { opacity: 0.55; }
+  .meta .owner { color: var(--fg); font-weight: 500; }
+  .meta .owner.joint { color: var(--fg-muted); font-weight: 400; }
+  .notes {
+    font-size: var(--size-sm);
+    color: var(--fg-muted);
+    margin: var(--space-2) 0 0;
+    max-width: 48rem;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .stat-label {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-1);
+  }
+  .stat-val {
+    font-size: var(--size-xl);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-val.muted { color: var(--fg-muted); font-weight: 400; }
+  .stat-val.pos { color: var(--pos); }
+  .stat-val.neg { color: var(--neg); }
+  .gain-pct {
+    margin-left: var(--space-2);
+    font-size: var(--size-sm);
+    color: var(--fg-muted);
+  }
+
+  .block { display: grid; gap: var(--space-3); }
+  .block h2 {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .ledger-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+  }
+  .ledger-table th {
+    text-align: left;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    font-weight: 500;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+  }
+  .ledger-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: baseline;
+  }
+  .ledger-table .num-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ledger-table .delta {
+    display: inline-block;
+    margin-left: var(--space-2);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+  .ledger-table .delta.pos { color: var(--pos); }
+  .ledger-table .delta.neg { color: var(--neg); }
+  .note-cell {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    max-width: 22rem;
+  }
+
+  .fund-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--size-sm);
+    margin: 0;
+  }
+  .fund-grid dt {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .fund-grid dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 40rem) {
+    .stats { grid-template-columns: 1fr; }
+    .ledger-table { font-size: var(--size-xs); }
+    .ledger-table th, .ledger-table td { padding: var(--space-1) var(--space-2); }
+  }
+</style>

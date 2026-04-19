@@ -238,11 +238,34 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     m.set(leaf, num(v.value_cents));
   }
 
-  const start = [...acctByDate.keys(), ...valByDate.keys()].sort()[0]!;
+  // Anchor to earliest *liquid* snapshot — private valuations carry historical
+  // entry_dates (years back), but those pre-snapshot days have liquid=0 and
+  // paint a misleading picture. Pre-warm private state with older valuations
+  // so the earliest rendered day still reflects them. Fall back to earliest
+  // valuation if there are no liquid snapshots at all.
+  const start = snaps.length > 0
+    ? ptDateKey(num(snaps[0].as_of))
+    : [...valByDate.keys()].sort()[0]!;
   const today = ptDateKey(Math.floor(Date.now() / 1000));
 
   const acctState = new Map<string, { balance: number; liability: boolean }>();
   const valState = new Map<string, number>();
+
+  // Pre-warm: apply any observations strictly before `start` so carry-forward
+  // state is correct on day 0. snaps/vals are already sorted ASC by as_of, so
+  // later observations correctly overwrite earlier ones in the Maps.
+  for (const s of snaps) {
+    if (ptDateKey(num(s.as_of)) < start) {
+      acctState.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability) });
+    }
+  }
+  for (const v of vals) {
+    if (ptDateKey(num(v.as_of)) < start) {
+      const leaf = `${v.asset_id}::${v.investment_id ?? '__asset__'}`;
+      valState.set(leaf, num(v.value_cents));
+    }
+  }
+
   const series: NetWorthPoint[] = [];
 
   let day = start;
@@ -282,6 +305,36 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     return [...pad, ...series];
   }
   return series;
+}
+
+export type AssetValuePoint = { as_of: number; date: string; value_cents: number };
+
+// One cumulative value per distinct as_of: replay valuations in order, keep the latest
+// per (asset-level vs investment_id) leaf, sum. Unlike netWorthSeries this doesn't
+// expand to daily points — the chart step-interpolates between events.
+export async function privateInvestmentValueSeries(d: DB, assetId: string): Promise<AssetValuePoint[]> {
+  const events = await rows<{ investment_id: string | null; value_cents: number; as_of: number }>(
+    d,
+    sql`
+      SELECT v.investment_id, v.value_cents, v.as_of
+      FROM valuations v
+      WHERE v.asset_id = ${assetId}
+      ORDER BY v.as_of ASC, v.created_at ASC
+    `,
+    ['investment_id', 'value_cents', 'as_of'],
+  );
+  const byLeaf = new Map<string, number>();
+  const byAsOf = new Map<number, number>();
+  for (const e of events) {
+    const leaf = e.investment_id ?? '__asset__';
+    byLeaf.set(leaf, num(e.value_cents));
+    let total = 0;
+    for (const v of byLeaf.values()) total += v;
+    byAsOf.set(num(e.as_of), total);
+  }
+  return [...byAsOf.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([as_of, value_cents]) => ({ as_of, date: ptDateKey(as_of), value_cents }));
 }
 
 export async function getAccount(d: DB, accountId: string) {

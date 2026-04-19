@@ -151,7 +151,7 @@ server.registerTool(
   'add_investment',
   {
     description:
-      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down.',
+      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down. Set qsbsEligible per IRC §1202 — each financing round qualifies independently.',
     inputSchema: {
       assetId: z.string().uuid(),
       securityType: z
@@ -164,9 +164,29 @@ server.registerTool(
       pricePerShareDollars: z.number().finite().optional(),
       costBasisDollars: z.number().finite(),
       entryDate: z.string().max(30).describe('ISO date, e.g. "2024-03-08"'),
+      qsbsEligible: z.boolean().optional().describe('§1202 QSBS eligibility for this specific tranche'),
     },
   },
   async (input) => json(await privateInv.addInvestment(db, input)),
+);
+
+server.registerTool(
+  'update_investment',
+  {
+    description:
+      'Update fields on an existing investment (check / round). Pass only the fields you want to change. Use to relabel rounds (e.g. seed mis-tagged as Series A), set qsbsEligible, fix shares/price, or correct entry date. Does not touch the auto-created entry valuation — record a new valuation if cost basis changes meaningfully.',
+    inputSchema: {
+      id: z.string().uuid(),
+      securityType: z.string().max(100).nullable().optional(),
+      roundLabel: z.string().max(200).nullable().optional(),
+      shares: z.number().int().nullable().optional(),
+      pricePerShareDollars: z.number().finite().nullable().optional(),
+      costBasisDollars: z.number().finite().optional(),
+      entryDate: z.string().max(30).optional().describe('ISO date'),
+      qsbsEligible: z.boolean().nullable().optional(),
+    },
+  },
+  async ({ id, ...patch }) => json(await privateInv.updateInvestment(db, id, patch)),
 );
 
 server.registerTool(
@@ -188,6 +208,23 @@ server.registerTool(
     },
   },
   async (input) => json(await privateInv.recordValuation(db, input)),
+);
+
+server.registerTool(
+  'update_valuation',
+  {
+    description:
+      'Correct an existing valuation row. Use to fix a mark (drop/add dollars), update basis/note, re-date, or relink to a specific investment. Prefer this over appending a new valuation when correcting an error — keeps the time-series clean. Append a fresh record_valuation when the asset genuinely re-marked.',
+    inputSchema: {
+      id: z.string().uuid(),
+      valueDollars: z.number().finite().optional(),
+      basis: z.string().max(100).nullable().optional(),
+      note: z.string().max(1000).nullable().optional(),
+      asOf: z.string().max(30).optional().describe('ISO date'),
+      investmentId: z.string().uuid().nullable().optional(),
+    },
+  },
+  async ({ id, ...patch }) => json(await privateInv.updateValuation(db, id, patch)),
 );
 
 server.registerTool(

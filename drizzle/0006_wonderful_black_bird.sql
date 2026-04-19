@@ -1,0 +1,1 @@
+ALTER TABLE `investments` ADD `qsbs_eligible` integer;

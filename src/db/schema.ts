@@ -73,6 +73,7 @@ export const investments = sqliteTable('investments', {
   pricePerShareCents: integer('price_per_share_cents'),
   costBasisCents: integer('cost_basis_cents').notNull(),
   entryDate: integer('entry_date').notNull(),
+  qsbsEligible: integer('qsbs_eligible', { mode: 'boolean' }),  // null = unknown; true/false set per-tranche (each financing qualifies independently under §1202)
   archivedAt: integer('archived_at'),
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
 });

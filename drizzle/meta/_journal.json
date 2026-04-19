@@ -43,6 +43,13 @@
       "when": 1776630812156,
       "tag": "0005_brown_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776632520564,
+      "tag": "0006_wonderful_black_bird",
+      "breakpoints": true
     }
   ]
 }

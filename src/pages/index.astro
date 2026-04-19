@@ -161,6 +161,7 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
                   : prettyKind(pi.kind)}
                 owner={pi.owner}
                 amount={fmtUSD.format(pi.current_value_cents / 100)}
+                href={`/private-investments/${pi.id}`}
               />
             ))}
           </LedgerSection>

@@ -139,6 +139,7 @@ export type Position = {
   sub: string;
   cents: number;
   pct: number;
+  href?: string;
 };
 
 export function topConcentration(
@@ -166,6 +167,7 @@ export function topConcentration(
       label: i.name,
       sub: i.kind,
       cents: i.current_value_cents,
+      href: `/private-investments/${i.id}`,
     });
   }
   positions.sort((a, b) => b.cents - a.cents);

@@ -1,0 +1,178 @@
+---
+import type { AssetValuePoint } from '../ops/reads';
+import { fmtUSD } from '../lib/format';
+
+interface Props {
+  series: AssetValuePoint[];
+}
+
+const { series } = Astro.props;
+
+const W = 1000;
+const H = 220;
+const PAD_T = 8;
+const PAD_B = 22;
+const PAD_L = 0;
+const PAD_R = 0;
+const innerW = W - PAD_L - PAD_R;
+const innerH = H - PAD_T - PAD_B;
+
+const values = series.map((p) => p.value_cents);
+const lo = values.length ? Math.min(...values) : 0;
+const hi = values.length ? Math.max(...values) : 0;
+const span = Math.max(hi - lo, 1);
+const yMin = Math.max(0, lo - span * 0.1);
+const yMax = hi + span * 0.1;
+const yRange = yMax - yMin || 1;
+
+// X-axis is time — use as_of unix seconds so visual spacing matches real gaps
+// between rounds/marks (e.g. Seed in 2024 vs Series B in 2025).
+const tMin = series.length ? series[0].as_of : 0;
+const tMax = series.length ? series[series.length - 1].as_of : 0;
+const tRange = Math.max(tMax - tMin, 1);
+
+const xAt = (sec: number) => PAD_L + ((sec - tMin) / tRange) * innerW;
+const yAt = (cents: number) => PAD_T + (1 - (cents - yMin) / yRange) * innerH;
+
+// Stepped path: value held constant until the next mark, then jumps.
+let stepPath = '';
+if (series.length > 0) {
+  const parts: string[] = [];
+  parts.push(`M ${xAt(series[0].as_of).toFixed(2)} ${yAt(series[0].value_cents).toFixed(2)}`);
+  for (let i = 1; i < series.length; i++) {
+    const prevY = yAt(series[i - 1].value_cents);
+    const x = xAt(series[i].as_of);
+    const y = yAt(series[i].value_cents);
+    parts.push(`L ${x.toFixed(2)} ${prevY.toFixed(2)}`);
+    parts.push(`L ${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  // Extend horizontally to today so the line doesn't end on the last mark.
+  if (series.length > 0) {
+    const lastY = yAt(series[series.length - 1].value_cents);
+    parts.push(`L ${(PAD_L + innerW).toFixed(2)} ${lastY.toFixed(2)}`);
+  }
+  stepPath = parts.join(' ');
+}
+
+const areaPath =
+  series.length > 0
+    ? `${stepPath} L ${(PAD_L + innerW).toFixed(2)} ${(PAD_T + innerH).toFixed(2)} L ${xAt(series[0].as_of).toFixed(2)} ${(PAD_T + innerH).toFixed(2)} Z`
+    : '';
+
+const fmtTickDate = (sec: number) =>
+  new Date(sec * 1000).toLocaleDateString('en-US', {
+    month: 'short',
+    year: '2-digit',
+    timeZone: 'UTC',
+  });
+
+// Tick at each mark, but drop overlaps so labels don't pile up.
+const ticks: Array<{ x: number; label: string }> = [];
+const MIN_TICK_GAP = 80;
+for (const p of series) {
+  const x = xAt(p.as_of);
+  if (ticks.length === 0 || x - ticks[ticks.length - 1].x >= MIN_TICK_GAP) {
+    ticks.push({ x, label: fmtTickDate(p.as_of) });
+  }
+}
+
+const first = series[0];
+const last = series[series.length - 1];
+const change = last && first ? last.value_cents - first.value_cents : 0;
+const changePct = first && first.value_cents !== 0 ? change / first.value_cents : 0;
+const changePos = change >= 0;
+---
+<section class="pi-chart">
+  <header class="pi-head">
+    <span class="pi-label">value history · {series.length} marks</span>
+    {series.length > 1 && (
+      <div class={`pi-delta ${changePos ? 'pos' : 'neg'}`}>
+        <span class="num">{changePos ? '+' : '−'}{fmtUSD.format(Math.abs(change) / 100)}</span>
+        <span class="num pct">({changePos ? '+' : '−'}{(Math.abs(changePct) * 100).toFixed(1)}%)</span>
+      </div>
+    )}
+  </header>
+  {series.length === 0 ? (
+    <p class="pi-empty">NO VALUATIONS YET.</p>
+  ) : (
+    <>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" class="pi-svg" role="img" aria-label="Valuation history">
+        {areaPath && <path d={areaPath} class="area" />}
+        <path d={stepPath} class="line" vector-effect="non-scaling-stroke" />
+        {series.map((p) => (
+          <circle
+            cx={xAt(p.as_of).toFixed(2)}
+            cy={yAt(p.value_cents).toFixed(2)}
+            r="2.5"
+            class="mark"
+          />
+        ))}
+      </svg>
+      <div class="pi-axis">
+        {ticks.map((t) => (
+          <span class="tick" style={`left: ${(t.x / W) * 100}%`}>{t.label}</span>
+        ))}
+      </div>
+    </>
+  )}
+</section>
+
+<style>
+  .pi-chart { display: grid; gap: var(--space-2); }
+  .pi-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+  .pi-label {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  .pi-delta {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .pi-delta .pct { color: var(--fg-muted); font-size: var(--size-xs); }
+  .pi-delta.pos { color: var(--pos); }
+  .pi-delta.neg { color: var(--neg); }
+
+  .pi-svg {
+    width: 100%;
+    height: 220px;
+    display: block;
+    overflow: visible;
+  }
+  .area { fill: var(--fg); fill-opacity: 0.06; stroke: none; }
+  .line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
+  .mark { fill: var(--bg); stroke: var(--fg); stroke-width: 1; }
+
+  .pi-axis {
+    position: relative;
+    height: 1em;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .tick:first-child { transform: translateX(0); }
+  .tick:last-child { transform: translateX(-100%); }
+
+  .pi-empty {
+    color: var(--fg-muted);
+    padding: var(--space-12) 0;
+    text-align: center;
+    font-size: var(--size-sm);
+  }
+</style>
