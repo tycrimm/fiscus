@@ -1,0 +1,75 @@
+---
+import { fmtUSD, prettyKind, pluralize } from '../lib/format';
+
+export type KindLine = {
+  kind: string;
+  count: number;
+  totalCents: number;
+  note: string | null;
+};
+
+interface Props {
+  institution: string;
+  totalCents: number;
+  kinds: KindLine[];
+  negative?: boolean;
+}
+const { institution, totalCents, kinds, negative = false } = Astro.props;
+const sign = negative ? -1 : 1;
+const showKinds = kinds.length > 1 || kinds.some((k) => k.note);
+---
+<div class="inst-group">
+  <div class="inst-row">
+    <span class="inst-name">{institution}</span>
+    <span class:list={['inst-total', 'num', { neg: negative }]}>
+      {fmtUSD.format((sign * totalCents) / 100)}
+    </span>
+  </div>
+  {showKinds && kinds.map((k) => (
+    <div class="kind-row">
+      <span class="kind-label">
+        {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
+        {k.note && <span class="note"> · {k.note}</span>}
+      </span>
+      <span class:list={['kind-total', 'num', { neg: negative }]}>
+        {fmtUSD.format((sign * k.totalCents) / 100)}
+      </span>
+    </div>
+  ))}
+</div>
+
+<style>
+  .inst-group { border-bottom: 1px solid var(--rule); }
+  .inst-group:last-child { border-bottom: none; }
+  .inst-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    align-items: baseline;
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+  .inst-total { font-variant-numeric: tabular-nums; text-align: right; }
+  .kind-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-3) var(--space-1) calc(var(--space-3) + var(--space-4));
+    align-items: baseline;
+  }
+  .kind-label {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .kind-label .note { color: var(--fg); text-transform: none; letter-spacing: normal; }
+  .kind-total {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .inst-group .kind-row:last-child { padding-bottom: var(--space-2); }
+</style>

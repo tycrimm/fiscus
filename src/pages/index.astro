@@ -6,6 +6,7 @@ import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
+import LedgerInstitution from '../components/LedgerInstitution.astro';
 
 const d = db(env.DB);
 const [nw, accounts, illiquid] = await Promise.all([
@@ -91,21 +92,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
         {cashInsts.length > 0 && (
           <LedgerSection title="Cash & Equivalents" count={pluralize(cash.length, 'account')} subtotal={fmtUSDsigned(cashTotal)}>
             {cashInsts.map((inst) => (
-              <div class="inst-group">
-                <div class="inst-row">
-                  <span class="inst-name">{inst.institution}</span>
-                  <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
-                </div>
-                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
-                  <div class="kind-row">
-                    <span class="kind-label">
-                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
-                      {k.note && <span class="note"> · {k.note}</span>}
-                    </span>
-                    <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
-                  </div>
-                ))}
-              </div>
+              <LedgerInstitution institution={inst.institution} totalCents={inst.totalCents} kinds={inst.kinds} />
             ))}
           </LedgerSection>
         )}
@@ -113,21 +100,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
         {investInsts.length > 0 && (
           <LedgerSection title="Investments" count={pluralize(invest.length, 'account')} subtotal={fmtUSDsigned(investTotal)}>
             {investInsts.map((inst) => (
-              <div class="inst-group">
-                <div class="inst-row">
-                  <span class="inst-name">{inst.institution}</span>
-                  <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
-                </div>
-                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
-                  <div class="kind-row">
-                    <span class="kind-label">
-                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
-                      {k.note && <span class="note"> · {k.note}</span>}
-                    </span>
-                    <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
-                  </div>
-                ))}
-              </div>
+              <LedgerInstitution institution={inst.institution} totalCents={inst.totalCents} kinds={inst.kinds} />
             ))}
           </LedgerSection>
         )}
@@ -150,21 +123,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
         {otherInsts.length > 0 && (
           <LedgerSection title="Other" count={pluralize(other.length, 'account')} subtotal={fmtUSDsigned(otherTotal)}>
             {otherInsts.map((inst) => (
-              <div class="inst-group">
-                <div class="inst-row">
-                  <span class="inst-name">{inst.institution}</span>
-                  <span class="inst-total num">{fmtUSD.format(inst.totalCents / 100)}</span>
-                </div>
-                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
-                  <div class="kind-row">
-                    <span class="kind-label">
-                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
-                      {k.note && <span class="note"> · {k.note}</span>}
-                    </span>
-                    <span class="kind-total num">{fmtUSD.format(k.totalCents / 100)}</span>
-                  </div>
-                ))}
-              </div>
+              <LedgerInstitution institution={inst.institution} totalCents={inst.totalCents} kinds={inst.kinds} />
             ))}
           </LedgerSection>
         )}
@@ -177,21 +136,7 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
             negSubtotal
           >
             {liabInsts.map((inst) => (
-              <div class="inst-group">
-                <div class="inst-row">
-                  <span class="inst-name">{inst.institution}</span>
-                  <span class="inst-total num neg">{fmtUSD.format(-inst.totalCents / 100)}</span>
-                </div>
-                {(inst.kinds.length > 1 || inst.kinds.some((k) => k.note)) && inst.kinds.map((k) => (
-                  <div class="kind-row">
-                    <span class="kind-label">
-                      {prettyKind(k.kind)} · {pluralize(k.count, 'account')}
-                      {k.note && <span class="note"> · {k.note}</span>}
-                    </span>
-                    <span class="kind-total num neg">{fmtUSD.format(-k.totalCents / 100)}</span>
-                  </div>
-                ))}
-              </div>
+              <LedgerInstitution institution={inst.institution} totalCents={inst.totalCents} kinds={inst.kinds} negative />
             ))}
           </LedgerSection>
         )}
@@ -252,42 +197,6 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
   }
 
   .ledger-main { display: grid; gap: var(--space-4); }
-
-  .inst-group {
-    border-bottom: 1px solid var(--rule);
-  }
-  .inst-group:last-child { border-bottom: none; }
-  .inst-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    align-items: baseline;
-    font-size: var(--size-sm);
-    font-weight: 500;
-  }
-  .inst-total { font-variant-numeric: tabular-nums; text-align: right; }
-  .kind-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-3);
-    padding: var(--space-1) var(--space-3) var(--space-1) calc(var(--space-3) + var(--space-4));
-    align-items: baseline;
-  }
-  .kind-label {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-  .kind-label .note { color: var(--fg); }
-  .kind-total {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-  .inst-group .kind-row:last-child { padding-bottom: var(--space-2); }
 
   @media (max-width: 52rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
