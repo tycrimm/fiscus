@@ -29,6 +29,16 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_net_worth_series',
+  {
+    description:
+      'Daily net worth time series from earliest snapshot through today (PT). Each point: liquid_cents, illiquid_cents, total_cents. Carry-forward semantics: a day inherits the prior day\'s balance for any account that didn\'t snapshot that day.',
+    inputSchema: {},
+  },
+  async () => json(await reads.netWorthSeries(db)),
+);
+
+server.registerTool(
   'list_accounts',
   {
     description: 'List all non-archived accounts with each account\'s latest balance snapshot.',

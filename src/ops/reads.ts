@@ -172,6 +172,118 @@ export async function getIlliquidAsset(d: DB, assetId: string) {
   return { asset, investments: invs, valuations: vals, fund_details: fd[0] ?? null };
 }
 
+export type NetWorthPoint = {
+  date: string;            // 'YYYY-MM-DD' in PT
+  liquid_cents: number;
+  illiquid_cents: number;
+  total_cents: number;
+  synthetic?: boolean;     // true = backfilled baseline before first real snapshot
+};
+
+const PT_DATE_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Los_Angeles',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const ptDateKey = (sec: number): string => PT_DATE_FMT.format(new Date(sec * 1000));
+const shiftYmd = (ymd: string, deltaDays: number): string => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d) + deltaDays * 86400000);
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
+};
+const nextYmd = (ymd: string): string => shiftYmd(ymd, 1);
+
+export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Promise<NetWorthPoint[]> {
+  const minDays = opts.minDays ?? 30;
+  const snaps = await rows<{ account_id: string; balance_cents: number; is_liability: number; as_of: number }>(
+    d,
+    sql`
+      SELECT bs.account_id, bs.balance_cents, a.is_liability, bs.as_of
+      FROM balance_snapshots bs
+      JOIN accounts a ON a.id = bs.account_id
+      WHERE a.archived_at IS NULL
+      ORDER BY bs.as_of ASC
+    `,
+    ['account_id', 'balance_cents', 'is_liability', 'as_of'],
+  );
+  const vals = await rows<{ asset_id: string; investment_id: string | null; value_cents: number; as_of: number }>(
+    d,
+    sql`
+      SELECT v.asset_id, v.investment_id, v.value_cents, v.as_of
+      FROM valuations v
+      JOIN illiquid_assets ia ON ia.id = v.asset_id
+      WHERE ia.archived_at IS NULL
+      ORDER BY v.as_of ASC
+    `,
+    ['asset_id', 'investment_id', 'value_cents', 'as_of'],
+  );
+
+  if (snaps.length === 0 && vals.length === 0) return [];
+
+  // Bucket per-day per-leaf: only the latest entry per (leaf, day) survives.
+  const acctByDate = new Map<string, Map<string, { balance: number; liability: boolean }>>();
+  for (const s of snaps) {
+    const day = ptDateKey(num(s.as_of));
+    let m = acctByDate.get(day);
+    if (!m) { m = new Map(); acctByDate.set(day, m); }
+    m.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability) });
+  }
+  const valByDate = new Map<string, Map<string, number>>();
+  for (const v of vals) {
+    const day = ptDateKey(num(v.as_of));
+    const leaf = `${v.asset_id}::${v.investment_id ?? '__asset__'}`;
+    let m = valByDate.get(day);
+    if (!m) { m = new Map(); valByDate.set(day, m); }
+    m.set(leaf, num(v.value_cents));
+  }
+
+  const start = [...acctByDate.keys(), ...valByDate.keys()].sort()[0]!;
+  const today = ptDateKey(Math.floor(Date.now() / 1000));
+
+  const acctState = new Map<string, { balance: number; liability: boolean }>();
+  const valState = new Map<string, number>();
+  const series: NetWorthPoint[] = [];
+
+  let day = start;
+  // Hard cap to defend against pathological data; ~3y of daily points is plenty.
+  for (let i = 0; i < 1200 && day <= today; i++) {
+    const au = acctByDate.get(day);
+    if (au) for (const [k, v] of au) acctState.set(k, v);
+    const vu = valByDate.get(day);
+    if (vu) for (const [k, v] of vu) valState.set(k, v);
+
+    let liquid = 0;
+    for (const v of acctState.values()) liquid += v.liability ? -v.balance : v.balance;
+    let illiquid = 0;
+    for (const v of valState.values()) illiquid += v;
+
+    series.push({ date: day, liquid_cents: liquid, illiquid_cents: illiquid, total_cents: liquid + illiquid });
+    day = nextYmd(day);
+  }
+
+  // If we have less than `minDays` of real data, prepend a synthetic flat baseline
+  // anchored to the first observed totals. Lets the chart render meaningfully
+  // before the cron has accumulated history. Synthetic points are tagged so the
+  // chart can render them differently (we don't want to pretend it's real).
+  if (series.length > 0 && series.length < minDays) {
+    const anchor = series[0];
+    const padCount = minDays - series.length;
+    const pad: NetWorthPoint[] = [];
+    for (let k = padCount; k > 0; k--) {
+      pad.push({
+        date: shiftYmd(anchor.date, -k),
+        liquid_cents: anchor.liquid_cents,
+        illiquid_cents: anchor.illiquid_cents,
+        total_cents: anchor.total_cents,
+        synthetic: true,
+      });
+    }
+    return [...pad, ...series];
+  }
+  return series;
+}
+
 export async function getAccount(d: DB, accountId: string) {
   const [account] = await rows<Record<string, unknown>>(
     d,

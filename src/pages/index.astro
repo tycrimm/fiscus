@@ -1,16 +1,21 @@
 ---
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
-import { netWorth, listAccounts, listIlliquidAssets } from '../ops/reads';
+import { netWorth, netWorthSeries, listAccounts, listIlliquidAssets } from '../ops/reads';
 import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
+import { computeDeltas, computeAllocation, topConcentration } from '../lib/metrics';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
 import LedgerInstitution from '../components/LedgerInstitution.astro';
+import NetWorthChart from '../components/NetWorthChart.astro';
+import AllocationMix from '../components/AllocationMix.astro';
+import Concentration from '../components/Concentration.astro';
 
 const d = db(env.DB);
-const [nw, accounts, illiquid] = await Promise.all([
+const [nw, series, accounts, illiquid] = await Promise.all([
   netWorth(d),
+  netWorthSeries(d),
   listAccounts(d),
   listIlliquidAssets(d),
 ]);
@@ -67,6 +72,20 @@ const lastSyncedAt = accounts.reduce<number | null>(
   null,
 );
 
+const deltas = computeDeltas(series);
+const { categories: allocCategories, totalCents: grossAssetsCents } = computeAllocation(accounts, illiquid);
+const topPositions = topConcentration(accounts, illiquid, grossAssetsCents);
+
+const deltaRows: Array<{ label: string; d: { cents: number; pct: number } | null }> = [
+  { label: '1d',  d: deltas.d1  },
+  { label: '1w',  d: deltas.w1  },
+  { label: '1m',  d: deltas.m1  },
+  { label: 'ytd', d: deltas.ytd },
+  { label: '1y',  d: deltas.y1  },
+];
+const signedUSD = (cents: number) => (cents >= 0 ? '+' : '−') + fmtUSD.format(Math.abs(cents) / 100);
+const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 100).toFixed(1) + '%';
+
 const hasAny = accounts.length > 0 || illiquid.length > 0;
 ---
 <Shell lastSyncedAt={lastSyncedAt}>
@@ -83,12 +102,39 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
           <div class="bd-row"><span class="cat">illiquid</span><span class="val num">{fmtUSD.format(nw.illiquid_usd)}</span></div>
         </div>
 
+        <div class="rail-label">change</div>
+        <div class="rail-breakdown">
+          {deltaRows.map((r) => (
+            <div class="bd-row">
+              <span class="cat">{r.label}</span>
+              {r.d == null ? (
+                <span class="val num muted">—</span>
+              ) : (
+                <span class={`val num ${r.d.cents >= 0 ? 'pos' : 'neg'}`}>
+                  {signedUSD(r.d.cents)}
+                  <span class="dpct">{signedPct(r.d.pct)}</span>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
         <div class="rail-meta">
           <div>{accounts.length} accounts · {illiquid.length} illiquid</div>
         </div>
       </aside>
 
       <div class="ledger-main">
+        <NetWorthChart series={series} />
+
+        {allocCategories.length > 0 && (
+          <AllocationMix categories={allocCategories} totalCents={grossAssetsCents} />
+        )}
+
+        {topPositions.length > 0 && (
+          <Concentration positions={topPositions} />
+        )}
+
         {cashInsts.length > 0 && (
           <LedgerSection title="Cash & Equivalents" count={pluralize(cash.length, 'account')} subtotal={fmtUSDsigned(cashTotal)}>
             {cashInsts.map((inst) => (
@@ -187,6 +233,11 @@ const hasAny = accounts.length > 0 || illiquid.length > 0;
     font-size: var(--size-xs);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .bd-row .dpct {
+    margin-left: var(--space-1);
+    font-size: var(--size-xs);
     color: var(--fg-muted);
   }
   .rail-meta {

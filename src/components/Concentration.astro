@@ -1,0 +1,129 @@
+---
+import { fmtUSD, prettyKind } from '../lib/format';
+import type { Position } from '../lib/metrics';
+
+interface Props {
+  positions: Position[];
+}
+const { positions } = Astro.props;
+
+const prettySub = (sub: string) =>
+  sub.split(' · ').map(prettyKind).join(' · ');
+---
+<section class="conc">
+  <header>
+    <h2>Top positions</h2>
+    <span class="sub">share of gross assets</span>
+  </header>
+  {positions.length === 0 ? (
+    <p class="empty">no positions yet</p>
+  ) : (
+    <ul class="rows">
+      {positions.map((p) => (
+        <li class="row">
+          <span class="label">
+            <span class="name">{p.label}</span>
+            <span class="row-sub">{prettySub(p.sub)}</span>
+          </span>
+          <span class="bar" aria-hidden="true">
+            <span class="fill" style={`width: ${Math.max(p.pct * 100, 1).toFixed(2)}%`}></span>
+          </span>
+          <span class="amt num">{fmtUSD.format(p.cents / 100)}</span>
+          <span class="pct num">{(p.pct * 100).toFixed(1)}%</span>
+        </li>
+      ))}
+    </ul>
+  )}
+</section>
+
+<style>
+  .conc {
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--rule);
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  h2 {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .sub {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+
+  .rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 18rem) 1fr 8rem 4rem;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-sm);
+  }
+  .row:first-child { border-top: 1px solid var(--rule); }
+
+  .label { display: grid; gap: 1px; min-width: 0; }
+  .name {
+    font-size: var(--size-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row-sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .bar {
+    display: block;
+    height: 0.5rem;
+    background: var(--rule);
+    position: relative;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    background: var(--fg);
+  }
+  .amt { text-align: right; font-variant-numeric: tabular-nums; }
+  .pct {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+
+  .empty {
+    color: var(--fg-muted);
+    font-size: var(--size-sm);
+    padding: var(--space-4) 0;
+  }
+
+  @media (max-width: 40rem) {
+    .row {
+      grid-template-columns: 1fr auto auto;
+      column-gap: var(--space-3);
+      row-gap: var(--space-1);
+    }
+    .bar { grid-column: 1 / -1; }
+  }
+</style>
