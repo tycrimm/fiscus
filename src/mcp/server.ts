@@ -89,6 +89,19 @@ server.registerTool(
 );
 
 server.registerTool(
+  'set_account_note',
+  {
+    description:
+      'Set or clear a human-readable note on an account (e.g. "2022 Subaru Outback" on an auto loan, "Business checking" to disambiguate multiple accounts at the same institution). Pass an empty string or null to clear.',
+    inputSchema: {
+      accountId: z.string().uuid(),
+      note: z.string().max(200).nullable(),
+    },
+  },
+  async ({ accountId, note }) => json(await accounts.setAccountNote(db, accountId, note)),
+);
+
+server.registerTool(
   'update_balance',
   {
     description:

@@ -50,6 +50,17 @@ export async function addAccount(
   return acct;
 }
 
+export async function setAccountNote(d: DB, accountId: string, note: string | null) {
+  const trimmed = note?.trim();
+  const [acct] = await d
+    .update(accounts)
+    .set({ note: trimmed ? trimmed : null })
+    .where(eq(accounts.id, accountId))
+    .returning();
+  if (!acct) throw new Error(`Account ${accountId} not found`);
+  return acct;
+}
+
 export async function recordBalance(d: DB, accountId: string, balanceDollars: number) {
   const [acct] = await d.select().from(accounts).where(eq(accounts.id, accountId)).limit(1);
   if (!acct) throw new Error(`Account ${accountId} not found`);

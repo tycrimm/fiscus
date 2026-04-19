@@ -73,6 +73,7 @@ type AccountRow = {
   is_liability: number;
   source: string;
   owner: 'tyler' | 'julianne' | 'joint';
+  note: string | null;
   latest_cents: number | null;
   latest_as_of: number | null;
 };
@@ -81,7 +82,7 @@ export async function listAccounts(d: DB): Promise<AccountRow[]> {
   return rows<AccountRow>(
     d,
     sql`
-      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source, a.owner,
+      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source, a.owner, a.note,
         (SELECT balance_cents FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS latest_cents,
         (SELECT as_of        FROM balance_snapshots WHERE account_id = a.id ORDER BY as_of DESC LIMIT 1) AS latest_as_of
       FROM accounts a
@@ -89,7 +90,7 @@ export async function listAccounts(d: DB): Promise<AccountRow[]> {
       WHERE a.archived_at IS NULL
       ORDER BY i.name, a.name
     `,
-    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'owner', 'latest_cents', 'latest_as_of'],
+    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'owner', 'note', 'latest_cents', 'latest_as_of'],
   );
 }
 
@@ -175,12 +176,12 @@ export async function getAccount(d: DB, accountId: string) {
   const [account] = await rows<Record<string, unknown>>(
     d,
     sql`
-      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source, a.owner,
+      SELECT a.id, i.name AS institution, a.name, a.kind, a.currency, a.is_liability, a.source, a.owner, a.note,
         a.plaid_account_id, a.created_at, a.archived_at
       FROM accounts a JOIN institutions i ON i.id = a.institution_id
       WHERE a.id = ${accountId}
     `,
-    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'owner', 'plaid_account_id', 'created_at', 'archived_at'],
+    ['id', 'institution', 'name', 'kind', 'currency', 'is_liability', 'source', 'owner', 'note', 'plaid_account_id', 'created_at', 'archived_at'],
   );
   if (!account) throw new Error(`Account not found: ${accountId}`);
 

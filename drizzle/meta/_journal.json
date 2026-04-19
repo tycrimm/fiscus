@@ -29,6 +29,13 @@
       "when": 1776551428936,
       "tag": "0003_motionless_micromax",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1776555727502,
+      "tag": "0004_clever_joystick",
+      "breakpoints": true
     }
   ]
 }

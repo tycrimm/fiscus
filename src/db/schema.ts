@@ -30,6 +30,7 @@ export const accounts = sqliteTable('accounts', {
   owner: text('owner', {
     enum: ['tyler', 'julianne', 'joint'],
   }).notNull().default('joint'),
+  note: text('note'),
   plaidAccountId: text('plaid_account_id'),
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
   archivedAt: integer('archived_at'),
