@@ -6,16 +6,24 @@ import Chart, { type ChartHoverPoint, type ChartMark, type ChartTick } from './C
 
 interface Props {
   series: AssetValuePoint[];
+  bearMult?: number;
+  bullMult?: number;
 }
 
-const { series } = Astro.props;
+const { series, bearMult, bullMult } = Astro.props;
+
+const showBand = bearMult != null && bullMult != null && series.length > 0;
 
 const values = series.map((p) => p.value_cents);
 const lo = values.length ? Math.min(...values) : 0;
 const hi = values.length ? Math.max(...values) : 0;
-const span = Math.max(hi - lo, 1);
-const yMin = Math.max(0, lo - span * 0.1);
-const yMax = hi + span * 0.1;
+// Include bear/bull extremes in the y-range so ghost lines fit without
+// clipping. Bear multiplier scales the floor, bull scales the ceiling.
+const effectiveLo = showBand ? Math.min(lo, lo * bearMult!) : lo;
+const effectiveHi = showBand ? Math.max(hi, hi * bullMult!) : hi;
+const span = Math.max(effectiveHi - effectiveLo, 1);
+const yMin = Math.max(0, effectiveLo - span * 0.1);
+const yMax = effectiveHi + span * 0.1;
 const yRange = yMax - yMin || 1;
 
 // X-axis is time — use as_of unix seconds so visual spacing matches real gaps
@@ -30,22 +38,25 @@ const xAt = (sec: number) => ((sec - tMin) / tRange) * CHART_W;
 const yAt = (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
 
 // Stepped path: value held constant until the next mark, then jumps.
-let stepPath = '';
-if (series.length > 0) {
+function buildStepPath(mult = 1): string {
+  if (series.length === 0) return '';
   const parts: string[] = [];
-  parts.push(`M ${xAt(series[0].as_of).toFixed(2)} ${yAt(series[0].value_cents).toFixed(2)}`);
+  parts.push(`M ${xAt(series[0].as_of).toFixed(2)} ${yAt(series[0].value_cents * mult).toFixed(2)}`);
   for (let i = 1; i < series.length; i++) {
-    const prevY = yAt(series[i - 1].value_cents);
+    const prevY = yAt(series[i - 1].value_cents * mult);
     const x = xAt(series[i].as_of);
-    const y = yAt(series[i].value_cents);
+    const y = yAt(series[i].value_cents * mult);
     parts.push(`L ${x.toFixed(2)} ${prevY.toFixed(2)}`);
     parts.push(`L ${x.toFixed(2)} ${y.toFixed(2)}`);
   }
-  // Extend the last value flat out to today.
-  const lastY = yAt(series[series.length - 1].value_cents);
+  const lastY = yAt(series[series.length - 1].value_cents * mult);
   parts.push(`L ${xAt(tMax).toFixed(2)} ${lastY.toFixed(2)}`);
-  stepPath = parts.join(' ');
+  return parts.join(' ');
 }
+
+const stepPath = buildStepPath(1);
+const bearPath = showBand ? buildStepPath(bearMult!) : '';
+const bullPath = showBand ? buildStepPath(bullMult!) : '';
 
 const area =
   series.length > 0
@@ -93,7 +104,11 @@ const points: ChartHoverPoint[] = series.map((p) => ({
   empty="NO VALUATIONS YET."
   delta={series.length > 1 ? { cents: change, pct: changePct, pctDecimals: 1 } : null}
   area={area}
-  paths={stepPath ? [{ d: stepPath, variant: 'solid' }] : []}
+  paths={[
+    ...(bullPath ? [{ d: bullPath, variant: 'ghost' as const, label: 'bull' }] : []),
+    ...(bearPath ? [{ d: bearPath, variant: 'ghost' as const, label: 'bear' }] : []),
+    ...(stepPath ? [{ d: stepPath, variant: 'solid' as const }] : []),
+  ]}
   marks={marks}
   ticks={ticks}
   points={points}

@@ -2,7 +2,7 @@
 import { fmtUSD } from '../lib/format';
 import { CHART_W, CHART_H, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
 
-export type ChartPath = { d: string; variant?: 'solid' | 'synthetic' };
+export type ChartPath = { d: string; variant?: 'solid' | 'synthetic' | 'ghost'; label?: string };
 export type ChartMark = { x: number; y: number };
 export type ChartTick = { x: number; label: string };
 export type ChartHoverPoint = { x: number; y: number; readout: string };
@@ -55,7 +55,13 @@ const pctDec = delta?.pctDecimals ?? 2;
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" class="chart-svg" role="img" aria-label={label}>
         {area && <path d={area} class="chart-area" />}
         {paths.map((p) => (
-          <path d={p.d} class={`chart-line${p.variant === 'synthetic' ? ' synthetic' : ''}`} vector-effect="non-scaling-stroke" />
+          <path
+            d={p.d}
+            class={`chart-line ${p.variant ?? 'solid'}`}
+            vector-effect="non-scaling-stroke"
+          >
+            {p.label && <title>{p.label}</title>}
+          </path>
         ))}
         {marks.map((m) => (
           <circle cx={m.x.toFixed(2)} cy={m.y.toFixed(2)} r="2.5" class="chart-mark" />
@@ -160,6 +166,12 @@ const pctDec = delta?.pctDecimals ?? 2;
   .chart-line.synthetic {
     stroke: var(--rule-strong);
     stroke-dasharray: 3 3;
+    stroke-width: 1;
+  }
+  .chart-line.ghost {
+    stroke: var(--fg-muted);
+    stroke-opacity: 0.45;
+    stroke-dasharray: 2 4;
     stroke-width: 1;
   }
   .chart-mark { fill: var(--bg); stroke: var(--fg); stroke-width: 1; }
