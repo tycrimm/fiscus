@@ -15,11 +15,11 @@ export type Stage = 'seed' | 'early' | 'growth' | 'late' | 'fund' | 'other';
 export type Band = { bear_mult: number; bull_mult: number };
 
 export const STAGE_BANDS: Record<Stage, Band> = {
-  seed:   { bear_mult: 0.2, bull_mult: 5.0 },
-  early:  { bear_mult: 0.4, bull_mult: 3.0 },
-  growth: { bear_mult: 0.6, bull_mult: 2.0 },
-  late:   { bear_mult: 0.7, bull_mult: 1.4 },
-  fund:   { bear_mult: 0.7, bull_mult: 1.8 },
+  seed:   { bear_mult: 0.1, bull_mult: 10.0 },
+  early:  { bear_mult: 0.3, bull_mult: 5.0 },
+  growth: { bear_mult: 0.5, bull_mult: 3.0 },
+  late:   { bear_mult: 0.6, bull_mult: 1.5 },
+  fund:   { bear_mult: 0.7, bull_mult: 2.0 },
   other:  { bear_mult: 0.9, bull_mult: 1.1 },
 };
 

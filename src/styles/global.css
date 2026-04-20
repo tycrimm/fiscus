@@ -87,6 +87,15 @@ a {
   align-items: baseline;
   gap: var(--space-6);
   border-bottom: 1px solid var(--rule);
+  /* Sticky at viewport top. Absorb the body's top padding into padding-top
+     so the opaque bg covers the whole stuck zone (no transparent gap above
+     the header where scrolling content could peek through). */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  margin-top: calc(-1 * var(--space-6));
+  padding-top: var(--space-6);
   padding-bottom: var(--space-3);
   margin-bottom: var(--space-6);
 }
