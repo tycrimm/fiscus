@@ -1,4 +1,12 @@
-export const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+// Whole dollars for display — the cents we store are the source of truth,
+// but $14,891 reads faster than $14,890.50 at portfolio-sized amounts. For
+// true sub-dollar precision (per-share prices, etc.) use a local formatter.
+export const fmtUSD = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
 export function money(cents: number | null | undefined, liability = false): string {
   if (cents == null) return '—';
