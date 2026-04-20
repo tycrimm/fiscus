@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, ne } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DB } from '../db';
 import { privateInvestments, investments, valuations, fundDetails } from '../db/schema';
 
@@ -66,49 +66,6 @@ export async function addInvestment(
     })
     .returning();
   if (!row) throw new Error('Investment insert failed');
-  // An investment IS a valuation — cash changed hands at a known price on a known date.
-  // Recording it here means time-series and net-worth reads work without UNION'ing both tables.
-  await d.insert(valuations).values({
-    assetId: input.assetId,
-    investmentId: row.id,
-    valueCents: costBasisCents,
-    basis: 'Entry',
-    note: null,
-    asOf: entryDate,
-  });
-  // Mark earlier priced rounds to this one's PPS. A new priced round on a private company
-  // resets FMV for every prior check of the same asset — standard VC mark-to-last-round.
-  // Only back-dated writes on private_company kind; funds/loans/gifts don't have fungible shares.
-  if (row.pricePerShareCents != null) {
-    const [asset] = await d
-      .select({ kind: privateInvestments.kind })
-      .from(privateInvestments)
-      .where(eq(privateInvestments.id, input.assetId));
-    if (asset?.kind === 'private_company') {
-      const priorRounds = await d
-        .select({ id: investments.id, shares: investments.shares })
-        .from(investments)
-        .where(
-          and(
-            eq(investments.assetId, input.assetId),
-            ne(investments.id, row.id),
-            isNull(investments.archivedAt),
-            lt(investments.entryDate, entryDate),
-          ),
-        );
-      const marks = priorRounds
-        .filter((r): r is { id: string; shares: number } => r.shares != null && r.shares > 0)
-        .map((r) => ({
-          assetId: input.assetId,
-          investmentId: r.id,
-          valueCents: r.shares * row.pricePerShareCents!,
-          basis: 'Last round',
-          note: `Marked to ${row.roundLabel ?? 'new round'} PPS`,
-          asOf: entryDate,
-        }));
-      if (marks.length > 0) await d.insert(valuations).values(marks);
-    }
-  }
   return row;
 }
 

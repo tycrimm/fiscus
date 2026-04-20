@@ -78,7 +78,7 @@ const gainPos = gainCents >= 0;
 // while a mark goes stale. Suppressed for funds (we only have aggregate
 // called/distributed without dates) and for holdings under 90 days.
 const nowSec = Math.floor(Date.now() / 1000);
-const MIN_HOLD_DAYS = 90;
+const MIN_HOLD_DAYS = 365;
 const contribFlows: Cashflow[] = fund
   ? []
   : investments

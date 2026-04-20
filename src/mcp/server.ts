@@ -22,7 +22,7 @@ const json = (value: unknown) => ({
 server.registerTool(
   'get_net_worth',
   {
-    description: 'Current total net worth: liquid (account balances, liabilities flipped) + private investments (latest valuations).',
+    description: 'Current total net worth: liquid (account balances, liabilities flipped) + private investments (derived from rounds × latest PPS, with manual override marks applied).',
     inputSchema: {},
   },
   async () => json(await reads.netWorth(db)),
@@ -151,7 +151,7 @@ server.registerTool(
   'add_investment',
   {
     description:
-      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Also writes an entry valuation (basis="Entry") at cost as of entryDate, so the position shows up in net worth immediately — call record_valuation later to mark it up or down. Set qsbsEligible per IRC §1202 — each financing round qualifies independently.',
+      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Current value is derived automatically: round.shares × latest_round_PPS, summed across rounds; no need to write a follow-up valuation. Use record_valuation only when you want to override the derivation (conservative mark, secondary price, write-down, fund NAV, non-share asset). Set qsbsEligible per IRC §1202 — each financing round qualifies independently.',
     inputSchema: {
       assetId: z.string().uuid(),
       securityType: z
@@ -174,7 +174,7 @@ server.registerTool(
   'update_investment',
   {
     description:
-      'Update fields on an existing investment (check / round). Pass only the fields you want to change. Use to relabel rounds (e.g. seed mis-tagged as Series A), set qsbsEligible, fix shares/price, or correct entry date. Does not touch the auto-created entry valuation — record a new valuation if cost basis changes meaningfully.',
+      'Update fields on an existing investment (check / round). Pass only the fields you want to change. Use to relabel rounds (e.g. seed mis-tagged as Series A), set qsbsEligible, fix shares/price, or correct entry date. Current value derives from the round fields automatically.',
     inputSchema: {
       id: z.string().uuid(),
       securityType: z.string().max(100).nullable().optional(),
@@ -193,7 +193,7 @@ server.registerTool(
   'record_valuation',
   {
     description:
-      'Append a valuation mark. Pass investmentId to mark a specific check (private co rounds). Omit investmentId to mark the asset as a whole (Grandma $50k, loan balance, 529 plan value). Append-only.',
+      'Append a manual valuation override. Only use when you want to override the default derivation (round.shares × latest_round_PPS). Common uses: fund NAVs, non-share holdings (Grandma $50k, loan balance, 529 plan), secondary-sale evidence that disagrees with last-round PPS, conservative write-downs. Pass investmentId to override a specific round; omit to override the whole asset value. Append-only.',
     inputSchema: {
       assetId: z.string().uuid(),
       investmentId: z.string().uuid().optional(),
