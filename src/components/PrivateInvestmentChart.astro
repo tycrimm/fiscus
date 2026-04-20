@@ -94,20 +94,13 @@ const bandArea = showBand
     `L ${xAt(tMax).toFixed(2)} ${yAt(currentValueCents * bearMult!).toFixed(2)} Z`
   : '';
 
-// Area fill — historical side runs under the step line down to baseline.
-// Future side continues the baseline fill from today to tMax at the bear
-// line's y, giving the future half the same visual weight as history.
-const bottomY = (CHART_PAD_T + CHART_INNER_H).toFixed(2);
-const area = (() => {
-  if (series.length === 0) return '';
-  if (showBand) {
-    return `${stepPath} L ${xAt(nowSec).toFixed(2)} ${yAt(currentValueCents * bearMult!).toFixed(2)} ` +
-      `L ${xAt(tMax).toFixed(2)} ${yAt(currentValueCents * bearMult!).toFixed(2)} ` +
-      `L ${xAt(tMax).toFixed(2)} ${bottomY} ` +
-      `L ${xAt(series[0].as_of).toFixed(2)} ${bottomY} Z`;
-  }
-  return `${stepPath} L ${CHART_W.toFixed(2)} ${bottomY} L ${xAt(series[0].as_of).toFixed(2)} ${bottomY} Z`;
-})();
+// Historical area fill runs under the step line down to baseline — stops
+// at today when bands are active (the future region carries the wedge only).
+const areaEndX = showBand ? xAt(nowSec) : CHART_W;
+const area =
+  series.length > 0
+    ? `${stepPath} L ${areaEndX.toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(series[0].as_of).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
+    : '';
 
 // Tick at each mark, but drop overlaps so labels don't pile up.
 const ticks: ChartTick[] = [];
