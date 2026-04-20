@@ -71,6 +71,14 @@ const change = realLast && realFirst ? realLast.total_cents - realFirst.total_ce
 const changePct = realFirst && realFirst.total_cents !== 0 ? change / realFirst.total_cents : 0;
 const changePos = change >= 0;
 const realDays = series.length - realStart;
+
+const hoverPoints = series.map((p, i) => ({
+  x: xAt(i),
+  y: yAt(p.total_cents),
+  date: p.date,
+  total: p.total_cents,
+  synthetic: !!p.synthetic,
+}));
 ---
 <section class="nw-chart">
   <header class="nw-head">
@@ -86,20 +94,80 @@ const realDays = series.length - realStart;
   {series.length === 0 ? (
     <p class="nw-empty">NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN.</p>
   ) : (
-    <>
+    <div
+      class="nw-wrap"
+      data-points={JSON.stringify(hoverPoints)}
+      data-vb-w={W}
+      data-pad-t={PAD_T}
+      data-inner-h={innerH}
+    >
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" class="nw-svg" role="img" aria-label="Net worth time series">
         {areaPath && <path d={areaPath} class="area" />}
         {syntheticPath && <path d={syntheticPath} class="line synthetic" vector-effect="non-scaling-stroke" />}
         <path d={realPath} class="line" vector-effect="non-scaling-stroke" />
+        <g class="nw-hover" style="display:none">
+          <line class="nw-cross" y1={PAD_T} y2={PAD_T + innerH} vector-effect="non-scaling-stroke" />
+          <circle class="nw-dot" r="3" />
+        </g>
       </svg>
+      <div class="nw-readout" aria-live="polite"></div>
       <div class="nw-axis">
         {ticks.map((t) => (
           <span class="tick" style={`left: ${(xAt(t.i) / W) * 100}%`}>{t.label}</span>
         ))}
       </div>
-    </>
+    </div>
   )}
 </section>
+
+<script>
+  type Pt = { x: number; y: number; date: string; total: number; synthetic: boolean };
+
+  const fmtUSD = new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0,
+  });
+  const fmtDate = (ymd: string) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+    });
+  };
+
+  for (const wrap of document.querySelectorAll<HTMLElement>('.nw-wrap')) {
+    const points = JSON.parse(wrap.dataset.points!) as Pt[];
+    const vbW = Number(wrap.dataset.vbW);
+    const svg = wrap.querySelector('svg')!;
+    const hoverG = wrap.querySelector<SVGGElement>('.nw-hover')!;
+    const cross = hoverG.querySelector<SVGLineElement>('.nw-cross')!;
+    const dot = hoverG.querySelector<SVGCircleElement>('.nw-dot')!;
+    const readout = wrap.querySelector<HTMLElement>('.nw-readout')!;
+
+    const onMove = (e: PointerEvent) => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const xView = ((e.clientX - rect.left) / rect.width) * vbW;
+      let best = points[0];
+      let bestDelta = Math.abs(xView - best.x);
+      for (const p of points) {
+        const delta = Math.abs(xView - p.x);
+        if (delta < bestDelta) { best = p; bestDelta = delta; }
+      }
+      cross.setAttribute('x1', String(best.x));
+      cross.setAttribute('x2', String(best.x));
+      dot.setAttribute('cx', String(best.x));
+      dot.setAttribute('cy', String(best.y));
+      hoverG.style.display = '';
+      readout.textContent = `${fmtDate(best.date)} · ${fmtUSD.format(best.total / 100)}${best.synthetic ? ' · baseline' : ''}`;
+      readout.classList.add('visible');
+    };
+    const onLeave = () => {
+      hoverG.style.display = 'none';
+      readout.classList.remove('visible');
+    };
+    wrap.addEventListener('pointermove', onMove);
+    wrap.addEventListener('pointerleave', onLeave);
+  }
+</script>
 
 <style>
   .nw-chart {
@@ -131,6 +199,10 @@ const realDays = series.length - realStart;
   .nw-delta.pos { color: var(--pos); }
   .nw-delta.neg { color: var(--neg); }
 
+  .nw-wrap {
+    position: relative;
+    touch-action: none;
+  }
   .nw-svg {
     width: 100%;
     height: 220px;
@@ -143,6 +215,33 @@ const realDays = series.length - realStart;
     stroke-dasharray: 3 3;
     stroke-width: 1;
   }
+  .nw-cross {
+    stroke: var(--fg-muted);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+    pointer-events: none;
+  }
+  .nw-dot {
+    fill: var(--bg);
+    stroke: var(--fg);
+    stroke-width: 1.25;
+    pointer-events: none;
+  }
+  .nw-readout {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: var(--size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    background: var(--bg);
+    padding: 2px 6px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 80ms linear;
+    pointer-events: none;
+  }
+  .nw-readout.visible { opacity: 1; }
   .nw-axis {
     position: relative;
     height: 1em;

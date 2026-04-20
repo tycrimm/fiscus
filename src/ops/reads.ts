@@ -44,6 +44,8 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0))
 type RoundInput = {
   id: string;
   asset_id: string;
+  security_type: string | null;
+  round_label: string | null;
   shares: number | null;
   pps_cents: number | null;
   cost_basis_cents: number;
@@ -56,6 +58,7 @@ type ValuationInput = {
   investment_id: string | null;
   as_of: number;
   value_cents: number;
+  basis: string | null;
 };
 
 type DerivedAssetValue = {
@@ -119,13 +122,15 @@ async function fetchRoundsAndValuations(
 }> {
   const roundsSql = filter.assetId
     ? sql`
-        SELECT i.id, i.asset_id, i.shares, i.price_per_share_cents AS pps_cents,
+        SELECT i.id, i.asset_id, i.security_type, i.round_label,
+          i.shares, i.price_per_share_cents AS pps_cents,
           i.cost_basis_cents, i.entry_date
         FROM investments i
         WHERE i.asset_id = ${filter.assetId} AND i.archived_at IS NULL
       `
     : sql`
-        SELECT i.id, i.asset_id, i.shares, i.price_per_share_cents AS pps_cents,
+        SELECT i.id, i.asset_id, i.security_type, i.round_label,
+          i.shares, i.price_per_share_cents AS pps_cents,
           i.cost_basis_cents, i.entry_date
         FROM investments i
         JOIN private_investments pi ON pi.id = i.asset_id
@@ -133,11 +138,11 @@ async function fetchRoundsAndValuations(
       `;
   const valsSql = filter.assetId
     ? sql`
-        SELECT v.id, v.asset_id, v.investment_id, v.as_of, v.value_cents
+        SELECT v.id, v.asset_id, v.investment_id, v.as_of, v.value_cents, v.basis
         FROM valuations v WHERE v.asset_id = ${filter.assetId}
       `
     : sql`
-        SELECT v.id, v.asset_id, v.investment_id, v.as_of, v.value_cents
+        SELECT v.id, v.asset_id, v.investment_id, v.as_of, v.value_cents, v.basis
         FROM valuations v
         JOIN private_investments pi ON pi.id = v.asset_id
         WHERE pi.archived_at IS NULL
@@ -145,17 +150,19 @@ async function fetchRoundsAndValuations(
   const rRows = await rows<Record<string, unknown>>(
     d,
     roundsSql,
-    ['id', 'asset_id', 'shares', 'pps_cents', 'cost_basis_cents', 'entry_date'],
+    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'pps_cents', 'cost_basis_cents', 'entry_date'],
   );
   const vRows = await rows<Record<string, unknown>>(
     d,
     valsSql,
-    ['id', 'asset_id', 'investment_id', 'as_of', 'value_cents'],
+    ['id', 'asset_id', 'investment_id', 'as_of', 'value_cents', 'basis'],
   );
   return {
     rounds: rRows.map((r) => ({
       id: String(r.id),
       asset_id: String(r.asset_id),
+      security_type: r.security_type == null ? null : String(r.security_type),
+      round_label: r.round_label == null ? null : String(r.round_label),
       shares: r.shares == null ? null : num(r.shares),
       pps_cents: r.pps_cents == null ? null : num(r.pps_cents),
       cost_basis_cents: num(r.cost_basis_cents),
@@ -167,6 +174,7 @@ async function fetchRoundsAndValuations(
       investment_id: v.investment_id == null ? null : String(v.investment_id),
       as_of: num(v.as_of),
       value_cents: num(v.value_cents),
+      basis: v.basis == null ? null : String(v.basis),
     })),
   };
 }
@@ -510,7 +518,12 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
   return series;
 }
 
-export type AssetValuePoint = { as_of: number; date: string; value_cents: number };
+export type AssetValuePoint = {
+  as_of: number;
+  date: string;
+  value_cents: number;
+  event: { kind: 'round' | 'mark'; label: string };
+};
 
 // Emit a point at every event that can move the derived value: each round's
 // entry_date (new capital + mark-up of prior rounds from the new PPS) and
@@ -524,7 +537,16 @@ export async function privateInvestmentValueSeries(d: DB, assetId: string): Prom
   const sorted = [...timestamps].sort((a, b) => a - b);
   return sorted.map((t) => {
     const { total_cents } = deriveAssetValue(rounds, valuations, t);
-    return { as_of: t, date: ptDateKey(t), value_cents: total_cents };
+    // Prefer round on timestamp collision — the round is the higher-signal event
+    // (capital + PPS change) and any mark recorded on the same day is incidental.
+    const round = rounds.find((r) => r.entry_date === t);
+    const event: AssetValuePoint['event'] = round
+      ? { kind: 'round', label: round.round_label ?? round.security_type ?? 'Round' }
+      : (() => {
+          const val = valuations.find((v) => v.as_of === t);
+          return { kind: 'mark', label: val?.basis ?? 'Mark' };
+        })();
+    return { as_of: t, date: ptDateKey(t), value_cents: total_cents, event };
   });
 }
 
