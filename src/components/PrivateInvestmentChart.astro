@@ -64,11 +64,15 @@ function buildStepPath(): string {
   return parts.join(' ');
 }
 
-// Future-only horizontal ghost at current × multiplier, from today to tMax.
+// Future ghost line fanning out from TODAY's current value to current × mult
+// at the horizon — visualizes uncertainty growing over time.
 function buildFutureLine(mult: number): string {
   if (!showBand) return '';
-  const y = yAt(currentValueCents * mult).toFixed(2);
-  return `M ${xAt(nowSec).toFixed(2)} ${y} L ${xAt(tMax).toFixed(2)} ${y}`;
+  const xStart = xAt(nowSec).toFixed(2);
+  const xEnd = xAt(tMax).toFixed(2);
+  const yStart = yAt(currentValueCents).toFixed(2);
+  const yEnd = yAt(currentValueCents * mult).toFixed(2);
+  return `M ${xStart} ${yStart} L ${xEnd} ${yEnd}`;
 }
 
 const stepPath = buildStepPath();
@@ -98,7 +102,7 @@ if (ticks.length > 0 && nowX - ticks[ticks.length - 1].x < MIN_TICK_GAP) {
 ticks.push({ x: nowX, label: 'today' });
 // Future horizon tick on the right edge when bands push the chart past today.
 if (showBand) {
-  ticks.push({ x: xAt(tMax), label: `+${Math.round(FUTURE_DAYS / 30)}mo` });
+  ticks.push({ x: xAt(tMax), label: 'future' });
 }
 
 const marks: ChartMark[] = series.map((p) => ({ x: xAt(p.as_of), y: yAt(p.value_cents) }));
