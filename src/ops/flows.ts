@@ -120,14 +120,24 @@ export type ProjectedFlow = {
   privateInvestmentId: string | null;
 };
 
+// Day-clamping addMonths: naive setMonth rolls "Jan 31 + 1mo" into March 3
+// because Feb has no day 31. Clamp to the target month's last day instead.
+function addMonthsClamped(d: Date, months: number): void {
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const lastDayOfTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDayOfTarget));
+}
+
 function addCadence(date: number, cadence: Cadence): number {
   const d = new Date(date * 1000);
   switch (cadence) {
     case 'weekly':    d.setDate(d.getDate() + 7); break;
     case 'biweekly':  d.setDate(d.getDate() + 14); break;
-    case 'monthly':   d.setMonth(d.getMonth() + 1); break;
-    case 'quarterly': d.setMonth(d.getMonth() + 3); break;
-    case 'annual':    d.setFullYear(d.getFullYear() + 1); break;
+    case 'monthly':   addMonthsClamped(d, 1); break;
+    case 'quarterly': addMonthsClamped(d, 3); break;
+    case 'annual':    addMonthsClamped(d, 12); break;
     case 'once':      return Number.POSITIVE_INFINITY;
   }
   return Math.floor(d.getTime() / 1000);
