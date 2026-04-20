@@ -27,9 +27,6 @@ type Bucket = { key: string; label: string; inCents: number; outCents: number };
 const monthLabel = new Intl.DateTimeFormat('en-US', {
   month: 'short', year: 'numeric', timeZone: 'UTC',
 });
-const dayLabel = new Intl.DateTimeFormat('en-US', {
-  month: 'short', day: 'numeric', timeZone: 'UTC',
-});
 const bucketKey = (sec: number) => {
   const d = new Date(sec * 1000);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -56,15 +53,11 @@ const totalIn = buckets.reduce((s, b) => s + b.inCents, 0);
 const totalOut = buckets.reduce((s, b) => s + b.outCents, 0);
 const totalNet = totalIn - totalOut;
 
-// Break out the one-off contribution so the header stats show what part of
-// the total is one-time vs steady-state.
-const oneOffIn = projected
-  .filter((p) => p.cadence === 'once' && p.direction === 'inflow')
-  .reduce((s, p) => s + p.amountExpectedCents, 0);
-const oneOffOut = projected
-  .filter((p) => p.cadence === 'once' && p.direction === 'outflow')
-  .reduce((s, p) => s + p.amountExpectedCents, 0);
-const oneOffNet = oneOffIn - oneOffOut;
+// Break out the one-off contribution so the rail annotation tells you what
+// part of the total is one-time vs steady-state.
+const oneOffNet = projected
+  .filter((p) => p.cadence === 'once')
+  .reduce((s, p) => s + (p.direction === 'inflow' ? p.amountExpectedCents : -p.amountExpectedCents), 0);
 
 // ─── One-offs within window ─────────────────────────────────────────────────
 const oneOffs = projected
@@ -186,6 +179,16 @@ const cadenceLabelFor = (r: FlowRow) => {
   return NAMED_MULTIPLIERS[r.cadence]?.[n] ?? `${r.cadence} ×${n}`;
 };
 
+// ─── Rail summary maths ─────────────────────────────────────────────────────
+const recInMonthly = recurringRows
+  .filter((r) => r.direction === 'inflow')
+  .reduce((s, r) => s + monthlyAvgCents(r), 0);
+const recOutMonthly = recurringRows
+  .filter((r) => r.direction === 'outflow')
+  .reduce((s, r) => s + monthlyAvgCents(r), 0);
+const recNetMonthly = recInMonthly - recOutMonthly;
+const recNetYearly = recNetMonthly * 12;
+
 // ─── Formatting helpers ─────────────────────────────────────────────────────
 const fmtAbs = (cents: number) => fmtUSD.format(Math.abs(cents) / 100);
 const fmtIn = (cents: number) => `+${fmtUSD.format(cents / 100)}`;
@@ -199,34 +202,90 @@ const fmtSigned = (cents: number, dir: Direction) =>
   {flows.length === 0 ? (
     <p class="empty">NO EXPECTED FLOWS YET — ASK AN AGENT TO ADD ONE.</p>
   ) : (
-    <section class="page">
-      <header class="head">
-        <div class="title">
-          <div class="eyebrow">next 12 months</div>
+    <div class="flows-layout">
+      <aside class="rail">
+        <div class="rail-head">
+          <div class="eyebrow">cash flow</div>
           <h1>Flows</h1>
         </div>
-        <dl class="stats">
-          <div class="stat">
-            <dt>in</dt>
-            <dd class="num pos">{fmtIn(totalIn)}</dd>
-            {oneOffIn > 0 && <div class="stat-foot muted">incl. {fmtIn(oneOffIn)} one-offs</div>}
-          </div>
-          <div class="stat">
-            <dt>out</dt>
-            <dd class="num neg">{fmtOut(totalOut)}</dd>
-            {oneOffOut > 0 && <div class="stat-foot muted">incl. {fmtOut(oneOffOut)} one-offs</div>}
-          </div>
-          <div class="stat">
-            <dt>net</dt>
-            <dd class={`num ${totalNet >= 0 ? 'pos' : 'neg'}`}>{fmtNet(totalNet)}</dd>
-            {oneOffNet !== 0 && <div class="stat-foot muted">incl. {fmtNet(oneOffNet)} one-offs</div>}
-          </div>
-        </dl>
-      </header>
 
-      <div class="split">
-        <section class="col">
-          <h2>by month</h2>
+        <div class="rail-block">
+          <div class="rail-label">projected</div>
+          <div class="rail-scope">next 12 months</div>
+          <div class="rail-row"><span class="k">in</span><span class="pos">{fmtIn(totalIn)}</span></div>
+          <div class="rail-row"><span class="k">out</span><span class="neg">{fmtOut(totalOut)}</span></div>
+          <div class={`rail-row emphasis ${totalNet >= 0 ? 'pos' : 'neg'}`}>
+            <span class="k">net</span><span>{fmtNet(totalNet)}</span>
+          </div>
+          {oneOffNet !== 0 && (
+            <div class="rail-annotation">incl. {fmtNet(oneOffNet)} one-offs</div>
+          )}
+        </div>
+
+        <div class="rail-block">
+          <div class="rail-label">recurring</div>
+          <div class="rail-scope">steady state · {recurringRows.length} flows</div>
+          <div class="rail-row">
+            <span class="k">in</span>
+            <span class="pos">{fmtIn(recInMonthly)}<span class="per"> /mo</span></span>
+          </div>
+          <div class="rail-row">
+            <span class="k">out</span>
+            <span class="neg">{fmtOut(recOutMonthly)}<span class="per"> /mo</span></span>
+          </div>
+          <div class={`rail-row emphasis ${recNetMonthly >= 0 ? 'pos' : 'neg'}`}>
+            <span class="k">net</span>
+            <span>{fmtNet(recNetMonthly)}<span class="per"> /mo</span></span>
+          </div>
+          <div class="rail-annotation">{fmtNet(recNetYearly)}/yr</div>
+        </div>
+      </aside>
+
+      <div class="main">
+        <section>
+          <h2 class="section-label">recurring ({recurringRows.length})</h2>
+          <table class="flows-tbl">
+            <thead>
+              <tr>
+                <th>label</th>
+                <th>cadence</th>
+                <th class="num-col">expected</th>
+                <th class="num-col">monthly</th>
+                <th class="num-col">yearly</th>
+                <th class="num-col">next</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recurringRows.map((r) => {
+                const cls = r.direction === 'inflow' ? 'pos' : 'neg';
+                const monthly = monthlyAvgCents(r);
+                const yearly = monthly * 12;
+                const perOccurrence = r.components.length > 1
+                  ? Math.round(r.amountExpectedCents / r.components.length)
+                  : r.amountExpectedCents;
+                return (
+                  <tr>
+                    <td><div class="lbl">{r.label}</div></td>
+                    <td class="muted small-caps nowrap">{cadenceLabelFor(r)}</td>
+                    <td class="num-col">
+                      <span class={cls}>{fmtSigned(perOccurrence, r.direction)}</span>
+                    </td>
+                    <td class="num-col">
+                      <span class={cls}>{fmtSigned(monthly, r.direction)}</span>
+                    </td>
+                    <td class="num-col">
+                      <span class={cls}>{fmtSigned(yearly, r.direction)}</span>
+                    </td>
+                    <td class="muted num-col nowrap">{fmtDate(r.nextExpectedAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2 class="section-label">by month</h2>
           <table class="flows-tbl compact">
             <thead>
               <tr>
@@ -256,189 +315,136 @@ const fmtSigned = (cents: number, dir: Direction) =>
           </table>
         </section>
 
-        <section class="col">
-          {(() => {
-            const inMonthly = recurringRows
-              .filter((r) => r.direction === 'inflow')
-              .reduce((s, r) => s + monthlyAvgCents(r), 0);
-            const outMonthly = recurringRows
-              .filter((r) => r.direction === 'outflow')
-              .reduce((s, r) => s + monthlyAvgCents(r), 0);
-            const netMonthly = inMonthly - outMonthly;
-            const inYearly = inMonthly * 12;
-            const outYearly = outMonthly * 12;
-            const netYearly = netMonthly * 12;
-            return (
-              <>
-                <div class="rec-head">
-                  <h2>recurring ({recurringRows.length})</h2>
-                  <dl class="rec-stats">
-                    <div class="rec-stat">
-                      <dt>in</dt>
-                      <dd class="num pos">{fmtIn(inMonthly)}<span class="per muted"> /mo</span></dd>
-                      <dd class="num pos sub">{fmtIn(inYearly)}<span class="per muted"> /yr</span></dd>
-                    </div>
-                    <div class="rec-stat">
-                      <dt>out</dt>
-                      <dd class="num neg">{fmtOut(outMonthly)}<span class="per muted"> /mo</span></dd>
-                      <dd class="num neg sub">{fmtOut(outYearly)}<span class="per muted"> /yr</span></dd>
-                    </div>
-                    <div class="rec-stat">
-                      <dt>net</dt>
-                      <dd class={`num ${netMonthly >= 0 ? 'pos' : 'neg'}`}>{fmtNet(netMonthly)}<span class="per muted"> /mo</span></dd>
-                      <dd class={`num ${netYearly >= 0 ? 'pos' : 'neg'} sub`}>{fmtNet(netYearly)}<span class="per muted"> /yr</span></dd>
-                    </div>
-                  </dl>
-                </div>
-                <table class="flows-tbl">
-                  <thead>
-                    <tr>
-                      <th>label</th>
-                      <th>cadence</th>
-                      <th class="num-col">expected</th>
-                      <th class="num-col">monthly</th>
-                      <th class="num-col">yearly</th>
-                      <th class="num-col">next</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recurringRows.map((r) => {
-                      const cls = r.direction === 'inflow' ? 'pos' : 'neg';
-                      const monthly = monthlyAvgCents(r);
-                      const yearly = monthly * 12;
-                      // "semimonthly $30,000" reads wrong — amount should be per-occurrence
-                      // so the cadence word + amount reads naturally ($15k twice a month).
-                      const perOccurrence = r.components.length > 1
-                        ? Math.round(r.amountExpectedCents / r.components.length)
-                        : r.amountExpectedCents;
-                      return (
-                        <tr>
-                          <td><div class="lbl">{r.label}</div></td>
-                          <td class="muted small-caps nowrap">{cadenceLabelFor(r)}</td>
-                          <td class="num-col">
-                            <span class={cls}>{fmtSigned(perOccurrence, r.direction)}</span>
-                          </td>
-                          <td class="num-col">
-                            <span class={cls}>{fmtSigned(monthly, r.direction)}</span>
-                          </td>
-                          <td class="num-col">
-                            <span class={cls}>{fmtSigned(yearly, r.direction)}</span>
-                          </td>
-                          <td class="muted num-col nowrap">{fmtDate(r.nextExpectedAt)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </>
-            );
-          })()}
-
-          {oneOffs.length > 0 && (
-            <div class="oneoffs">
-              <h3>one-offs ({oneOffs.length})</h3>
-              <ul class="oneoff-list">
-                {oneOffs.map((p) => {
-                  const sign = p.direction === 'inflow' ? '+' : '−';
-                  const cls = p.direction === 'inflow' ? 'pos' : 'neg';
-                  const hasRange = p.amountLowCents != null || p.amountHighCents != null;
-                  const fmtSignedOne = (c: number) => `${sign}${fmtUSD.format(c / 100)}`;
-                  const fmtUnsigned = (c: number) => fmtUSD.format(c / 100);
-                  const note = notesByFlowId.get(p.flowId);
-                  return (
-                    <li>
-                      <span class="oo-date muted nowrap">{fmtDate(p.date)}</span>
-                      <span class="oo-label">{p.label}</span>
-                      <span class={`oo-amount num nowrap ${cls}`}>
-                        {hasRange ? (
-                          <>
-                            {fmtSignedOne(p.amountExpectedCents)}
-                            <span class="oo-range muted">
-                              {' '}({p.amountLowCents != null ? fmtUnsigned(p.amountLowCents) : '—'}
-                              {' / '}
-                              {p.amountHighCents != null ? fmtUnsigned(p.amountHighCents) : '—'})
-                            </span>
-                          </>
-                        ) : (
-                          fmtSignedOne(p.amountExpectedCents)
-                        )}
-                      </span>
-                      {note && <span class="oo-note muted">{note}</span>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </section>
+        {oneOffs.length > 0 && (
+          <section>
+            <h2 class="section-label">one-offs ({oneOffs.length})</h2>
+            <ul class="oneoff-list">
+              {oneOffs.map((p) => {
+                const sign = p.direction === 'inflow' ? '+' : '−';
+                const cls = p.direction === 'inflow' ? 'pos' : 'neg';
+                const hasRange = p.amountLowCents != null || p.amountHighCents != null;
+                const fmtSignedOne = (c: number) => `${sign}${fmtUSD.format(c / 100)}`;
+                const fmtUnsigned = (c: number) => fmtUSD.format(c / 100);
+                const note = notesByFlowId.get(p.flowId);
+                return (
+                  <li>
+                    <span class="oo-date muted nowrap">{fmtDate(p.date)}</span>
+                    <span class="oo-label">{p.label}</span>
+                    <span class={`oo-amount num nowrap ${cls}`}>
+                      {hasRange ? (
+                        <>
+                          {fmtSignedOne(p.amountExpectedCents)}
+                          <span class="oo-range muted">
+                            {' '}({p.amountLowCents != null ? fmtUnsigned(p.amountLowCents) : '—'}
+                            {' / '}
+                            {p.amountHighCents != null ? fmtUnsigned(p.amountHighCents) : '—'})
+                          </span>
+                        </>
+                      ) : (
+                        fmtSignedOne(p.amountExpectedCents)
+                      )}
+                    </span>
+                    {note && <span class="oo-note muted">{note}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
       </div>
-    </section>
+    </div>
   )}
 </Shell>
 
 <style>
-  .head {
+  .flows-layout {
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-6);
-    align-items: end;
-    padding-bottom: var(--space-6);
-    border-bottom: 1px solid var(--rule-strong);
+    grid-template-columns: 18rem 1fr;
+    gap: var(--space-8);
+    align-items: start;
   }
-  .title .eyebrow {
+
+  .rail {
+    position: sticky;
+    top: var(--space-4);
+    display: grid;
+    gap: var(--space-6);
+  }
+  .rail-head .eyebrow {
     font-size: var(--size-xs);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--fg-muted);
   }
-  .title h1 {
+  .rail-head h1 {
     font-size: var(--size-2xl);
     font-weight: 500;
     letter-spacing: -0.025em;
     text-transform: none;
-    margin-top: var(--space-1);
+    margin: var(--space-1) 0 0;
   }
 
-  .stats {
-    display: grid;
-    grid-auto-flow: column;
-    gap: var(--space-8);
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-  }
-  .stat { display: grid; gap: 2px; margin: 0; }
-  .stat dt {
+  .rail-block { display: grid; gap: 0; }
+  .rail-label {
     font-size: var(--size-xs);
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
     color: var(--fg-muted);
-  }
-  .stat dd {
-    margin: 0;
-    font-size: var(--size-lg);
     font-weight: 500;
   }
-
-  .split {
-    display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-    gap: var(--space-8);
-    align-items: start;
-    margin-top: var(--space-6);
-  }
-  .col h2 {
+  .rail-scope {
     font-size: var(--size-xs);
-    letter-spacing: 0.12em;
     color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2px;
     margin-bottom: var(--space-2);
   }
+  .rail-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    align-items: baseline;
+  }
+  .rail-row:first-of-type { border-top: 1px solid var(--rule); }
+  .rail-row .k {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .rail-row .per {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    font-weight: 400;
+  }
+  .rail-row.emphasis {
+    font-weight: 600;
+    font-size: var(--size-base);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+  .rail-annotation {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    margin-top: var(--space-2);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
 
-  .oneoffs { margin-top: var(--space-8); }
-  .oneoffs h3 {
+  .main { display: grid; gap: var(--space-8); min-width: 0; }
+
+  h2.section-label {
     font-size: var(--size-xs);
     letter-spacing: 0.12em;
     color: var(--fg-muted);
-    margin-bottom: var(--space-1);
+    font-weight: 500;
+    text-transform: uppercase;
+    margin: 0 0 var(--space-2);
   }
 
   table.flows-tbl {
@@ -454,12 +460,7 @@ const fmtSigned = (cents: number, dir: Direction) =>
     vertical-align: baseline;
   }
   table.flows-tbl.compact th,
-  table.flows-tbl.compact td {
-    padding: var(--space-2) var(--space-2);
-  }
-  table.flows-tbl .nowrap { white-space: nowrap; }
-  table.flows-tbl .next-col { font-size: var(--size-xs); }
-  table.flows-tbl .next-col div + div { margin-top: 2px; }
+  table.flows-tbl.compact td { padding: var(--space-2); }
   table.flows-tbl thead th {
     font-weight: 500;
     color: var(--fg-muted);
@@ -471,93 +472,32 @@ const fmtSigned = (cents: number, dir: Direction) =>
   }
   table.flows-tbl tbody td { border-bottom: 1px solid var(--rule); }
   table.flows-tbl .num-col { text-align: right; white-space: nowrap; }
+  table.flows-tbl .nowrap { white-space: nowrap; }
   table.flows-tbl .month {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-size: var(--size-xs);
     color: var(--fg-muted);
   }
-  table.flows-tbl .lbl { }
-  table.flows-tbl .note {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    margin-top: 2px;
-    max-width: 42rem;
-  }
-  table.flows-tbl .sub-meta {
-    font-size: var(--size-xs);
-    margin-top: 2px;
-  }
-  table.flows-tbl .note-inline {
-    font-size: var(--size-xs);
-  }
   table.flows-tbl .small-caps {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-size: var(--size-xs);
   }
-  table.flows-tbl .range {
-    font-size: var(--size-xs);
-    margin-top: 2px;
-  }
-  table.flows-tbl .suffix {
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-  }
-  .rec-head {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-6);
-    align-items: end;
-    padding-bottom: var(--space-4);
-    margin-bottom: var(--space-3);
-    border-bottom: 1px solid var(--rule-strong);
-  }
-  .rec-head h2 {
-    font-size: var(--size-xs);
-    letter-spacing: 0.12em;
-    color: var(--fg-muted);
-    margin: 0;
-  }
-  .rec-stats {
-    display: grid;
-    grid-auto-flow: column;
-    gap: var(--space-6);
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-  }
-  .rec-stat { display: grid; gap: 2px; margin: 0; justify-items: end; }
-  .rec-stat dt {
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--fg-muted);
-  }
-  .rec-stat dd {
-    margin: 0;
-    font-size: var(--size-sm);
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .rec-stat dd.sub { font-size: var(--size-xs); font-weight: 400; }
-  .rec-stat .per { font-weight: 400; font-size: var(--size-xs); }
 
-  .stat-foot {
-    font-size: var(--size-xs);
-    margin-top: 2px;
-    text-transform: none;
-    letter-spacing: 0;
-  }
-
-  ul.oneoff-list { list-style: none; padding: 0; margin: var(--space-2) 0 0; }
+  ul.oneoff-list { list-style: none; padding: 0; margin: 0; }
   ul.oneoff-list li {
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: var(--space-3);
     align-items: baseline;
-    padding: var(--space-2) 0;
+    padding: var(--space-3) 0;
     border-bottom: 1px solid var(--rule);
     font-size: var(--size-sm);
+  }
+  ul.oneoff-list li:first-child {
+    border-top: 1px solid var(--rule-strong);
+    padding-top: var(--space-3);
   }
   ul.oneoff-list .oo-date {
     font-size: var(--size-xs);
@@ -572,11 +512,12 @@ const fmtSigned = (cents: number, dir: Direction) =>
     margin-top: 2px;
   }
 
-  @media (max-width: 76rem) {
-    .split { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 52rem) {
-    .head { grid-template-columns: 1fr; }
-    .stats { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+  @media (max-width: 64rem) {
+    .flows-layout { grid-template-columns: 1fr; gap: var(--space-6); }
+    .rail {
+      position: static;
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--rule);
+    }
   }
 </style>

@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flows · Layout Variations</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.5rem;
+    --size-2xl: 2.25rem;
+    --size-3xl: 3rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--size-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .proto-header {
+    padding: var(--space-6) var(--space-8) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg-subtle);
+  }
+  .proto-header h1 {
+    margin: 0;
+    font-size: var(--size-sm);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .proto-header p {
+    margin: var(--space-1) 0 0;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+
+  .variant-nav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    gap: var(--space-6);
+    padding: var(--space-3) var(--space-8);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .variant-nav a {
+    text-decoration: none;
+    color: var(--fg-muted);
+    padding-bottom: 2px;
+    border-bottom: 1px solid transparent;
+  }
+  .variant-nav a:hover { color: var(--fg); }
+  .variant-nav a.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+
+  .variant {
+    padding: var(--space-8);
+    max-width: 80rem;
+    margin: 0 auto;
+    border-bottom: 4px solid var(--rule-strong);
+  }
+  .variant-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px dashed var(--rule);
+  }
+  .variant-label .caption {
+    margin-left: var(--space-3);
+    font-weight: 400;
+    color: var(--fg-muted);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  /* ─── Fiscus page chrome ────────────────────────────────────────── */
+  .app-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-6);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-6);
+    font-size: var(--size-sm);
+  }
+  .app-header .brand {
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .app-header nav {
+    display: flex;
+    gap: var(--space-6);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .app-header [aria-current="page"] {
+    color: var(--fg);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .app-header .synced {
+    margin-left: auto;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+
+  .page-title {
+    font-size: var(--size-2xl);
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    margin: var(--space-1) 0 0;
+  }
+  .eyebrow {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+
+  /* ─── Tables ───────────────────────────────────────────────────── */
+  table.tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.tbl th, table.tbl td {
+    padding: var(--space-2);
+    text-align: left;
+    vertical-align: baseline;
+  }
+  table.tbl thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: var(--space-2);
+  }
+  table.tbl tbody td { border-bottom: 1px solid var(--rule); }
+  .num-col { text-align: right; white-space: nowrap; }
+  .muted { color: var(--fg-muted); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .nowrap { white-space: nowrap; }
+  .small-caps {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: var(--size-xs);
+  }
+  .month-col {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+
+  /* ─── Stats strip (shared pattern) ─────────────────────────────── */
+  dl.stats {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--space-6);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    justify-content: end;
+  }
+  dl.stats .stat { display: grid; gap: 2px; margin: 0; justify-items: end; }
+  dl.stats dt {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  dl.stats dd { margin: 0; font-weight: 500; white-space: nowrap; }
+  dl.stats dd.primary { font-size: var(--size-lg); }
+  dl.stats dd.sub {
+    font-size: var(--size-xs);
+    font-weight: 400;
+  }
+  dl.stats .per { font-weight: 400; font-size: var(--size-xs); color: var(--fg-muted); }
+  dl.stats .annotation {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    margin-top: var(--space-1);
+    font-weight: 400;
+  }
+
+  /* ─── Column header pattern (shared) ───────────────────────────── */
+  .col-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-6);
+    align-items: end;
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .col-head h2 {
+    margin: 0;
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+  .col-head .scope {
+    display: block;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .col-head-title {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* ─── One-offs inline list (shared) ────────────────────────────── */
+  ul.oneoff-list { list-style: none; padding: 0; margin: var(--space-2) 0 0; }
+  ul.oneoff-list li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-sm);
+  }
+  ul.oneoff-list .oo-date {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+  }
+  ul.oneoff-list .oo-amount { font-variant-numeric: tabular-nums; }
+  ul.oneoff-list .oo-range { font-size: var(--size-xs); color: var(--fg-muted); }
+
+  h3.section-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    margin: var(--space-8) 0 var(--space-2);
+  }
+
+  /* ─── V1: Twin strips ──────────────────────────────────────────── */
+  .v1-split {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  /* ─── V2: Dual cards ───────────────────────────────────────────── */
+  .v2-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
+    margin-bottom: var(--space-8);
+  }
+  .v2-card {
+    border: 1px solid var(--rule);
+    padding: var(--space-6);
+  }
+  .v2-card .card-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-1);
+  }
+  .v2-card .card-scope {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    margin-bottom: var(--space-4);
+  }
+  .v2-card .card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-4);
+    font-variant-numeric: tabular-nums;
+  }
+  .v2-card .card-stat dt {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    margin-bottom: 2px;
+  }
+  .v2-card .card-stat dd {
+    margin: 0;
+    font-size: var(--size-lg);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .v2-card .card-stat dd.sub {
+    font-size: var(--size-xs);
+    font-weight: 400;
+    margin-top: 2px;
+  }
+  .v2-card .per { color: var(--fg-muted); font-weight: 400; font-size: var(--size-xs); }
+  .v2-card .annotation {
+    margin-top: var(--space-3);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+
+  .v2-stack { display: grid; gap: var(--space-8); }
+
+  /* ─── V3: Unified + per-row sparkline ──────────────────────────── */
+  .v3-header-stats {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-8);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-6);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .v3-header-stats .label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+  }
+  .v3-header-stats dl.stats { margin-left: auto; }
+
+  .spark {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1px;
+    width: 144px;
+    height: 20px;
+  }
+  .spark .bar {
+    flex: 1;
+    background: var(--fg);
+    min-height: 1px;
+    opacity: 0.75;
+  }
+  .spark .bar.empty { background: var(--rule); opacity: 1; }
+  .spark .bar.pos { background: var(--pos); }
+  .spark .bar.neg { background: var(--neg); }
+
+  /* ─── V4: Sidebar rail ─────────────────────────────────────────── */
+  .v4-layout {
+    display: grid;
+    grid-template-columns: 18rem 1fr;
+    gap: var(--space-8);
+    align-items: start;
+  }
+  .v4-rail {
+    position: sticky;
+    top: calc(var(--space-12) + 1px);
+    display: grid;
+    gap: var(--space-6);
+  }
+  .rail-block .rail-label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .rail-block .rail-scope {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    margin-bottom: var(--space-2);
+  }
+  .rail-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+    align-items: baseline;
+  }
+  .rail-row:first-of-type { border-top: 1px solid var(--rule); }
+  .rail-row .k {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .rail-row .per { color: var(--fg-muted); font-size: var(--size-xs); }
+  .rail-row.emphasis {
+    font-weight: 600;
+    font-size: var(--size-base);
+    padding-top: var(--space-3);
+  }
+  .rail-annotation {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    margin-top: var(--space-2);
+  }
+  .v4-main { display: grid; gap: var(--space-8); }
+
+  /* ─── V5: Timeline top ─────────────────────────────────────────── */
+  .v5-timeline {
+    margin: 0 0 var(--space-8);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .v5-timeline-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+  }
+  .v5-timeline-head .label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+  }
+  .v5-bars {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--space-1);
+    height: 80px;
+    align-items: end;
+  }
+  .v5-bars .bar-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 1px;
+    min-height: 1px;
+    position: relative;
+  }
+  .v5-bars .bar-col .bar-fill {
+    background: var(--pos);
+    min-height: 2px;
+  }
+  .v5-bars .bar-col.neg .bar-fill { background: var(--neg); }
+  .v5-bars .bar-col .bar-label {
+    position: absolute;
+    bottom: -18px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .v5-bar-scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    margin-top: var(--space-8);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .v5-notable {
+    display: flex;
+    gap: var(--space-6);
+    margin-top: var(--space-4);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .v5-notable .note-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--fg);
+    margin-right: var(--space-1);
+    vertical-align: middle;
+  }
+
+  /* tfoot totals for shared tables */
+  table.tbl tfoot td {
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom: none;
+  }
+  table.tbl tfoot tr.totals td {
+    border-top: 1px solid var(--rule-strong);
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<header class="proto-header">
+  <h1>Flows · Layout Variations</h1>
+  <p>Five takes on the /flows page, solving cross-column alignment + competing-stats issues. Real data throughout.</p>
+</header>
+
+<nav class="variant-nav" id="variant-nav">
+  <a href="#v1" class="active">1 · Twin Strips</a>
+  <a href="#v2">2 · Dual Cards</a>
+  <a href="#v3">3 · Unified + Sparklines</a>
+  <a href="#v4">4 · Sidebar Rail</a>
+  <a href="#v5">5 · Timeline Top</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     V1 · TWIN STRIPS
+     Both columns get matching heading + stats-strip + table.
+     Baselines align naturally.
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="v1" class="variant">
+  <div class="variant-label">V1 · Twin Strips <span class="caption">— matching heading + stats + table on both sides; baselines align</span></div>
+
+  <header class="app-header">
+    <span class="brand">fiscus</span>
+    <nav>
+      <a href="#">concentration</a>
+      <a aria-current="page">flows</a>
+      <a href="#">connect</a>
+    </nav>
+    <span class="synced">synced apr 20, 3:01 am</span>
+  </header>
+
+  <div style="margin-bottom: var(--space-8);">
+    <div class="eyebrow">cash flow</div>
+    <h1 class="page-title">Flows</h1>
+  </div>
+
+  <div class="v1-split">
+    <!-- LEFT: Projection -->
+    <section>
+      <div class="col-head">
+        <div class="col-head-title">
+          <h2>projected</h2>
+          <span class="scope">next 12 months</span>
+        </div>
+        <dl class="stats">
+          <div class="stat">
+            <dt>in</dt>
+            <dd class="primary pos">+$490,000</dd>
+          </div>
+          <div class="stat">
+            <dt>out</dt>
+            <dd class="primary neg">−$225,896</dd>
+          </div>
+          <div class="stat">
+            <dt>net</dt>
+            <dd class="primary pos">+$264,104</dd>
+          </div>
+        </dl>
+      </div>
+      <div class="muted" style="font-size: var(--size-xs); margin: 0 0 var(--space-3); text-align: right;">incl. +$75,000 from one-offs</div>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>month</th>
+            <th class="num-col">in</th>
+            <th class="num-col">out</th>
+            <th class="num-col">net</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="month-col">Apr 2026</td><td class="num-col pos">+$15,000</td><td class="num-col neg">−$2,346</td><td class="num-col pos">+$12,654</td></tr>
+          <tr><td class="month-col">May 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$8,659</td></tr>
+          <tr><td class="month-col">Jun 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Jul 2026</td><td class="num-col pos">+$65,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$43,659</td></tr>
+          <tr><td class="month-col">Aug 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Sep 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Oct 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$8,659</td></tr>
+          <tr><td class="month-col">Nov 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Dec 2026</td><td class="num-col pos">+$105,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$85,259</td></tr>
+          <tr><td class="month-col">Jan 2027</td><td class="num-col pos">+$65,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$43,659</td></tr>
+          <tr><td class="month-col">Feb 2027</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Mar 2027</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- RIGHT: Recurring -->
+    <section>
+      <div class="col-head">
+        <div class="col-head-title">
+          <h2>recurring</h2>
+          <span class="scope">steady state · 9 flows</span>
+        </div>
+        <dl class="stats">
+          <div class="stat">
+            <dt>in</dt>
+            <dd class="primary pos">+$35,833<span class="per"> /mo</span></dd>
+            <dd class="sub pos">+$430,000<span class="per"> /yr</span></dd>
+          </div>
+          <div class="stat">
+            <dt>out</dt>
+            <dd class="primary neg">−$20,274<span class="per"> /mo</span></dd>
+            <dd class="sub neg">−$243,291<span class="per"> /yr</span></dd>
+          </div>
+          <div class="stat">
+            <dt>net</dt>
+            <dd class="primary pos">+$15,559<span class="per"> /mo</span></dd>
+            <dd class="sub pos">+$186,709<span class="per"> /yr</span></dd>
+          </div>
+        </dl>
+      </div>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>label</th>
+            <th>cadence</th>
+            <th class="num-col">expected</th>
+            <th class="num-col">monthly</th>
+            <th class="num-col">yearly</th>
+            <th class="num-col">next</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>SHV Paycheck</td><td class="muted small-caps nowrap">semimonthly</td><td class="num-col pos">+$15,000</td><td class="num-col pos">+$30,000</td><td class="num-col pos">+$360,000</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+          <tr><td>SHV Profit Share</td><td class="muted small-caps nowrap">semiannual</td><td class="num-col pos">+$35,000</td><td class="num-col pos">+$5,833</td><td class="num-col pos">+$70,000</td><td class="num-col muted nowrap">Jul 15, 2026</td></tr>
+          <tr><td>Nanny</td><td class="muted small-caps nowrap">weekly</td><td class="num-col neg">−$1,600</td><td class="num-col neg">−$6,933</td><td class="num-col neg">−$83,200</td><td class="num-col muted nowrap">Apr 24, 2026</td></tr>
+          <tr><td>330 Loyola</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$85,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>Carrie</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$24,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>Casper</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$19,740</td><td class="num-col muted nowrap">May 13, 2026</td></tr>
+          <tr><td>Utilities</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$12,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>USAA Insurance</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$850</td><td class="num-col neg">−$850</td><td class="num-col neg">−$10,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>Carbon</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$746</td><td class="num-col neg">−$746</td><td class="num-col neg">−$8,951</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <h3 class="section-label">one-offs (1)</h3>
+  <ul class="oneoff-list">
+    <li>
+      <span class="oo-date">Dec 31, 2026</span>
+      <span>Grandma Trust</span>
+      <span class="oo-amount nowrap pos">+$75,000 <span class="oo-range">($50,000 / $100,000)</span></span>
+    </li>
+  </ul>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     V2 · DUAL CARDS
+     Two summary cards at top (Projected + Recurring); tables flow
+     full-width below.
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="v2" class="variant">
+  <div class="variant-label">V2 · Dual Cards <span class="caption">— summary cards at top, tables full-width below</span></div>
+
+  <header class="app-header">
+    <span class="brand">fiscus</span>
+    <nav>
+      <a href="#">concentration</a>
+      <a aria-current="page">flows</a>
+      <a href="#">connect</a>
+    </nav>
+    <span class="synced">synced apr 20, 3:01 am</span>
+  </header>
+
+  <div style="margin-bottom: var(--space-6);">
+    <div class="eyebrow">cash flow</div>
+    <h1 class="page-title">Flows</h1>
+  </div>
+
+  <div class="v2-cards">
+    <div class="v2-card">
+      <div class="card-label">projected</div>
+      <div class="card-scope">next 12 months · includes one-offs</div>
+      <dl class="card-stats">
+        <div class="card-stat"><dt>in</dt><dd class="pos">+$490,000</dd></div>
+        <div class="card-stat"><dt>out</dt><dd class="neg">−$225,896</dd></div>
+        <div class="card-stat"><dt>net</dt><dd class="pos">+$264,104</dd></div>
+      </dl>
+      <div class="annotation">incl. +$75,000 from Grandma Trust (Dec 2026)</div>
+    </div>
+    <div class="v2-card">
+      <div class="card-label">recurring</div>
+      <div class="card-scope">steady state · 9 flows</div>
+      <dl class="card-stats">
+        <div class="card-stat">
+          <dt>in</dt>
+          <dd class="pos">+$35,833<span class="per"> /mo</span></dd>
+          <dd class="sub pos">+$430,000<span class="per"> /yr</span></dd>
+        </div>
+        <div class="card-stat">
+          <dt>out</dt>
+          <dd class="neg">−$20,274<span class="per"> /mo</span></dd>
+          <dd class="sub neg">−$243,291<span class="per"> /yr</span></dd>
+        </div>
+        <div class="card-stat">
+          <dt>net</dt>
+          <dd class="pos">+$15,559<span class="per"> /mo</span></dd>
+          <dd class="sub pos">+$186,709<span class="per"> /yr</span></dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="v2-stack">
+    <section>
+      <h3 class="section-label" style="margin-top: 0;">recurring flows</h3>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>label</th>
+            <th>cadence</th>
+            <th class="num-col">expected</th>
+            <th class="num-col">monthly</th>
+            <th class="num-col">yearly</th>
+            <th class="num-col">next</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>SHV Paycheck</td><td class="muted small-caps nowrap">semimonthly</td><td class="num-col pos">+$15,000</td><td class="num-col pos">+$30,000</td><td class="num-col pos">+$360,000</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+          <tr><td>SHV Profit Share</td><td class="muted small-caps nowrap">semiannual</td><td class="num-col pos">+$35,000</td><td class="num-col pos">+$5,833</td><td class="num-col pos">+$70,000</td><td class="num-col muted nowrap">Jul 15, 2026</td></tr>
+          <tr><td>Nanny</td><td class="muted small-caps nowrap">weekly</td><td class="num-col neg">−$1,600</td><td class="num-col neg">−$6,933</td><td class="num-col neg">−$83,200</td><td class="num-col muted nowrap">Apr 24, 2026</td></tr>
+          <tr><td>330 Loyola</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$85,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>Carrie</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$24,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>Casper</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$19,740</td><td class="num-col muted nowrap">May 13, 2026</td></tr>
+          <tr><td>Utilities</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$12,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>USAA Insurance</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$850</td><td class="num-col neg">−$850</td><td class="num-col neg">−$10,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+          <tr><td>Carbon</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$746</td><td class="num-col neg">−$746</td><td class="num-col neg">−$8,951</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h3 class="section-label" style="margin-top: 0;">by month</h3>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>month</th>
+            <th class="num-col">in</th>
+            <th class="num-col">out</th>
+            <th class="num-col">net</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="month-col">Apr 2026</td><td class="num-col pos">+$15,000</td><td class="num-col neg">−$2,346</td><td class="num-col pos">+$12,654</td></tr>
+          <tr><td class="month-col">May 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$8,659</td></tr>
+          <tr><td class="month-col">Jun 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Jul 2026</td><td class="num-col pos">+$65,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$43,659</td></tr>
+          <tr><td class="month-col">Aug 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Sep 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Oct 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$8,659</td></tr>
+          <tr><td class="month-col">Nov 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Dec 2026</td><td class="num-col pos">+$105,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$85,259</td></tr>
+          <tr><td class="month-col">Jan 2027</td><td class="num-col pos">+$65,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$43,659</td></tr>
+          <tr><td class="month-col">Feb 2027</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          <tr><td class="month-col">Mar 2027</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h3 class="section-label" style="margin-top: 0;">one-offs (1)</h3>
+      <ul class="oneoff-list">
+        <li>
+          <span class="oo-date">Dec 31, 2026</span>
+          <span>Grandma Trust</span>
+          <span class="oo-amount nowrap pos">+$75,000 <span class="oo-range">($50,000 / $100,000)</span></span>
+        </li>
+      </ul>
+    </section>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     V3 · UNIFIED + PER-ROW SPARKLINES
+     One main table; each recurring row shows a 12-bar distribution
+     so you see when each flow actually hits. By-month table goes away.
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="v3" class="variant">
+  <div class="variant-label">V3 · Unified + Sparklines <span class="caption">— per-row 12-month distribution; by-month table collapsed into rows</span></div>
+
+  <header class="app-header">
+    <span class="brand">fiscus</span>
+    <nav>
+      <a href="#">concentration</a>
+      <a aria-current="page">flows</a>
+      <a href="#">connect</a>
+    </nav>
+    <span class="synced">synced apr 20, 3:01 am</span>
+  </header>
+
+  <div style="margin-bottom: var(--space-8);">
+    <div class="eyebrow">cash flow</div>
+    <h1 class="page-title">Flows</h1>
+  </div>
+
+  <div class="v3-header-stats">
+    <span class="label">next 12 months</span>
+    <dl class="stats">
+      <div class="stat">
+        <dt>in</dt>
+        <dd class="primary pos">+$490,000</dd>
+        <dd class="annotation">incl. +$75k one-offs</dd>
+      </div>
+      <div class="stat">
+        <dt>out</dt>
+        <dd class="primary neg">−$225,896</dd>
+      </div>
+      <div class="stat">
+        <dt>net</dt>
+        <dd class="primary pos">+$264,104</dd>
+        <dd class="annotation">recurring: +$186,709/yr</dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3 class="section-label" style="margin-top: 0;">recurring (9)</h3>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>label</th>
+        <th>cadence</th>
+        <th class="num-col">expected</th>
+        <th class="num-col">monthly</th>
+        <th class="num-col">yearly</th>
+        <th>12-month distribution</th>
+        <th class="num-col">next</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- SHV Paycheck: semimonthly — equal across all months -->
+      <tr>
+        <td>SHV Paycheck</td>
+        <td class="muted small-caps nowrap">semimonthly</td>
+        <td class="num-col pos">+$15,000</td>
+        <td class="num-col pos">+$30,000</td>
+        <td class="num-col pos">+$360,000</td>
+        <td>
+          <div class="spark">
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar pos" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">Apr 30, 2026</td>
+      </tr>
+      <!-- SHV Profit Share: 2 spikes (Jul, Jan) -->
+      <tr>
+        <td>SHV Profit Share</td>
+        <td class="muted small-caps nowrap">semiannual</td>
+        <td class="num-col pos">+$35,000</td>
+        <td class="num-col pos">+$5,833</td>
+        <td class="num-col pos">+$70,000</td>
+        <td>
+          <div class="spark">
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+            <span class="bar pos" style="height: 100%"></span>
+            <span class="bar empty"></span>
+            <span class="bar empty"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">Jul 15, 2026</td>
+      </tr>
+      <!-- Nanny: weekly — slight variance per month -->
+      <tr>
+        <td>Nanny</td>
+        <td class="muted small-caps nowrap">weekly</td>
+        <td class="num-col neg">−$1,600</td>
+        <td class="num-col neg">−$6,933</td>
+        <td class="num-col neg">−$83,200</td>
+        <td>
+          <div class="spark">
+            <span class="bar neg" style="height: 25%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+            <span class="bar neg" style="height: 75%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">Apr 24, 2026</td>
+      </tr>
+      <tr>
+        <td>330 Loyola</td>
+        <td class="muted small-caps nowrap">monthly</td>
+        <td class="num-col neg">−$7,100</td>
+        <td class="num-col neg">−$7,100</td>
+        <td class="num-col neg">−$85,200</td>
+        <td>
+          <div class="spark">
+            <span class="bar empty"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">May 1, 2026</td>
+      </tr>
+      <tr>
+        <td>Carrie</td>
+        <td class="muted small-caps nowrap">monthly</td>
+        <td class="num-col neg">−$2,000</td>
+        <td class="num-col neg">−$2,000</td>
+        <td class="num-col neg">−$24,000</td>
+        <td>
+          <div class="spark">
+            <span class="bar empty"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">May 1, 2026</td>
+      </tr>
+      <tr>
+        <td>Casper</td>
+        <td class="muted small-caps nowrap">monthly</td>
+        <td class="num-col neg">−$1,645</td>
+        <td class="num-col neg">−$1,645</td>
+        <td class="num-col neg">−$19,740</td>
+        <td>
+          <div class="spark">
+            <span class="bar empty"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">May 13, 2026</td>
+      </tr>
+      <tr>
+        <td>Utilities</td>
+        <td class="muted small-caps nowrap">monthly</td>
+        <td class="num-col neg">−$1,000</td>
+        <td class="num-col neg">−$1,000</td>
+        <td class="num-col neg">−$12,000</td>
+        <td>
+          <div class="spark">
+            <span class="bar empty"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">May 1, 2026</td>
+      </tr>
+      <tr>
+        <td>USAA Insurance</td>
+        <td class="muted small-caps nowrap">monthly</td>
+        <td class="num-col neg">−$850</td>
+        <td class="num-col neg">−$850</td>
+        <td class="num-col neg">−$10,200</td>
+        <td>
+          <div class="spark">
+            <span class="bar empty"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">May 1, 2026</td>
+      </tr>
+      <tr>
+        <td>Carbon</td>
+        <td class="muted small-caps nowrap">monthly</td>
+        <td class="num-col neg">−$746</td>
+        <td class="num-col neg">−$746</td>
+        <td class="num-col neg">−$8,951</td>
+        <td>
+          <div class="spark">
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+            <span class="bar neg" style="height: 100%"></span>
+          </div>
+        </td>
+        <td class="num-col muted nowrap">Apr 30, 2026</td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr class="totals">
+        <td colspan="3" class="small-caps">recurring net</td>
+        <td class="num-col pos">+$15,559<span class="per muted"> /mo</span></td>
+        <td class="num-col pos">+$186,709<span class="per muted"> /yr</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <h3 class="section-label">one-offs (1)</h3>
+  <ul class="oneoff-list">
+    <li>
+      <span class="oo-date">Dec 31, 2026</span>
+      <span>Grandma Trust</span>
+      <span class="oo-amount nowrap pos">+$75,000 <span class="oo-range">($50,000 / $100,000)</span></span>
+    </li>
+  </ul>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     V4 · SIDEBAR RAIL
+     Summary lives in a left rail (matches home-page rail pattern);
+     tables stack in the main column.
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="v4" class="variant">
+  <div class="variant-label">V4 · Sidebar Rail <span class="caption">— summary in a left rail; tables stacked on right</span></div>
+
+  <header class="app-header">
+    <span class="brand">fiscus</span>
+    <nav>
+      <a href="#">concentration</a>
+      <a aria-current="page">flows</a>
+      <a href="#">connect</a>
+    </nav>
+    <span class="synced">synced apr 20, 3:01 am</span>
+  </header>
+
+  <div style="margin-bottom: var(--space-6);">
+    <div class="eyebrow">cash flow</div>
+    <h1 class="page-title">Flows</h1>
+  </div>
+
+  <div class="v4-layout">
+    <aside class="v4-rail">
+      <div class="rail-block">
+        <div class="rail-label">projected</div>
+        <div class="rail-scope">next 12 months</div>
+        <div class="rail-row"><span class="k">in</span><span class="pos">+$490,000</span></div>
+        <div class="rail-row"><span class="k">out</span><span class="neg">−$225,896</span></div>
+        <div class="rail-row emphasis"><span class="k">net</span><span class="pos">+$264,104</span></div>
+        <div class="rail-annotation">incl. +$75,000 one-offs</div>
+      </div>
+
+      <div class="rail-block">
+        <div class="rail-label">recurring</div>
+        <div class="rail-scope">steady state · 9 flows</div>
+        <div class="rail-row">
+          <span class="k">in</span>
+          <span class="pos">+$35,833<span class="per"> /mo</span></span>
+        </div>
+        <div class="rail-row">
+          <span class="k">out</span>
+          <span class="neg">−$20,274<span class="per"> /mo</span></span>
+        </div>
+        <div class="rail-row emphasis">
+          <span class="k">net</span>
+          <span class="pos">+$15,559<span class="per"> /mo</span></span>
+        </div>
+        <div class="rail-annotation">+$186,709/yr · $15,559/mo net burn cushion</div>
+      </div>
+    </aside>
+
+    <div class="v4-main">
+      <section>
+        <h3 class="section-label" style="margin-top: 0;">recurring flows (9)</h3>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>label</th>
+              <th>cadence</th>
+              <th class="num-col">expected</th>
+              <th class="num-col">monthly</th>
+              <th class="num-col">yearly</th>
+              <th class="num-col">next</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>SHV Paycheck</td><td class="muted small-caps nowrap">semimonthly</td><td class="num-col pos">+$15,000</td><td class="num-col pos">+$30,000</td><td class="num-col pos">+$360,000</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+            <tr><td>SHV Profit Share</td><td class="muted small-caps nowrap">semiannual</td><td class="num-col pos">+$35,000</td><td class="num-col pos">+$5,833</td><td class="num-col pos">+$70,000</td><td class="num-col muted nowrap">Jul 15, 2026</td></tr>
+            <tr><td>Nanny</td><td class="muted small-caps nowrap">weekly</td><td class="num-col neg">−$1,600</td><td class="num-col neg">−$6,933</td><td class="num-col neg">−$83,200</td><td class="num-col muted nowrap">Apr 24, 2026</td></tr>
+            <tr><td>330 Loyola</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$85,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+            <tr><td>Carrie</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$24,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+            <tr><td>Casper</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$19,740</td><td class="num-col muted nowrap">May 13, 2026</td></tr>
+            <tr><td>Utilities</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$12,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+            <tr><td>USAA Insurance</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$850</td><td class="num-col neg">−$850</td><td class="num-col neg">−$10,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+            <tr><td>Carbon</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$746</td><td class="num-col neg">−$746</td><td class="num-col neg">−$8,951</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h3 class="section-label" style="margin-top: 0;">by month</h3>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>month</th>
+              <th class="num-col">in</th>
+              <th class="num-col">out</th>
+              <th class="num-col">net</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="month-col">Apr 2026</td><td class="num-col pos">+$15,000</td><td class="num-col neg">−$2,346</td><td class="num-col pos">+$12,654</td></tr>
+            <tr><td class="month-col">May 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$8,659</td></tr>
+            <tr><td class="month-col">Jun 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+            <tr><td class="month-col">Jul 2026</td><td class="num-col pos">+$65,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$43,659</td></tr>
+            <tr><td class="month-col">Aug 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+            <tr><td class="month-col">Sep 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+            <tr><td class="month-col">Oct 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$8,659</td></tr>
+            <tr><td class="month-col">Nov 2026</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+            <tr><td class="month-col">Dec 2026</td><td class="num-col pos">+$105,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$85,259</td></tr>
+            <tr><td class="month-col">Jan 2027</td><td class="num-col pos">+$65,000</td><td class="num-col neg">−$21,341</td><td class="num-col pos">+$43,659</td></tr>
+            <tr><td class="month-col">Feb 2027</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+            <tr><td class="month-col">Mar 2027</td><td class="num-col pos">+$30,000</td><td class="num-col neg">−$19,741</td><td class="num-col pos">+$10,259</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h3 class="section-label" style="margin-top: 0;">one-offs (1)</h3>
+        <ul class="oneoff-list">
+          <li>
+            <span class="oo-date">Dec 31, 2026</span>
+            <span>Grandma Trust</span>
+            <span class="oo-amount nowrap pos">+$75,000 <span class="oo-range">($50,000 / $100,000)</span></span>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     V5 · TIMELINE TOP
+     Net-by-month as 12 vertical bars across the top. Recurring list
+     flows below. The by-month numbers become a chart, not a table.
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="v5" class="variant">
+  <div class="variant-label">V5 · Timeline Top <span class="caption">— net-by-month as bars across top; recurring list below</span></div>
+
+  <header class="app-header">
+    <span class="brand">fiscus</span>
+    <nav>
+      <a href="#">concentration</a>
+      <a aria-current="page">flows</a>
+      <a href="#">connect</a>
+    </nav>
+    <span class="synced">synced apr 20, 3:01 am</span>
+  </header>
+
+  <div style="margin-bottom: var(--space-6);">
+    <div class="eyebrow">cash flow</div>
+    <h1 class="page-title">Flows</h1>
+  </div>
+
+  <div class="v5-timeline">
+    <div class="v5-timeline-head">
+      <span class="label">net by month · apr 2026 – mar 2027</span>
+      <dl class="stats">
+        <div class="stat">
+          <dt>total net</dt>
+          <dd class="primary pos">+$264,104</dd>
+        </div>
+        <div class="stat">
+          <dt>recurring net</dt>
+          <dd class="primary pos">+$186,709<span class="per"> /yr</span></dd>
+        </div>
+      </dl>
+    </div>
+    <!-- Bars are % of 100k max for relative heights -->
+    <div class="v5-bars">
+      <div class="bar-col"><span class="bar-fill" style="height: 15%" title="Apr: +$12,654"></span><span class="bar-label">Apr</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 10%" title="May: +$8,659"></span><span class="bar-label">May</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 12%" title="Jun: +$10,259"></span><span class="bar-label">Jun</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 51%" title="Jul: +$43,659 (H1 profit share)"></span><span class="bar-label">Jul</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 12%" title="Aug: +$10,259"></span><span class="bar-label">Aug</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 12%" title="Sep: +$10,259"></span><span class="bar-label">Sep</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 10%" title="Oct: +$8,659"></span><span class="bar-label">Oct</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 12%" title="Nov: +$10,259"></span><span class="bar-label">Nov</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 100%" title="Dec: +$85,259 (Grandma Trust)"></span><span class="bar-label">Dec</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 51%" title="Jan: +$43,659 (H2 profit share)"></span><span class="bar-label">Jan</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 12%" title="Feb: +$10,259"></span><span class="bar-label">Feb</span></div>
+      <div class="bar-col"><span class="bar-fill" style="height: 12%" title="Mar: +$10,259"></span><span class="bar-label">Mar</span></div>
+    </div>
+    <div class="v5-notable">
+      <span><span class="note-dot"></span>Jul / Jan — profit-share payout months</span>
+      <span><span class="note-dot"></span>Dec — Grandma Trust ($75k projected)</span>
+    </div>
+  </div>
+
+  <h3 class="section-label" style="margin-top: 0;">recurring (9) · steady-state net +$15,559/mo</h3>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>label</th>
+        <th>cadence</th>
+        <th class="num-col">expected</th>
+        <th class="num-col">monthly</th>
+        <th class="num-col">yearly</th>
+        <th class="num-col">next</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>SHV Paycheck</td><td class="muted small-caps nowrap">semimonthly</td><td class="num-col pos">+$15,000</td><td class="num-col pos">+$30,000</td><td class="num-col pos">+$360,000</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+      <tr><td>SHV Profit Share</td><td class="muted small-caps nowrap">semiannual</td><td class="num-col pos">+$35,000</td><td class="num-col pos">+$5,833</td><td class="num-col pos">+$70,000</td><td class="num-col muted nowrap">Jul 15, 2026</td></tr>
+      <tr><td>Nanny</td><td class="muted small-caps nowrap">weekly</td><td class="num-col neg">−$1,600</td><td class="num-col neg">−$6,933</td><td class="num-col neg">−$83,200</td><td class="num-col muted nowrap">Apr 24, 2026</td></tr>
+      <tr><td>330 Loyola</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$7,100</td><td class="num-col neg">−$85,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+      <tr><td>Carrie</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$2,000</td><td class="num-col neg">−$24,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+      <tr><td>Casper</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$1,645</td><td class="num-col neg">−$19,740</td><td class="num-col muted nowrap">May 13, 2026</td></tr>
+      <tr><td>Utilities</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$1,000</td><td class="num-col neg">−$12,000</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+      <tr><td>USAA Insurance</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$850</td><td class="num-col neg">−$850</td><td class="num-col neg">−$10,200</td><td class="num-col muted nowrap">May 1, 2026</td></tr>
+      <tr><td>Carbon</td><td class="muted small-caps nowrap">monthly</td><td class="num-col neg">−$746</td><td class="num-col neg">−$746</td><td class="num-col neg">−$8,951</td><td class="num-col muted nowrap">Apr 30, 2026</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-label">one-offs (1)</h3>
+  <ul class="oneoff-list">
+    <li>
+      <span class="oo-date">Dec 31, 2026</span>
+      <span>Grandma Trust</span>
+      <span class="oo-amount nowrap pos">+$75,000 <span class="oo-range">($50,000 / $100,000)</span></span>
+    </li>
+  </ul>
+</section>
+
+<script>
+  // Highlight current variant in sticky nav as you scroll
+  const links = document.querySelectorAll('.variant-nav a');
+  const sections = document.querySelectorAll('.variant');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        links.forEach((a) => {
+          a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach((s) => observer.observe(s));
+</script>
+
+</body>
+</html>
