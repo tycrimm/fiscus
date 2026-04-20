@@ -1,7 +1,7 @@
 ---
 import type { AssetValuePoint } from '../ops/reads';
 import { fmtUSD, fmtTickMonthYearShort } from '../lib/format';
-import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
+import { CHART_W, CHART_PAD_T, CHART_INNER_H, computeYScale } from '../lib/chart';
 import Chart, { type ChartHoverPoint, type ChartMark, type ChartTick, type ChartYTick } from './Chart.astro';
 
 interface Props {
@@ -30,21 +30,12 @@ const xAt = (sec: number) => ((sec - tMin) / tRange) * CHART_W;
 
 const currentValueCents = series.length ? series[series.length - 1].value_cents : 0;
 
-const values = series.map((p) => p.value_cents);
-const lo = values.length ? Math.min(...values) : 0;
-const hi = values.length ? Math.max(...values) : 0;
-// y-range must include: historical min/max, and the current × bear/bull
-// multipliers (ghost line endpoints). Anchor the band to *current* — that's
-// where the ghost lines actually sit, and it's usually above historical hi
-// for an appreciating position.
-const effectiveLo = showBand ? Math.min(lo, currentValueCents * bearMult!) : lo;
-const effectiveHi = showBand ? Math.max(hi, currentValueCents * bullMult!) : hi;
-const span = Math.max(effectiveHi - effectiveLo, 1);
-const yMin = Math.max(0, effectiveLo - span * 0.1);
-const yMax = effectiveHi + span * 0.1;
-const yRange = yMax - yMin || 1;
-
-const yAt = (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
+const { yMin, yMax, yAt } = computeYScale({
+  values: series.map((p) => p.value_cents),
+  currentValueCents,
+  bearMult: showBand ? bearMult : null,
+  bullMult: showBand ? bullMult : null,
+});
 
 // Historical step path: held constant between marks, extends flat to today.
 function buildStepPath(): string {

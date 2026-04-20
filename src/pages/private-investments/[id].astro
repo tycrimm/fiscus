@@ -5,6 +5,7 @@ import { getPrivateInvestment, privateInvestmentValueSeries } from '../../ops/re
 import { fmtUSD, fmtDate, prettyKind, pluralize } from '../../lib/format';
 import { irr, type Cashflow } from '../../lib/irr';
 import { bandFor, effectiveStage, applyBand, STAGE_LABEL, type Stage } from '../../lib/scenarios';
+import { CHART_H, computeYScale } from '../../lib/chart';
 import Shell from '../../layouts/Shell.astro';
 import PrivateInvestmentChart from '../../components/PrivateInvestmentChart.astro';
 
@@ -126,6 +127,20 @@ const bullLabel = band.bull_mult >= 2
   : `${(band.bull_mult * 100).toFixed(0)}%`;
 const stageOverridden = asset.bear_pct != null || asset.bull_pct != null;
 
+// Share the chart's y-scale so the scenario panel rows align vertically
+// with the ghost-line endpoints. For a tight band (late-stage), the rows
+// cluster; for a wide one (seed), they spread. Same scale, both halves.
+const scale = computeYScale({
+  values: series.map((p) => p.value_cents),
+  currentValueCents,
+  bearMult: band.bear_mult,
+  bullMult: band.bull_mult,
+});
+const pct = (y: number) => `${((y / CHART_H) * 100).toFixed(2)}%`;
+const bullTopPct = pct(scale.yAt(bullCents));
+const currentTopPct = pct(scale.yAt(currentValueCents));
+const bearTopPct = pct(scale.yAt(bearCents));
+
 // Cumulative asset total at each distinct as_of for per-mark deltas.
 const cumulativeByAsOf = new Map<number, number>();
 for (const p of series) cumulativeByAsOf.set(p.as_of, p.value_cents);
@@ -189,8 +204,6 @@ const debugPayload = {
       <div class="meta">
         <span class="kind">{prettyKind(asset.kind)}</span>
         <span class="dot">·</span>
-        <span class:list={['owner', asset.owner]}>{asset.owner}</span>
-        <span class="dot">·</span>
         <span>{pluralize(investments.length, 'round')}</span>
       </div>
       {asset.notes && <p class="notes">{asset.notes}</p>}
@@ -246,17 +259,19 @@ const debugPayload = {
           <span class="scenario-label">scenario</span>
           <span class="stage-badge">{STAGE_LABEL[stageKey]}{stageOverridden && ' · override'}</span>
         </div>
-        <div class="scenario-row top">
-          <div class="scenario-tag">bull <span class="mult">{bullLabel}</span></div>
-          <div class="scenario-val num muted">{fmtUSD.format(bullCents / 100)}</div>
-        </div>
-        <div class="scenario-row mid">
-          <div class="scenario-tag">current</div>
-          <div class="scenario-val num">{fmtUSD.format(currentValueCents / 100)}</div>
-        </div>
-        <div class="scenario-row bot">
-          <div class="scenario-tag">bear <span class="mult">{bearLabel}</span></div>
-          <div class="scenario-val num muted">{fmtUSD.format(bearCents / 100)}</div>
+        <div class="scenario-plot">
+          <div class="scenario-row top" style={`top: ${bullTopPct}`}>
+            <div class="scenario-tag">bull <span class="mult">{bullLabel}</span></div>
+            <div class="scenario-val num muted">{fmtUSD.format(bullCents / 100)}</div>
+          </div>
+          <div class="scenario-row mid" style={`top: ${currentTopPct}`}>
+            <div class="scenario-tag">current</div>
+            <div class="scenario-val num">{fmtUSD.format(currentValueCents / 100)}</div>
+          </div>
+          <div class="scenario-row bot" style={`top: ${bearTopPct}`}>
+            <div class="scenario-tag">bear <span class="mult">{bearLabel}</span></div>
+            <div class="scenario-val num muted">{fmtUSD.format(bearCents / 100)}</div>
+          </div>
         </div>
       </aside>
     </div>
@@ -498,19 +513,22 @@ const debugPayload = {
   .chart-col { min-width: 0; }
 
   .scenario {
-    display: grid;
-    grid-auto-rows: min-content;
-    gap: 0;
     padding-left: var(--space-4);
     border-left: 1px solid var(--rule);
+    /* Offset matches the chart's header+gap above the plot area so the
+       scenario-plot aligns vertically with the SVG. */
+    padding-top: 0;
   }
   .scenario-head {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    padding-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
     border-bottom: 1px solid var(--rule);
-    margin-bottom: var(--space-2);
+    margin-bottom: 0;
+    /* Height matches the chart's header row (label + delta) so .scenario-plot
+       sits at the same y as the SVG. */
+    min-height: calc(var(--size-xs) * 1.4 + var(--size-sm) * 1.4 + var(--space-1));
   }
   .scenario-label {
     font-size: var(--size-xs);
@@ -525,15 +543,27 @@ const debugPayload = {
     font-weight: 500;
     text-transform: uppercase;
   }
+  /* Plot area that mirrors the chart's SVG in height. Rows absolute-position
+     by top% matching ghost-line endpoint y-coordinates. */
+  .scenario-plot {
+    position: relative;
+    height: 220px;
+    /* Small gap to match the chart's head→svg spacing. */
+    margin-top: var(--space-2);
+  }
   .scenario-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
     display: grid;
     grid-template-columns: auto auto;
     justify-content: space-between;
     align-items: baseline;
-    padding: var(--space-2) 0;
     gap: var(--space-3);
+    padding: var(--space-1) 0;
+    background: var(--bg);
   }
-  .scenario-row + .scenario-row { border-top: 1px dashed var(--rule); }
   .scenario-row.mid .scenario-val { font-weight: 500; color: var(--fg); }
   .scenario-tag {
     font-size: var(--size-xs);
@@ -564,6 +594,19 @@ const debugPayload = {
       border-top: 1px solid var(--rule);
       padding-top: var(--space-3);
     }
+    /* Revert to stacked layout on mobile — absolute rows on a 220px plot
+       would leave whitespace. Keep the rows in document order with padding. */
+    .scenario-plot {
+      height: auto;
+      margin-top: var(--space-3);
+      display: grid;
+      gap: var(--space-2);
+    }
+    .scenario-row {
+      position: static;
+      transform: none;
+    }
+    .scenario-row + .scenario-row { border-top: 1px dashed var(--rule); }
   }
 
   .ledger-table {
