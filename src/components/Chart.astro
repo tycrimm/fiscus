@@ -14,6 +14,7 @@ interface Props {
   empty?: string;
   delta?: ChartDelta | null;
   area?: string;
+  bandArea?: string;
   paths?: ChartPath[];
   marks?: ChartMark[];
   ticks?: ChartTick[];
@@ -28,6 +29,7 @@ const {
   empty = 'NO DATA YET.',
   delta = null,
   area,
+  bandArea,
   paths = [],
   marks = [],
   ticks = [],
@@ -81,6 +83,7 @@ const pctDec = delta?.pctDecimals ?? 2;
             />
           ))}
           {area && <path d={area} class="chart-area" />}
+          {bandArea && <path d={bandArea} class="chart-band-area" />}
           {paths.map((p) => (
             <path
               d={p.d}
@@ -220,6 +223,7 @@ const pctDec = delta?.pctDecimals ?? 2;
     overflow: visible;
   }
   .chart-area { fill: var(--fg); fill-opacity: 0.06; stroke: none; }
+  .chart-band-area { fill: var(--fg); fill-opacity: 0.03; stroke: none; }
   .chart-gridline {
     stroke: var(--rule);
     stroke-width: 1;

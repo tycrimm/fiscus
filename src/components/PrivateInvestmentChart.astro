@@ -79,6 +79,14 @@ const stepPath = buildStepPath();
 const bearPath = buildFutureLine(bearMult ?? 1);
 const bullPath = buildFutureLine(bullMult ?? 1);
 
+// Uncertainty wedge: triangle from (today, current) widening to
+// (future, bull) and (future, bear). Fills the space between ghost lines.
+const bandArea = showBand
+  ? `M ${xAt(nowSec).toFixed(2)} ${yAt(currentValueCents).toFixed(2)} ` +
+    `L ${xAt(tMax).toFixed(2)} ${yAt(currentValueCents * bullMult!).toFixed(2)} ` +
+    `L ${xAt(tMax).toFixed(2)} ${yAt(currentValueCents * bearMult!).toFixed(2)} Z`
+  : '';
+
 // Area fills under the historical step only (stops at today when band on).
 const areaEndX = showBand ? xAt(nowSec) : CHART_W;
 const area =
@@ -154,6 +162,7 @@ const points: ChartHoverPoint[] = series.map((p) => ({
   empty="NO VALUATIONS YET."
   delta={series.length > 1 ? { cents: change, pct: changePct, pctDecimals: 1 } : null}
   area={area}
+  bandArea={bandArea}
   paths={[
     ...(bullPath ? [{ d: bullPath, variant: 'ghost' as const, label: 'bull' }] : []),
     ...(bearPath ? [{ d: bearPath, variant: 'ghost' as const, label: 'bear' }] : []),
