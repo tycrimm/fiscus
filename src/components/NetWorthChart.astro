@@ -1,6 +1,8 @@
 ---
 import type { NetWorthPoint } from '../ops/reads';
-import { fmtUSD } from '../lib/format';
+import { fmtUSD, fmtTickMonthDay } from '../lib/format';
+import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
+import Chart, { type ChartHoverPoint, type ChartPath, type ChartTick } from './Chart.astro';
 
 interface Props {
   series: NetWorthPoint[];
@@ -8,24 +10,19 @@ interface Props {
 
 const { series } = Astro.props;
 
-const W = 1000;
-const H = 220;
-const PAD_T = 8;
-const PAD_B = 22;
-const innerH = H - PAD_T - PAD_B;
+const xAt = (i: number) => (i / Math.max(series.length - 1, 1)) * CHART_W;
+const yAt = (() => {
+  const totals = series.map((p) => p.total_cents);
+  const lo = totals.length ? Math.min(...totals) : 0;
+  const hi = totals.length ? Math.max(...totals) : 0;
+  const span = Math.max(hi - lo, 1);
+  const yMin = lo - span * 0.08;
+  const yMax = hi + span * 0.08;
+  const yRange = yMax - yMin || 1;
+  return (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
+})();
 
-const totals = series.map((p) => p.total_cents);
-const lo = totals.length ? Math.min(...totals) : 0;
-const hi = totals.length ? Math.max(...totals) : 0;
-const span = Math.max(hi - lo, 1);
-const yMin = lo - span * 0.08;
-const yMax = hi + span * 0.08;
-const yRange = yMax - yMin || 1;
-
-const xAt = (i: number) => (i / Math.max(series.length - 1, 1)) * W;
-const yAt = (cents: number) => PAD_T + (1 - (cents - yMin) / yRange) * innerH;
-
-// Index where real data begins (everything before is the synthetic baseline)
+// Where real data begins (everything before is the synthetic baseline).
 const firstRealIdx = series.findIndex((p) => !p.synthetic);
 const hasSynthetic = firstRealIdx > 0;
 const realStart = hasSynthetic ? firstRealIdx : 0;
@@ -38,30 +35,24 @@ const buildPath = (slice: typeof series, offset: number) =>
 // Synthetic line stops AT the first real point so segments visually connect.
 const syntheticSlice = hasSynthetic ? series.slice(0, firstRealIdx + 1) : [];
 const realSlice = series.slice(realStart);
-
 const syntheticPath = hasSynthetic ? buildPath(syntheticSlice, 0) : '';
 const realPath = buildPath(realSlice, realStart);
 
 // Area only under the real series — synthetic stays as a hairline.
-const areaPath =
+const area =
   realSlice.length > 1
-    ? `${realPath} L ${xAt(series.length - 1).toFixed(2)} ${(PAD_T + innerH).toFixed(2)} L ${xAt(realStart).toFixed(2)} ${(PAD_T + innerH).toFixed(2)} Z`
+    ? `${realPath} L ${xAt(series.length - 1).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(realStart).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
     : '';
 
-const fmtTickDate = (ymd: string) => {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-};
+const paths: ChartPath[] = [];
+if (hasSynthetic) paths.push({ d: syntheticPath, variant: 'synthetic' });
+paths.push({ d: realPath, variant: 'solid' });
 
-// Pick up to 6 evenly spaced date ticks
+// Up to 6 evenly spaced date ticks.
 const tickCount = Math.min(6, series.length);
-const ticks = Array.from({ length: tickCount }, (_, k) => {
+const ticks: ChartTick[] = Array.from({ length: tickCount }, (_, k) => {
   const i = tickCount === 1 ? 0 : Math.round((k * (series.length - 1)) / (tickCount - 1));
-  return { i, label: fmtTickDate(series[i].date) };
+  return { x: xAt(i), label: fmtTickMonthDay(series[i].date) };
 });
 
 // Real-data delta only — synthetic baseline shouldn't drive the headline number.
@@ -69,207 +60,37 @@ const realFirst = series[realStart];
 const realLast = series[series.length - 1];
 const change = realLast && realFirst ? realLast.total_cents - realFirst.total_cents : 0;
 const changePct = realFirst && realFirst.total_cents !== 0 ? change / realFirst.total_cents : 0;
-const changePos = change >= 0;
 const realDays = series.length - realStart;
 
-const hoverPoints = series.map((p, i) => ({
+const fmtReadoutDate = (ymd: string) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  });
+};
+
+const points: ChartHoverPoint[] = series.map((p, i) => ({
   x: xAt(i),
   y: yAt(p.total_cents),
-  date: p.date,
-  total: p.total_cents,
-  synthetic: !!p.synthetic,
+  readout: `${fmtReadoutDate(p.date)} · ${fmtUSD.format(p.total_cents / 100)}${p.synthetic ? ' · baseline' : ''}`,
 }));
 ---
-<section class="nw-chart">
-  <header class="nw-head">
-    <span class="nw-label">net worth · last {series.length} days</span>
-    {realDays > 1 && (
-      <div class={`nw-delta ${changePos ? 'pos' : 'neg'}`}>
-        <span class="num">{changePos ? '+' : '−'}{fmtUSD.format(Math.abs(change) / 100)}</span>
-        <span class="num pct">({changePos ? '+' : '−'}{(Math.abs(changePct) * 100).toFixed(2)}%)</span>
-      </div>
-    )}
-    <div class="nw-readout" aria-live="polite"></div>
-  </header>
-
-  {series.length === 0 ? (
-    <p class="nw-empty">NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN.</p>
-  ) : (
-    <div
-      class="nw-wrap"
-      data-points={JSON.stringify(hoverPoints)}
-      data-vb-w={W}
-      data-pad-t={PAD_T}
-      data-inner-h={innerH}
-    >
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" class="nw-svg" role="img" aria-label="Net worth time series">
-        {areaPath && <path d={areaPath} class="area" />}
-        {syntheticPath && <path d={syntheticPath} class="line synthetic" vector-effect="non-scaling-stroke" />}
-        <path d={realPath} class="line" vector-effect="non-scaling-stroke" />
-        <g class="nw-hover" style="display:none">
-          <line class="nw-cross" y1={PAD_T} y2={PAD_T + innerH} vector-effect="non-scaling-stroke" />
-          <circle class="nw-dot" r="3" />
-        </g>
-      </svg>
-      <div class="nw-axis">
-        {ticks.map((t) => (
-          <span class="tick" style={`left: ${(xAt(t.i) / W) * 100}%`}>{t.label}</span>
-        ))}
-      </div>
-    </div>
-  )}
-</section>
-
-<script>
-  type Pt = { x: number; y: number; date: string; total: number; synthetic: boolean };
-
-  const fmtUSD = new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0,
-  });
-  const fmtDate = (ymd: string) => {
-    const [y, m, d] = ymd.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
-    });
-  };
-
-  for (const wrap of document.querySelectorAll<HTMLElement>('.nw-wrap')) {
-    const points = JSON.parse(wrap.dataset.points!) as Pt[];
-    const vbW = Number(wrap.dataset.vbW);
-    const svg = wrap.querySelector('svg')!;
-    const hoverG = wrap.querySelector<SVGGElement>('.nw-hover')!;
-    const cross = hoverG.querySelector<SVGLineElement>('.nw-cross')!;
-    const dot = hoverG.querySelector<SVGCircleElement>('.nw-dot')!;
-    const head = wrap.parentElement!.querySelector<HTMLElement>('.nw-head')!;
-    const readout = head.querySelector<HTMLElement>('.nw-readout')!;
-
-    const onMove = (e: PointerEvent) => {
-      const rect = svg.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const xView = ((e.clientX - rect.left) / rect.width) * vbW;
-      let best = points[0];
-      let bestDelta = Math.abs(xView - best.x);
-      for (const p of points) {
-        const delta = Math.abs(xView - p.x);
-        if (delta < bestDelta) { best = p; bestDelta = delta; }
-      }
-      cross.setAttribute('x1', String(best.x));
-      cross.setAttribute('x2', String(best.x));
-      dot.setAttribute('cx', String(best.x));
-      dot.setAttribute('cy', String(best.y));
-      hoverG.style.display = '';
-      readout.textContent = `${fmtDate(best.date)} · ${fmtUSD.format(best.total / 100)}${best.synthetic ? ' · baseline' : ''}`;
-      head.classList.add('hovering');
-    };
-    const onLeave = () => {
-      hoverG.style.display = 'none';
-      head.classList.remove('hovering');
-    };
-    wrap.addEventListener('pointermove', onMove);
-    wrap.addEventListener('pointerleave', onLeave);
-  }
-</script>
+<div class="nw-chart">
+  <Chart
+    label={`net worth · last ${series.length} days`}
+    empty="NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN."
+    delta={realDays > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null}
+    area={area}
+    paths={paths}
+    ticks={ticks}
+    points={points}
+  />
+</div>
 
 <style>
   .nw-chart {
     margin-bottom: var(--space-8);
     border-bottom: 1px solid var(--rule);
     padding-bottom: var(--space-6);
-  }
-  .nw-head {
-    position: relative;
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    margin-bottom: var(--space-3);
-  }
-  .nw-label {
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--fg-muted);
-    transition: opacity 80ms linear;
-  }
-  .nw-delta {
-    display: inline-flex;
-    gap: var(--space-2);
-    align-items: baseline;
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-    transition: opacity 80ms linear;
-  }
-  .nw-delta .pct { color: var(--fg-muted); font-size: var(--size-xs); }
-  .nw-delta.pos { color: var(--pos); }
-  .nw-delta.neg { color: var(--neg); }
-  .nw-head.hovering .nw-label,
-  .nw-head.hovering .nw-delta { opacity: 0; }
-
-  .nw-wrap {
-    position: relative;
-    touch-action: none;
-  }
-  .nw-svg {
-    width: 100%;
-    height: 220px;
-    display: block;
-  }
-  .area { fill: var(--fg); fill-opacity: 0.06; stroke: none; }
-  .line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
-  .line.synthetic {
-    stroke: var(--rule-strong);
-    stroke-dasharray: 3 3;
-    stroke-width: 1;
-  }
-  .nw-cross {
-    stroke: var(--fg-muted);
-    stroke-width: 1;
-    stroke-dasharray: 2 3;
-    pointer-events: none;
-  }
-  .nw-dot {
-    fill: var(--bg);
-    stroke: var(--fg);
-    stroke-width: 1.25;
-    pointer-events: none;
-  }
-  .nw-readout {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-    color: var(--fg);
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 80ms linear;
-    pointer-events: none;
-  }
-  .nw-head.hovering .nw-readout { opacity: 1; }
-  .nw-axis {
-    position: relative;
-    height: 1em;
-    margin-top: var(--space-1);
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .tick {
-    position: absolute;
-    top: 0;
-    transform: translateX(-50%);
-    white-space: nowrap;
-  }
-  .tick:first-child { transform: translateX(0); }
-  .tick:last-child { transform: translateX(-100%); }
-
-  .nw-empty {
-    color: var(--fg-muted);
-    padding: var(--space-12) 0;
-    text-align: center;
-    font-size: var(--size-sm);
   }
 </style>

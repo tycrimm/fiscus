@@ -28,6 +28,28 @@ export function fmtDate(sec: number | null | undefined): string {
     : '—';
 }
 
+// YYYY-MM-DD math. UTC so day boundaries don't drift across TZ changes.
+export function shiftYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d) + deltaDays * 86400000);
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
+}
+
+// "Mar 5" from a YYYY-MM-DD string (used on dense daily-tick axes).
+export function fmtTickMonthDay(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+}
+
+// "Mar '25" from unix seconds (used on sparse time-scaled axes).
+export function fmtTickMonthYearShort(sec: number): string {
+  return new Date(sec * 1000).toLocaleDateString('en-US', {
+    month: 'short', year: '2-digit', timeZone: 'UTC',
+  });
+}
+
 export function fmtDateTime(sec: number | null | undefined): string {
   return sec
     ? new Date(sec * 1000).toLocaleString('en-US', {

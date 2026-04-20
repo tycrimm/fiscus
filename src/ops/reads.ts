@@ -1,5 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { DB } from '../db';
+import { shiftYmd } from '../lib/format';
 
 // Drizzle returns different row shapes for raw sql`...` depending on driver:
 //   - D1 binding (Worker runtime)        → rows are OBJECTS keyed by column
@@ -406,11 +407,6 @@ const PT_DATE_FMT = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 const ptDateKey = (sec: number): string => PT_DATE_FMT.format(new Date(sec * 1000));
-const shiftYmd = (ymd: string, deltaDays: number): string => {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const next = new Date(Date.UTC(y, m - 1, d) + deltaDays * 86400000);
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
-};
 const nextYmd = (ymd: string): string => shiftYmd(ymd, 1);
 
 export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Promise<NetWorthPoint[]> {

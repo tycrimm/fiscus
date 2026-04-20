@@ -1,4 +1,5 @@
 import type { NetWorthPoint } from '../ops/reads';
+import { shiftYmd } from './format';
 
 // ─── net worth deltas over standard windows ─────────────────────────────────
 
@@ -10,12 +11,6 @@ export type NetWorthDeltas = {
   m1: Delta;
   ytd: Delta;
   y1: Delta;
-};
-
-const shiftYmd = (ymd: string, deltaDays: number): string => {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const next = new Date(Date.UTC(y, m - 1, d) + deltaDays * 86400000);
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
 };
 
 export function computeDeltas(series: NetWorthPoint[]): NetWorthDeltas {
@@ -76,6 +71,14 @@ const CASH_KINDS = new Set(['checking', 'savings']);
 const EQUITY_KINDS = new Set(['brokerage', 'retirement', 'education']);
 const PRIVATE_KINDS = new Set(['private_company', 'fund']);
 
+export const CLASS_LABEL: Record<AllocationCategory['key'], string> = {
+  cash: 'Cash',
+  equities: 'Equities & Funds',
+  crypto: 'Crypto',
+  private: 'Private',
+  other: 'Other',
+};
+
 export function computeAllocation(
   accounts: AllocAccount[],
   privateInv: AllocPrivate[],
@@ -133,20 +136,31 @@ type ConcPrivate = {
   current_value_cents: number;
 };
 
+export type PositionClass = AllocationCategory['key'];
+
 export type Position = {
   id: string;
   label: string;
   sub: string;
+  class: PositionClass;
   cents: number;
   pct: number;
   href?: string;
 };
 
-export function topConcentration(
+const classifyAccount = (kind: string): PositionClass => {
+  if (CASH_KINDS.has(kind)) return 'cash';
+  if (EQUITY_KINDS.has(kind)) return 'equities';
+  if (kind === 'crypto') return 'crypto';
+  return 'other';
+};
+const classifyPrivate = (kind: string): PositionClass =>
+  PRIVATE_KINDS.has(kind) ? 'private' : 'other';
+
+export function allPositions(
   accounts: ConcAccount[],
   privateInv: ConcPrivate[],
   totalAssetsCents: number,
-  topN = 3,
 ): Position[] {
   const positions: Array<Omit<Position, 'pct'>> = [];
   for (const a of accounts) {
@@ -157,6 +171,7 @@ export function topConcentration(
       id: a.id,
       label: a.name,
       sub: `${a.institution} · ${a.kind}`,
+      class: classifyAccount(a.kind),
       cents,
     });
   }
@@ -166,13 +181,37 @@ export function topConcentration(
       id: i.id,
       label: i.name,
       sub: i.kind,
+      class: classifyPrivate(i.kind),
       cents: i.current_value_cents,
       href: `/private-investments/${i.id}`,
     });
   }
   positions.sort((a, b) => b.cents - a.cents);
-  return positions.slice(0, topN).map((p) => ({
+  return positions.map((p) => ({
     ...p,
     pct: totalAssetsCents > 0 ? p.cents / totalAssetsCents : 0,
   }));
+}
+
+export function topConcentration(
+  accounts: ConcAccount[],
+  privateInv: ConcPrivate[],
+  totalAssetsCents: number,
+  topN = 3,
+): Position[] {
+  return allPositions(accounts, privateInv, totalAssetsCents).slice(0, topN);
+}
+
+export type ConcentrationStats = {
+  top1: number;   // share of gross assets held by the #1 position, 0-1
+  top5: number;
+  top10: number;
+  hhi: number;    // Herfindahl index, sum of squared shares, 0-1 (1 = one position)
+};
+
+export function concentrationStats(positions: Position[]): ConcentrationStats {
+  const sorted = [...positions].sort((a, b) => b.pct - a.pct);
+  const sumPct = (n: number) => sorted.slice(0, n).reduce((s, p) => s + p.pct, 0);
+  const hhi = sorted.reduce((s, p) => s + p.pct * p.pct, 0);
+  return { top1: sumPct(1), top5: sumPct(5), top10: sumPct(10), hhi };
 }
