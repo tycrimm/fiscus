@@ -71,14 +71,17 @@ const costBasisCents = detail.cost_basis_cents;
 const gainCents = currentValueCents - costBasisCents;
 const gainPct = costBasisCents > 0 ? gainCents / costBasisCents : 0;
 const gainPos = gainCents >= 0;
+const moic = costBasisCents > 0 ? currentValueCents / costBasisCents : null;
 
 // IRR: dated negative cashflows per round (skipping zero-basis rounds, e.g.
 // equity grants), terminal positive at today using the latest mark. Anchoring
 // the terminal at today — not the mark date — lets the rate decay naturally
-// while a mark goes stale. Suppressed for funds (we only have aggregate
-// called/distributed without dates) and for holdings under 90 days.
+// while a mark goes stale. Always computed when derivable; the days-held
+// indicator next to the rate signals when a number is extrapolated from a
+// short window (e.g. 4679% over 207d reads honestly once you see "207d").
+// Suppressed only when truly undefined: funds (no dated calls/distributions),
+// no contributions, or same-day cashflows.
 const nowSec = Math.floor(Date.now() / 1000);
-const MIN_HOLD_DAYS = 365;
 const contribFlows: Cashflow[] = fund
   ? []
   : investments
@@ -87,11 +90,16 @@ const contribFlows: Cashflow[] = fund
 const earliestContribSec = contribFlows.length > 0
   ? Math.min(...contribFlows.map((c) => c.t_sec))
   : null;
-const heldDays = earliestContribSec != null ? (nowSec - earliestContribSec) / 86400 : 0;
-const irrPct = contribFlows.length > 0 && currentValueCents > 0 && heldDays >= MIN_HOLD_DAYS
+const heldDays = earliestContribSec != null
+  ? Math.floor((nowSec - earliestContribSec) / 86400)
+  : 0;
+const irrPct = contribFlows.length > 0 && currentValueCents > 0 && heldDays >= 1
   ? irr([...contribFlows, { t_sec: nowSec, amount_cents: currentValueCents }])
   : null;
 const irrPos = (irrPct ?? 0) >= 0;
+const heldLabel = heldDays >= 365
+  ? `${(heldDays / 365).toFixed(1)}y held`
+  : `${heldDays}d held`;
 
 // Cumulative asset total at each distinct as_of for per-mark deltas.
 const cumulativeByAsOf = new Map<number, number>();
@@ -125,9 +133,9 @@ const debugPayload = {
     cost_basis_cents: costBasisCents,
     gain_cents: gainCents,
     gain_pct: gainPct,
+    moic,
   },
   irr: {
-    min_hold_days: MIN_HOLD_DAYS,
     earliest_contrib_sec: earliestContribSec,
     held_days: heldDays,
     cashflows: contribFlows.length > 0
@@ -140,8 +148,8 @@ const debugPayload = {
         ? 'no_contributions'
         : currentValueCents <= 0
           ? 'no_value'
-          : heldDays < MIN_HOLD_DAYS
-            ? 'short_hold'
+          : heldDays < 1
+            ? 'same_day'
             : null,
   },
 };
@@ -180,9 +188,20 @@ const debugPayload = {
         </div>
       </div>
       <div class="stat">
+        <div class="stat-label">MOIC</div>
+        {moic != null ? (
+          <div class={`stat-val num ${moic >= 1 ? 'pos' : 'neg'}`}>{moic.toFixed(2)}×</div>
+        ) : (
+          <div class="stat-val num muted">—</div>
+        )}
+      </div>
+      <div class="stat">
         <div class="stat-label">IRR</div>
         {irrPct != null ? (
-          <div class={`stat-val num ${irrPos ? 'pos' : 'neg'}`}>{signedPct(irrPct)}</div>
+          <div class={`stat-val num ${irrPos ? 'pos' : 'neg'}`}>
+            {signedPct(irrPct)}
+            <span class="gain-pct">{heldLabel}</span>
+          </div>
         ) : (
           <div class="stat-val num muted">—</div>
         )}
@@ -379,7 +398,7 @@ const debugPayload = {
 
   .stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: var(--space-4);
     padding: var(--space-4) 0;
     border-top: 1px solid var(--rule);
