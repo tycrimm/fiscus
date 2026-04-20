@@ -18,6 +18,7 @@ interface Props {
   ticks?: ChartTick[];
   points?: ChartHoverPoint[];
   dotR?: number;
+  futureStartX?: number;
 }
 
 const {
@@ -30,6 +31,7 @@ const {
   ticks = [],
   points = [],
   dotR = 3,
+  futureStartX,
 } = Astro.props;
 
 const hasData = points.length > 0;
@@ -53,6 +55,15 @@ const pctDec = delta?.pctDecimals ?? 2;
   ) : (
     <div class="chart-wrap" data-points={JSON.stringify(points)} data-vb-w={CHART_W}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" class="chart-svg" role="img" aria-label={label}>
+        {futureStartX != null && (
+          <rect
+            x={futureStartX.toFixed(2)}
+            y={CHART_PAD_T}
+            width={(CHART_W - futureStartX).toFixed(2)}
+            height={CHART_INNER_H}
+            class="chart-future"
+          />
+        )}
         {area && <path d={area} class="chart-area" />}
         {paths.map((p) => (
           <path
@@ -162,6 +173,7 @@ const pctDec = delta?.pctDecimals ?? 2;
     overflow: visible;
   }
   .chart-area { fill: var(--fg); fill-opacity: 0.06; stroke: none; }
+  .chart-future { fill: var(--fg); fill-opacity: 0.025; stroke: none; }
   .chart-line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
   .chart-line.synthetic {
     stroke: var(--rule-strong);

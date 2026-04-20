@@ -14,53 +14,72 @@ const { series, bearMult, bullMult } = Astro.props;
 
 const showBand = bearMult != null && bullMult != null && series.length > 0;
 
+// X-axis is time — use as_of unix seconds so visual spacing matches real gaps
+// between rounds/marks. When bands are shown, extend the right side into a
+// FUTURE window (90 days forward) — this is where ghost bear/bull lines live.
+// History extends to today only; bear/bull don't make sense for past values
+// (we know what happened).
+const FUTURE_DAYS = 90;
+const nowSec = Math.floor(Date.now() / 1000);
+const tMin = series.length ? series[0].as_of : 0;
+const historicalEnd = series.length ? Math.max(series[series.length - 1].as_of, nowSec) : nowSec;
+const tMax = showBand ? nowSec + FUTURE_DAYS * 86400 : historicalEnd;
+const tRange = Math.max(tMax - tMin, 1);
+
+const xAt = (sec: number) => ((sec - tMin) / tRange) * CHART_W;
+
+const currentValueCents = series.length ? series[series.length - 1].value_cents : 0;
+
 const values = series.map((p) => p.value_cents);
 const lo = values.length ? Math.min(...values) : 0;
 const hi = values.length ? Math.max(...values) : 0;
-// Include bear/bull extremes in the y-range so ghost lines fit without
-// clipping. Bear multiplier scales the floor, bull scales the ceiling.
-const effectiveLo = showBand ? Math.min(lo, lo * bearMult!) : lo;
-const effectiveHi = showBand ? Math.max(hi, hi * bullMult!) : hi;
+// y-range must include: historical min/max, and the current × bear/bull
+// multipliers (ghost line endpoints). Anchor the band to *current* — that's
+// where the ghost lines actually sit, and it's usually above historical hi
+// for an appreciating position.
+const effectiveLo = showBand ? Math.min(lo, currentValueCents * bearMult!) : lo;
+const effectiveHi = showBand ? Math.max(hi, currentValueCents * bullMult!) : hi;
 const span = Math.max(effectiveHi - effectiveLo, 1);
 const yMin = Math.max(0, effectiveLo - span * 0.1);
 const yMax = effectiveHi + span * 0.1;
 const yRange = yMax - yMin || 1;
 
-// X-axis is time — use as_of unix seconds so visual spacing matches real gaps
-// between rounds/marks (e.g. Seed in 2024 vs Series B in 2025). Always stretch
-// to today on the right so a stale mark visibly carries a flat line forward.
-const nowSec = Math.floor(Date.now() / 1000);
-const tMin = series.length ? series[0].as_of : 0;
-const tMax = series.length ? Math.max(series[series.length - 1].as_of, nowSec) : nowSec;
-const tRange = Math.max(tMax - tMin, 1);
-
-const xAt = (sec: number) => ((sec - tMin) / tRange) * CHART_W;
 const yAt = (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
 
-// Stepped path: value held constant until the next mark, then jumps.
-function buildStepPath(mult = 1): string {
+// Historical step path: held constant between marks, extends flat to today.
+function buildStepPath(): string {
   if (series.length === 0) return '';
   const parts: string[] = [];
-  parts.push(`M ${xAt(series[0].as_of).toFixed(2)} ${yAt(series[0].value_cents * mult).toFixed(2)}`);
+  parts.push(`M ${xAt(series[0].as_of).toFixed(2)} ${yAt(series[0].value_cents).toFixed(2)}`);
   for (let i = 1; i < series.length; i++) {
-    const prevY = yAt(series[i - 1].value_cents * mult);
+    const prevY = yAt(series[i - 1].value_cents);
     const x = xAt(series[i].as_of);
-    const y = yAt(series[i].value_cents * mult);
+    const y = yAt(series[i].value_cents);
     parts.push(`L ${x.toFixed(2)} ${prevY.toFixed(2)}`);
     parts.push(`L ${x.toFixed(2)} ${y.toFixed(2)}`);
   }
-  const lastY = yAt(series[series.length - 1].value_cents * mult);
-  parts.push(`L ${xAt(tMax).toFixed(2)} ${lastY.toFixed(2)}`);
+  const lastY = yAt(currentValueCents);
+  const endSec = showBand ? nowSec : historicalEnd;
+  parts.push(`L ${xAt(endSec).toFixed(2)} ${lastY.toFixed(2)}`);
   return parts.join(' ');
 }
 
-const stepPath = buildStepPath(1);
-const bearPath = showBand ? buildStepPath(bearMult!) : '';
-const bullPath = showBand ? buildStepPath(bullMult!) : '';
+// Future-only horizontal ghost at current × multiplier, from today to tMax.
+function buildFutureLine(mult: number): string {
+  if (!showBand) return '';
+  const y = yAt(currentValueCents * mult).toFixed(2);
+  return `M ${xAt(nowSec).toFixed(2)} ${y} L ${xAt(tMax).toFixed(2)} ${y}`;
+}
 
+const stepPath = buildStepPath();
+const bearPath = buildFutureLine(bearMult ?? 1);
+const bullPath = buildFutureLine(bullMult ?? 1);
+
+// Area fills under the historical step only (stops at today when band on).
+const areaEndX = showBand ? xAt(nowSec) : CHART_W;
 const area =
   series.length > 0
-    ? `${stepPath} L ${CHART_W.toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(series[0].as_of).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
+    ? `${stepPath} L ${areaEndX.toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(series[0].as_of).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
     : '';
 
 // Tick at each mark, but drop overlaps so labels don't pile up.
@@ -72,12 +91,15 @@ for (const p of series) {
     ticks.push({ x, label: fmtTickMonthYearShort(p.as_of) });
   }
 }
-// Anchor a "today" tick on the right edge when the last mark is visibly older.
 const nowX = xAt(nowSec);
 if (ticks.length > 0 && nowX - ticks[ticks.length - 1].x < MIN_TICK_GAP) {
   ticks.pop();
 }
 ticks.push({ x: nowX, label: 'today' });
+// Future horizon tick on the right edge when bands push the chart past today.
+if (showBand) {
+  ticks.push({ x: xAt(tMax), label: `+${Math.round(FUTURE_DAYS / 30)}mo` });
+}
 
 const marks: ChartMark[] = series.map((p) => ({ x: xAt(p.as_of), y: yAt(p.value_cents) }));
 
@@ -113,4 +135,5 @@ const points: ChartHoverPoint[] = series.map((p) => ({
   ticks={ticks}
   points={points}
   dotR={3.5}
+  futureStartX={showBand ? nowX : undefined}
 />
