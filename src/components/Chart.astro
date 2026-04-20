@@ -5,6 +5,7 @@ import { CHART_W, CHART_H, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
 export type ChartPath = { d: string; variant?: 'solid' | 'synthetic' | 'ghost'; label?: string };
 export type ChartMark = { x: number; y: number };
 export type ChartTick = { x: number; label: string };
+export type ChartYTick = { y: number; label: string };
 export type ChartHoverPoint = { x: number; y: number; readout: string };
 export type ChartDelta = { cents: number; pct: number; pctDecimals?: number };
 
@@ -16,9 +17,10 @@ interface Props {
   paths?: ChartPath[];
   marks?: ChartMark[];
   ticks?: ChartTick[];
+  yTicks?: ChartYTick[];
   points?: ChartHoverPoint[];
   dotR?: number;
-  futureStartX?: number;
+  todayX?: number;
 }
 
 const {
@@ -29,9 +31,10 @@ const {
   paths = [],
   marks = [],
   ticks = [],
+  yTicks = [],
   points = [],
   dotR = 3,
-  futureStartX,
+  todayX,
 } = Astro.props;
 
 const hasData = points.length > 0;
@@ -53,39 +56,63 @@ const pctDec = delta?.pctDecimals ?? 2;
   {!hasData ? (
     <p class="chart-empty">{empty}</p>
   ) : (
-    <div class="chart-wrap" data-points={JSON.stringify(points)} data-vb-w={CHART_W}>
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" class="chart-svg" role="img" aria-label={label}>
-        {futureStartX != null && (
-          <rect
-            x={futureStartX.toFixed(2)}
-            y={CHART_PAD_T}
-            width={(CHART_W - futureStartX).toFixed(2)}
-            height={CHART_INNER_H}
-            class="chart-future"
-          />
-        )}
-        {area && <path d={area} class="chart-area" />}
-        {paths.map((p) => (
-          <path
-            d={p.d}
-            class={`chart-line ${p.variant ?? 'solid'}`}
-            vector-effect="non-scaling-stroke"
-          >
-            {p.label && <title>{p.label}</title>}
-          </path>
-        ))}
-        {marks.map((m) => (
-          <circle cx={m.x.toFixed(2)} cy={m.y.toFixed(2)} r="2.5" class="chart-mark" />
-        ))}
-        <g class="chart-hover" style="display:none">
-          <line class="chart-cross" y1={CHART_PAD_T} y2={CHART_PAD_T + CHART_INNER_H} vector-effect="non-scaling-stroke" />
-          <circle class="chart-dot" r={dotR} />
-        </g>
-      </svg>
-      <div class="chart-axis">
-        {ticks.map((t) => (
-          <span class="chart-tick" style={`left: ${(t.x / CHART_W) * 100}%`}>{t.label}</span>
-        ))}
+    <div
+      class={`chart-wrap${yTicks.length ? ' has-y-axis' : ''}`}
+      data-points={JSON.stringify(points)}
+      data-vb-w={CHART_W}
+    >
+      {yTicks.length > 0 && (
+        <div class="chart-y-axis">
+          {yTicks.map((t) => (
+            <span class="chart-y-tick" style={`top: ${(t.y / CHART_H) * 100}%`}>{t.label}</span>
+          ))}
+        </div>
+      )}
+      <div class="chart-plot">
+        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" class="chart-svg" role="img" aria-label={label}>
+          {yTicks.map((t) => (
+            <line
+              class="chart-gridline"
+              x1="0"
+              x2={CHART_W}
+              y1={t.y.toFixed(2)}
+              y2={t.y.toFixed(2)}
+              vector-effect="non-scaling-stroke"
+            />
+          ))}
+          {area && <path d={area} class="chart-area" />}
+          {paths.map((p) => (
+            <path
+              d={p.d}
+              class={`chart-line ${p.variant ?? 'solid'}`}
+              vector-effect="non-scaling-stroke"
+            >
+              {p.label && <title>{p.label}</title>}
+            </path>
+          ))}
+          {todayX != null && (
+            <line
+              class="chart-today"
+              x1={todayX.toFixed(2)}
+              x2={todayX.toFixed(2)}
+              y1={CHART_PAD_T}
+              y2={CHART_PAD_T + CHART_INNER_H}
+              vector-effect="non-scaling-stroke"
+            />
+          )}
+          {marks.map((m) => (
+            <circle cx={m.x.toFixed(2)} cy={m.y.toFixed(2)} r="2.5" class="chart-mark" />
+          ))}
+          <g class="chart-hover" style="display:none">
+            <line class="chart-cross" y1={CHART_PAD_T} y2={CHART_PAD_T + CHART_INNER_H} vector-effect="non-scaling-stroke" />
+            <circle class="chart-dot" r={dotR} />
+          </g>
+        </svg>
+        <div class="chart-axis">
+          {ticks.map((t) => (
+            <span class="chart-tick" style={`left: ${(t.x / CHART_W) * 100}%`}>{t.label}</span>
+          ))}
+        </div>
       </div>
     </div>
   )}
@@ -166,6 +193,26 @@ const pctDec = delta?.pctDecimals ?? 2;
     position: relative;
     touch-action: none;
   }
+  .chart-wrap.has-y-axis {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-3);
+  }
+  .chart-plot { position: relative; min-width: 0; }
+  .chart-y-axis {
+    position: relative;
+    width: 3.25rem;
+    height: 220px;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-y-tick {
+    position: absolute;
+    right: 0;
+    transform: translateY(-50%);
+    white-space: nowrap;
+  }
   .chart-svg {
     width: 100%;
     height: 220px;
@@ -173,7 +220,17 @@ const pctDec = delta?.pctDecimals ?? 2;
     overflow: visible;
   }
   .chart-area { fill: var(--fg); fill-opacity: 0.06; stroke: none; }
-  .chart-future { fill: var(--fg); fill-opacity: 0.025; stroke: none; }
+  .chart-gridline {
+    stroke: var(--rule);
+    stroke-width: 1;
+    stroke-dasharray: 2 4;
+  }
+  .chart-today {
+    stroke: var(--fg-muted);
+    stroke-opacity: 0.6;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
   .chart-line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
   .chart-line.synthetic {
     stroke: var(--rule-strong);

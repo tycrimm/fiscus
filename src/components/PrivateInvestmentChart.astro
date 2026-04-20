@@ -2,7 +2,7 @@
 import type { AssetValuePoint } from '../ops/reads';
 import { fmtUSD, fmtTickMonthYearShort } from '../lib/format';
 import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
-import Chart, { type ChartHoverPoint, type ChartMark, type ChartTick } from './Chart.astro';
+import Chart, { type ChartHoverPoint, type ChartMark, type ChartTick, type ChartYTick } from './Chart.astro';
 
 interface Props {
   series: AssetValuePoint[];
@@ -105,6 +105,30 @@ if (showBand) {
   ticks.push({ x: xAt(tMax), label: 'future' });
 }
 
+// Y-axis: 3 "nice" dollar labels spanning the visible range.
+function niceStep(range: number, count: number): number {
+  const rawStep = range / (count - 1);
+  if (rawStep <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+  const mult = normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
+  return mult * magnitude;
+}
+function fmtMoneyTick(cents: number): string {
+  const d = cents / 100;
+  if (d >= 1_000_000) return `$${(d / 1_000_000).toFixed(d % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (d >= 1_000) return `$${Math.round(d / 1_000)}K`;
+  return `$${Math.round(d)}`;
+}
+const yTicks: ChartYTick[] = [];
+if (series.length > 0) {
+  const step = niceStep(yMax - yMin, 3);
+  const first = Math.ceil(yMin / step) * step;
+  for (let v = first; v <= yMax; v += step) {
+    yTicks.push({ y: yAt(v), label: fmtMoneyTick(v) });
+  }
+}
+
 const marks: ChartMark[] = series.map((p) => ({ x: xAt(p.as_of), y: yAt(p.value_cents) }));
 
 const first = series[0];
@@ -137,7 +161,8 @@ const points: ChartHoverPoint[] = series.map((p) => ({
   ]}
   marks={marks}
   ticks={ticks}
+  yTicks={yTicks}
   points={points}
   dotR={3.5}
-  futureStartX={showBand ? nowX : undefined}
+  todayX={showBand ? nowX : undefined}
 />
