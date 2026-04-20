@@ -26,9 +26,13 @@ const yMax = hi + span * 0.1;
 const yRange = yMax - yMin || 1;
 
 // X-axis is time — use as_of unix seconds so visual spacing matches real gaps
-// between rounds/marks (e.g. Seed in 2024 vs Series B in 2025).
+// between rounds/marks (e.g. Seed in 2024 vs Series B in 2025). Always stretch
+// to today on the right so a stale mark visibly carries a flat line forward
+// (and a fresh mark sits near the right edge) — the chart never "ends" earlier
+// than now.
+const nowSec = Math.floor(Date.now() / 1000);
 const tMin = series.length ? series[0].as_of : 0;
-const tMax = series.length ? series[series.length - 1].as_of : 0;
+const tMax = series.length ? Math.max(series[series.length - 1].as_of, nowSec) : nowSec;
 const tRange = Math.max(tMax - tMin, 1);
 
 const xAt = (sec: number) => PAD_L + ((sec - tMin) / tRange) * innerW;
@@ -46,11 +50,10 @@ if (series.length > 0) {
     parts.push(`L ${x.toFixed(2)} ${prevY.toFixed(2)}`);
     parts.push(`L ${x.toFixed(2)} ${y.toFixed(2)}`);
   }
-  // Extend horizontally to today so the line doesn't end on the last mark.
-  if (series.length > 0) {
-    const lastY = yAt(series[series.length - 1].value_cents);
-    parts.push(`L ${(PAD_L + innerW).toFixed(2)} ${lastY.toFixed(2)}`);
-  }
+  // Extend the last value flat out to today — tMax = max(last mark, now), so
+  // the right edge of the chart is today whenever the last mark is in the past.
+  const lastY = yAt(series[series.length - 1].value_cents);
+  parts.push(`L ${xAt(tMax).toFixed(2)} ${lastY.toFixed(2)}`);
   stepPath = parts.join(' ');
 }
 
@@ -75,6 +78,13 @@ for (const p of series) {
     ticks.push({ x, label: fmtTickDate(p.as_of) });
   }
 }
+// Anchor a "today" tick on the right edge when the last mark is visibly older.
+// If the last tick is already near today, drop it in favor of the today label.
+const nowX = xAt(nowSec);
+if (ticks.length > 0 && nowX - ticks[ticks.length - 1].x < MIN_TICK_GAP) {
+  ticks.pop();
+}
+ticks.push({ x: nowX, label: 'today' });
 
 const first = series[0];
 const last = series[series.length - 1];
