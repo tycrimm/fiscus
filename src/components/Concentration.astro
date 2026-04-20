@@ -14,6 +14,7 @@ const prettySub = (sub: string) =>
   <header>
     <h2>Top positions</h2>
     <span class="sub">share of gross assets</span>
+    <a class="more" href="/concentration">view all →</a>
   </header>
   {positions.length === 0 ? (
     <p class="empty">no positions yet</p>
@@ -63,6 +64,15 @@ const prettySub = (sub: string) =>
     letter-spacing: 0.08em;
     color: var(--fg-muted);
   }
+  .more {
+    margin-left: auto;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+  .more:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
 
   .rows {
     list-style: none;

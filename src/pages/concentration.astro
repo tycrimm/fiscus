@@ -1,0 +1,373 @@
+---
+import { env } from 'cloudflare:workers';
+import { db } from '../db';
+import { listAccounts, listPrivateInvestments } from '../ops/reads';
+import { fmtUSD, pluralize, prettyKind } from '../lib/format';
+import {
+  allPositions,
+  computeAllocation,
+  concentrationStats,
+  CLASS_LABEL,
+  type Position,
+  type PositionClass,
+} from '../lib/metrics';
+import Shell from '../layouts/Shell.astro';
+
+const d = db(env.DB);
+const [accounts, privateInv] = await Promise.all([
+  listAccounts(d),
+  listPrivateInvestments(d),
+]);
+
+const lastSyncedAt = accounts.reduce<number | null>(
+  (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
+  null,
+);
+
+const view = Astro.url.searchParams.get('view') === 'flat' ? 'flat' : 'class';
+
+const { totalCents } = computeAllocation(accounts, privateInv);
+const positions = allPositions(accounts, privateInv, totalCents);
+const stats = concentrationStats(positions);
+
+// Group by class, ordered by group total descending. Used only in class view,
+// but computed always so the sub-line can report the class count either way.
+type Group = { key: PositionClass; total_cents: number; pct: number; items: Position[] };
+const groupsMap = new Map<PositionClass, Group>();
+for (const p of positions) {
+  let g = groupsMap.get(p.class);
+  if (!g) {
+    g = { key: p.class, total_cents: 0, pct: 0, items: [] };
+    groupsMap.set(p.class, g);
+  }
+  g.items.push(p);
+  g.total_cents += p.cents;
+}
+for (const g of groupsMap.values()) {
+  g.pct = totalCents > 0 ? g.total_cents / totalCents : 0;
+}
+const groups = [...groupsMap.values()].sort((a, b) => b.total_cents - a.total_cents);
+
+// Flat rank: cash is fungible across banks, so collapse all cash accounts into
+// a single synthetic row. Other classes stay per-position (equity accounts hold
+// different underlying mixes; private investments are distinct companies).
+function collapseCashForFlat(all: Position[]): Position[] {
+  const cash = all.filter((p) => p.class === 'cash');
+  if (cash.length < 2) return all;
+  const nonCash = all.filter((p) => p.class !== 'cash');
+  const cents = cash.reduce((s, p) => s + p.cents, 0);
+  const combined: Position = {
+    id: '__cash__',
+    label: 'Cash',
+    sub: pluralize(cash.length, 'account'),
+    class: 'cash',
+    cents,
+    pct: totalCents > 0 ? cents / totalCents : 0,
+  };
+  return [...nonCash, combined].sort((a, b) => b.cents - a.cents);
+}
+
+// Cumulative % runs top-to-bottom in whatever order the rows end up rendered.
+// In class view that's group-by-group; in flat view it's pure rank by cents.
+const orderedPositions: Position[] = view === 'flat'
+  ? collapseCashForFlat(positions)
+  : groups.flatMap((g) => g.items);
+const cumByPos = new Map<string, number>();
+{
+  let cum = 0;
+  for (const p of orderedPositions) {
+    cum += p.pct;
+    cumByPos.set(p.id, cum);
+  }
+}
+
+// Bar is scaled to the largest rendered row so the #1 fills the bar in both views.
+const maxCents = orderedPositions.reduce((m, p) => Math.max(m, p.cents), 0);
+const barPctFor = (cents: number) => (maxCents > 0 ? cents / maxCents : 0);
+
+const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const fmtPctInt = (n: number) => `${Math.round(n * 100)}%`;
+const hhi = stats.hhi.toFixed(3);
+const classCountLabel = `${groups.length} ${groups.length === 1 ? 'class' : 'classes'}`;
+// Match the existing Top Positions block: prettyKind each dot-separated part.
+const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · ');
+---
+<Shell title="concentration" lastSyncedAt={lastSyncedAt}>
+  {positions.length === 0 ? (
+    <p class="empty">NO POSITIONS YET — ASK AN AGENT TO ADD ONE.</p>
+  ) : (
+    <section class="page">
+      <header class="head">
+        <div class="title">
+          <div class="eyebrow">portfolio</div>
+          <h1>Concentration</h1>
+        </div>
+        <dl class="stats">
+          <div class="stat">
+            <dt>gross assets</dt>
+            <dd class="num">{fmtUSD.format(totalCents / 100)}</dd>
+          </div>
+          <div class="stat">
+            <dt>top 1</dt>
+            <dd class="num">{fmtPct(stats.top1)}</dd>
+          </div>
+          <div class="stat">
+            <dt>top 5</dt>
+            <dd class="num">{fmtPct(stats.top5)}</dd>
+          </div>
+          <div class="stat">
+            <dt>top 10</dt>
+            <dd class="num">{fmtPct(stats.top10)}</dd>
+          </div>
+          <div class="stat">
+            <dt>hhi</dt>
+            <dd class="num">{hhi}</dd>
+          </div>
+        </dl>
+      </header>
+
+      <div class="toolbar">
+        <div class="desc">
+          {view === 'flat' ? (
+            <>{pluralize(orderedPositions.length, 'position')}{orderedPositions.length !== positions.length ? ' · cash collapsed' : ''} · cumulative runs top-to-bottom</>
+          ) : (
+            <>{pluralize(positions.length, 'position')} across {classCountLabel} · cumulative runs top-to-bottom</>
+          )}
+        </div>
+        <nav class="views" aria-label="Group by">
+          <span class="k">view</span>
+          <a href="/concentration" class:list={['vlink', { active: view === 'class' }]}>by class</a>
+          <a href="/concentration?view=flat" class:list={['vlink', { active: view === 'flat' }]}>flat rank</a>
+        </nav>
+      </div>
+
+      <table class="conc">
+        <thead>
+          <tr>
+            <th class="col-name">position</th>
+            <th class="col-bar"></th>
+            <th class="num-col col-value">value</th>
+            <th class="num-col col-pct">share</th>
+            <th class="num-col col-cum">cum</th>
+          </tr>
+        </thead>
+        <tbody>
+          {view === 'flat' ? (
+            orderedPositions.map((p) => {
+              const NameTag = p.href ? 'a' : 'span';
+              return (
+                <tr class="row flat">
+                  <td class="col-name">
+                    <NameTag class="name" href={p.href}>{p.label}</NameTag>
+                    <span class="inst">{CLASS_LABEL[p.class]} · {prettySub(p.sub)}</span>
+                  </td>
+                  <td class="col-bar">
+                    <span class="bar" aria-hidden="true">
+                      <span class="fill" style={`width: ${Math.max(barPctFor(p.cents) * 100, 0.5).toFixed(2)}%`}></span>
+                    </span>
+                  </td>
+                  <td class="num-col col-value">{fmtUSD.format(p.cents / 100)}</td>
+                  <td class="num-col col-pct">{fmtPct(p.pct)}</td>
+                  <td class="num-col col-cum muted">{fmtPctInt(cumByPos.get(p.id) ?? 0)}</td>
+                </tr>
+              );
+            })
+          ) : (
+            groups.map((g) => (
+              <>
+                <tr class="group">
+                  <td colspan="2">
+                    <span class="gname">{CLASS_LABEL[g.key]}</span>
+                    <span class="gcount">· {pluralize(g.items.length, 'position')}</span>
+                  </td>
+                  <td class="num-col">{fmtUSD.format(g.total_cents / 100)}</td>
+                  <td class="num-col">{fmtPct(g.pct)}</td>
+                  <td class="num-col"></td>
+                </tr>
+                {g.items.map((p) => {
+                  const NameTag = p.href ? 'a' : 'span';
+                  return (
+                    <tr class="row">
+                      <td class="col-name">
+                        <NameTag class="name" href={p.href}>{p.label}</NameTag>
+                        <span class="inst">{prettySub(p.sub)}</span>
+                      </td>
+                      <td class="col-bar">
+                        <span class="bar" aria-hidden="true">
+                          <span class="fill" style={`width: ${Math.max(barPctFor(p.cents) * 100, 0.5).toFixed(2)}%`}></span>
+                        </span>
+                      </td>
+                      <td class="num-col col-value">{fmtUSD.format(p.cents / 100)}</td>
+                      <td class="num-col col-pct">{fmtPct(p.pct)}</td>
+                      <td class="num-col col-cum muted">{fmtPctInt(cumByPos.get(p.id) ?? 0)}</td>
+                    </tr>
+                  );
+                })}
+              </>
+            ))
+          )}
+        </tbody>
+      </table>
+    </section>
+  )}
+</Shell>
+
+<style>
+  .head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-6);
+    align-items: end;
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .title .eyebrow {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+  .title h1 {
+    font-size: var(--size-2xl);
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    text-transform: none;
+    margin-top: var(--space-1);
+  }
+
+  .stats {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--space-8);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat { display: grid; gap: 2px; margin: 0; }
+  .stat dt {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  .stat dd {
+    margin: 0;
+    font-size: var(--size-lg);
+    font-weight: 500;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-6);
+    margin: var(--space-4) 0 var(--space-4);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .toolbar .desc { flex: 1; }
+  .toolbar .views {
+    display: flex;
+    gap: var(--space-3);
+    align-items: baseline;
+  }
+  .toolbar .views .k { color: var(--fg-muted); }
+  .toolbar .vlink {
+    color: var(--fg-muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+  }
+  .toolbar .vlink:hover { color: var(--fg); }
+  .toolbar .vlink.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+
+  table.conc {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.conc th,
+  table.conc td {
+    padding: var(--space-2) var(--space-2);
+    text-align: left;
+    vertical-align: middle;
+  }
+  table.conc thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: var(--space-2);
+  }
+  table.conc .num-col { text-align: right; white-space: nowrap; }
+  table.conc .col-bar { width: 10rem; min-width: 6rem; }
+  table.conc .col-value { width: 8rem; }
+  table.conc .col-pct { width: 4.5rem; }
+  table.conc .col-cum { width: 4rem; }
+
+  table.conc tbody tr.group td {
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule);
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-2);
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+  table.conc tbody tr.group .gname { }
+  table.conc tbody tr.group .gcount {
+    color: var(--fg-muted);
+    font-weight: 400;
+    margin-left: var(--space-2);
+  }
+
+  table.conc tbody tr.row td {
+    border-bottom: 1px solid var(--rule);
+  }
+  table.conc tbody tr.row .col-name { padding-left: var(--space-6); }
+  table.conc tbody tr.row.flat .col-name { padding-left: var(--space-2); }
+  table.conc .name {
+    color: inherit;
+    text-decoration: none;
+  }
+  table.conc a.name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  table.conc .inst {
+    margin-left: var(--space-3);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+  }
+
+  table.conc .bar {
+    display: block;
+    height: 0.4rem;
+    background: var(--rule);
+    position: relative;
+  }
+  table.conc .bar .fill {
+    display: block;
+    height: 100%;
+    background: var(--fg);
+  }
+  table.conc .col-cum { color: var(--fg-muted); font-size: var(--size-xs); }
+
+  @media (max-width: 52rem) {
+    .head { grid-template-columns: 1fr; }
+    .stats { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+  }
+  @media (max-width: 40rem) {
+    .toolbar { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+    table.conc .col-bar, table.conc .col-cum { display: none; }
+    table.conc tbody tr.row .col-name { padding-left: var(--space-3); }
+    table.conc tbody tr.row.flat .col-name { padding-left: var(--space-2); }
+    table.conc .inst { display: block; margin-left: 0; margin-top: 1px; }
+  }
+</style>

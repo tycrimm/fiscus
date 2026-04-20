@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fiscus — concentration explorations</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.5rem;
+    --size-2xl: 2.25rem;
+    --size-3xl: 3rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--size-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .page {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-6) var(--space-16);
+  }
+
+  h1, h2, h3, h4 {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  h1 { font-size: var(--size-lg); letter-spacing: 0.04em; }
+  h2 { font-size: var(--size-base); letter-spacing: 0.06em; }
+  h3 { font-size: var(--size-sm); letter-spacing: 0.08em; }
+
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--fg-muted); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+
+  /* ─── prototype chrome ─────────────────────────── */
+
+  .proto-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule-strong);
+    padding: var(--space-3) var(--space-6);
+    display: flex;
+    gap: var(--space-6);
+    align-items: baseline;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .proto-nav .brand { font-weight: 500; letter-spacing: 0.12em; }
+  .proto-nav .spacer { flex: 1; }
+  .proto-nav a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid transparent;
+  }
+  .proto-nav a:hover,
+  .proto-nav a.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+
+  .variation {
+    padding: var(--space-12) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .variation-head {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-8);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .variation-head .eyebrow {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .variation-head h2 {
+    font-size: var(--size-xl);
+    letter-spacing: -0.01em;
+    text-transform: none;
+  }
+  .variation-head .desc {
+    color: var(--fg-muted);
+    font-size: var(--size-sm);
+    max-width: 56rem;
+  }
+
+  /* ─── shared header ─────────────────────────── */
+
+  .app-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-6);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+  .app-header .brand {
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+  }
+  .app-header nav {
+    display: flex;
+    gap: var(--space-6);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .app-header nav a { color: inherit; text-decoration: none; }
+  .app-header nav a[aria-current="page"] {
+    color: var(--fg);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .app-header .right { margin-left: auto; color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ─── variation A: inline dashboard block ─────────────────────────── */
+
+  .a-shell {
+    display: grid;
+    grid-template-columns: 16rem 1fr;
+    gap: var(--space-8);
+    align-items: start;
+  }
+  .rail { display: grid; gap: var(--space-4); position: sticky; top: 4rem; }
+  .rail .label {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .rail .value {
+    font-size: var(--size-2xl);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    margin-top: calc(-1 * var(--space-2));
+  }
+  .rail .bd { display: grid; }
+  .rail .bd-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .rail .bd-row:first-child { border-top: 1px solid var(--rule); }
+  .rail .bd-row .cat {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .section-head h2 {
+    font-size: var(--size-sm);
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .section-head .sub {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .section-head .spacer { flex: 1; }
+  .section-head .tools {
+    display: flex;
+    gap: var(--space-2);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .section-head .tools button {
+    font: inherit;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    padding: 0 0 1px;
+    cursor: pointer;
+  }
+  .section-head .tools button.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+  .section-head .tools button:hover { color: var(--fg); }
+
+  table.conc {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.conc th,
+  table.conc td {
+    padding: var(--space-2) var(--space-2);
+    text-align: left;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+  }
+  table.conc thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-2) var(--space-2) var(--space-2);
+    border-bottom: 1px solid var(--rule-strong);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  table.conc thead th.sorted { color: var(--fg); }
+  table.conc thead th .caret { display: inline-block; width: 0.6em; color: var(--fg-muted); }
+  table.conc thead th.sorted .caret { color: var(--fg); }
+  table.conc .num-col { text-align: right; white-space: nowrap; }
+  table.conc .row-name {
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  table.conc .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  table.conc .bar-cell {
+    width: 10rem;
+    min-width: 6rem;
+  }
+  table.conc .bar {
+    display: block;
+    height: 0.45rem;
+    background: var(--rule);
+    position: relative;
+  }
+  table.conc .bar .fill {
+    display: block;
+    height: 100%;
+    background: var(--fg);
+  }
+  table.conc .pct-cell { width: 4rem; }
+  table.conc .cum-cell {
+    width: 4rem;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+  }
+  table.conc tfoot td {
+    border-bottom: 0;
+    border-top: 1px solid var(--rule-strong);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    padding-top: var(--space-3);
+  }
+  table.conc tfoot td.num-col { color: var(--fg); }
+
+  /* ─── variation B: standalone page ─────────────────────────── */
+
+  .b-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-6);
+    align-items: end;
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--rule-strong);
+    margin-bottom: var(--space-6);
+  }
+  .b-header .title .eyebrow {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+  .b-header .title h1 {
+    font-size: var(--size-2xl);
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    text-transform: none;
+    margin-top: var(--space-1);
+  }
+
+  .b-stats {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--space-8);
+    font-variant-numeric: tabular-nums;
+  }
+  .b-stats .stat { display: grid; gap: 2px; }
+  .b-stats .stat .k {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+  }
+  .b-stats .stat .v { font-size: var(--size-lg); font-weight: 500; }
+
+  .b-toolbar {
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--rule);
+  }
+  .b-toolbar .group {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+  .b-toolbar .k {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .b-toolbar .tabs {
+    display: flex;
+    gap: var(--space-4);
+  }
+  .b-toolbar .tabs button {
+    font: inherit;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    padding: 0 0 2px;
+    cursor: pointer;
+  }
+  .b-toolbar .tabs button.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+  .b-toolbar .tabs button:hover { color: var(--fg); }
+  .b-toolbar .spacer { flex: 1; }
+  .b-toolbar .filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .b-toolbar .filter input[type=checkbox] { accent-color: var(--fg); }
+
+  table.conc-grouped {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.conc-grouped th,
+  table.conc-grouped td {
+    padding: var(--space-2) var(--space-2);
+    text-align: left;
+    vertical-align: middle;
+  }
+  table.conc-grouped thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  table.conc-grouped .num-col { text-align: right; white-space: nowrap; }
+  table.conc-grouped .bar-cell { width: 10rem; min-width: 6rem; }
+  table.conc-grouped .bar {
+    display: block;
+    height: 0.4rem;
+    background: var(--rule);
+    position: relative;
+  }
+  table.conc-grouped .bar .fill {
+    display: block;
+    height: 100%;
+    background: var(--fg);
+  }
+  table.conc-grouped tbody tr.group-head td {
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule);
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-2);
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+  table.conc-grouped tbody tr.group-head td .count {
+    color: var(--fg-muted);
+    font-weight: 400;
+    margin-left: var(--space-2);
+  }
+  table.conc-grouped tbody tr.group-head td.num-col { font-weight: 500; }
+  table.conc-grouped tbody tr.row td {
+    border-bottom: 1px solid var(--rule);
+  }
+  table.conc-grouped tbody tr.row td:first-child { padding-left: var(--space-6); }
+  table.conc-grouped .row-name {
+    max-width: 22rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  table.conc-grouped .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-left: var(--space-3);
+  }
+  table.conc-grouped .cum-cell {
+    width: 4rem;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+  }
+
+  /* ─── variation C: treemap ─────────────────────────── */
+
+  .c-grid {
+    display: grid;
+    gap: var(--space-6);
+  }
+  .c-treemap-wrap {
+    border: 1px solid var(--rule);
+    padding: var(--space-2);
+    background: var(--bg);
+  }
+  .c-treemap {
+    width: 100%;
+    height: 28rem;
+    display: block;
+  }
+  .c-treemap .cell-rect {
+    fill: var(--bg);
+    stroke: var(--fg);
+    stroke-width: 1;
+    transition: fill 0.12s ease;
+  }
+  .c-treemap .cell-rect:hover { fill: var(--bg-subtle); }
+  .c-treemap text { font-family: ui-sans-serif, system-ui, sans-serif; }
+  .c-treemap .cell-label {
+    font-size: 11px;
+    font-weight: 500;
+    fill: var(--fg);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    pointer-events: none;
+  }
+  .c-treemap .cell-sub {
+    font-size: 10px;
+    fill: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .c-treemap .cat-rect {
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 2;
+    pointer-events: none;
+  }
+  .c-treemap .cat-label {
+    font-size: 10px;
+    font-weight: 500;
+    fill: var(--fg);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    pointer-events: none;
+  }
+
+  .c-legend {
+    display: flex;
+    gap: var(--space-6);
+    flex-wrap: wrap;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    padding-top: var(--space-2);
+  }
+  .c-legend .item { display: flex; align-items: baseline; gap: var(--space-2); }
+  .c-legend .dot { width: 0.6rem; height: 0.6rem; background: var(--fg); display: inline-block; }
+  .c-legend .dot.d2 { opacity: 0.7; }
+  .c-legend .dot.d3 { opacity: 0.45; }
+  .c-legend .dot.d4 { opacity: 0.25; }
+  .c-legend .dot.d5 { opacity: 0.12; }
+
+  .c-below {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-8);
+  }
+  @media (max-width: 60rem) {
+    .c-below { grid-template-columns: 1fr; }
+  }
+  .c-topten th.num-col, .c-topten td.num-col { text-align: right; white-space: nowrap; }
+
+  /* ─── responsive ─────────────────────────── */
+
+  @media (max-width: 60rem) {
+    .a-shell { grid-template-columns: 1fr; }
+    .rail { position: static; }
+  }
+  @media (max-width: 48rem) {
+    table.conc .cum-cell, table.conc-grouped .cum-cell { display: none; }
+    table.conc .bar-cell, table.conc-grouped .bar-cell { display: none; }
+    .b-stats { grid-auto-flow: row; gap: var(--space-3); }
+  }
+</style>
+</head>
+<body>
+
+<nav class="proto-nav" aria-label="Prototype variations">
+  <span class="brand">fiscus · concentration</span>
+  <span class="spacer"></span>
+  <a href="#a" data-jump="a">A · inline table</a>
+  <a href="#b" data-jump="b">B · grouped page</a>
+  <a href="#c" data-jump="c">C · treemap</a>
+</nav>
+
+<!-- ─── VARIATION A ───────────────────────────────────────────── -->
+<section id="a" class="variation">
+  <div class="page">
+    <div class="variation-head">
+      <div class="eyebrow">Variation A</div>
+      <h2>Inline on dashboard — full concentration table</h2>
+      <p class="desc">Replaces the current top-3 block on the home page with a full sortable table of every position. Sort toggles in the section head (value / % / cumulative). In-row bars give shape without occupying a whole column. Cumulative % column surfaces the pareto read without extra controls.</p>
+    </div>
+
+    <div class="app-header">
+      <a class="brand" href="#">fiscus</a>
+      <nav>
+        <a href="#" aria-current="page">ledger</a>
+        <a href="#">flows</a>
+        <a href="#">accounts</a>
+      </nav>
+      <div class="right">synced 14 min ago</div>
+    </div>
+
+    <div class="a-shell">
+      <aside class="rail">
+        <div class="label">net worth</div>
+        <div class="value">$4,187,432</div>
+        <div class="bd">
+          <div class="bd-row"><span class="cat">liquid</span><span class="num">$2,498,120</span></div>
+          <div class="bd-row"><span class="cat">private</span><span class="num">$1,689,312</span></div>
+        </div>
+        <div class="label" style="margin-top: var(--space-4);">change</div>
+        <div class="bd">
+          <div class="bd-row"><span class="cat">1d</span><span class="num pos">+$4,120</span></div>
+          <div class="bd-row"><span class="cat">1w</span><span class="num neg">−$18,440</span></div>
+          <div class="bd-row"><span class="cat">1m</span><span class="num pos">+$62,130</span></div>
+          <div class="bd-row"><span class="cat">ytd</span><span class="num pos">+$211,560</span></div>
+          <div class="bd-row"><span class="cat">1y</span><span class="num pos">+$488,210</span></div>
+        </div>
+      </aside>
+
+      <main>
+        <!-- Chart placeholder -->
+        <div style="height: 10rem; border: 1px solid var(--rule); margin-bottom: var(--space-6); display: grid; place-items: center; color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.1em;">net worth sparkline — 2y</div>
+
+        <!-- Allocation mix placeholder -->
+        <div style="margin-bottom: var(--space-8); padding-bottom: var(--space-6); border-bottom: 1px solid var(--rule);">
+          <div class="section-head"><h2>allocation mix</h2><span class="sub">% gross assets</span></div>
+          <div style="display: flex; height: 0.75rem; background: var(--rule); margin-bottom: var(--space-2);">
+            <div style="flex: 40; background: var(--fg);"></div>
+            <div style="flex: 28; background: var(--fg); opacity: 0.65;"></div>
+            <div style="flex: 18; background: var(--fg); opacity: 0.4;"></div>
+            <div style="flex: 9; background: var(--fg); opacity: 0.2;"></div>
+            <div style="flex: 5; background: var(--fg); opacity: 0.08;"></div>
+          </div>
+          <div style="display: flex; gap: var(--space-6); font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+            <span>private 40%</span><span>equities 28%</span><span>cash 18%</span><span>crypto 9%</span><span>other 5%</span>
+          </div>
+        </div>
+
+        <!-- Concentration table -->
+        <section>
+          <div class="section-head">
+            <h2>concentration</h2>
+            <span class="sub">all positions</span>
+            <span class="spacer"></span>
+            <div class="tools">
+              <span>sort</span>
+              <button class="active" data-sort="value">value</button>
+              <button data-sort="pct">%</button>
+              <button data-sort="name">name</button>
+            </div>
+          </div>
+
+          <table class="conc" id="concA">
+            <thead>
+              <tr>
+                <th>position</th>
+                <th>class</th>
+                <th></th>
+                <th class="num-col sorted">value <span class="caret">↓</span></th>
+                <th class="num-col">%</th>
+                <th class="num-col">cum</th>
+              </tr>
+            </thead>
+            <tbody id="concA-body"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">total · 24 positions</td>
+                <td class="num-col" id="concA-total">$4,668,240</td>
+                <td class="num-col">100.0%</td>
+                <td class="num-col"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ─── VARIATION B ───────────────────────────────────────────── -->
+<section id="b" class="variation">
+  <div class="page">
+    <div class="variation-head">
+      <div class="eyebrow">Variation B</div>
+      <h2>Standalone /concentration page — grouped</h2>
+      <p class="desc">A dedicated page with a grouping switcher (flat / institution / asset class / liquidity). Group headers show subtotal + share; cumulative column runs across the whole table. Summary stats at top: gross assets, top-1 / top-5 / top-10 shares, and an HHI concentration index for a single scalar read.</p>
+    </div>
+
+    <div class="app-header">
+      <a class="brand" href="#">fiscus</a>
+      <nav>
+        <a href="#">ledger</a>
+        <a href="#">flows</a>
+        <a href="#" aria-current="page">concentration</a>
+        <a href="#">accounts</a>
+      </nav>
+      <div class="right">synced 14 min ago</div>
+    </div>
+
+    <div class="b-header">
+      <div class="title">
+        <div class="eyebrow">portfolio</div>
+        <h1>Concentration</h1>
+      </div>
+      <div class="b-stats">
+        <div class="stat"><span class="k">gross assets</span><span class="v num">$4,668,240</span></div>
+        <div class="stat"><span class="k">top 1</span><span class="v num">18.4%</span></div>
+        <div class="stat"><span class="k">top 5</span><span class="v num">52.1%</span></div>
+        <div class="stat"><span class="k">top 10</span><span class="v num">74.8%</span></div>
+        <div class="stat"><span class="k">HHI</span><span class="v num">0.084</span></div>
+      </div>
+    </div>
+
+    <div class="b-toolbar">
+      <div class="group">
+        <span class="k">group by</span>
+        <div class="tabs" id="b-tabs">
+          <button class="active" data-g="flat">flat</button>
+          <button data-g="class">asset class</button>
+          <button data-g="inst">institution</button>
+          <button data-g="liq">liquidity</button>
+        </div>
+      </div>
+      <span class="spacer"></span>
+      <label class="filter"><input type="checkbox" checked /> include liabilities</label>
+      <label class="filter"><input type="checkbox" /> owner: joint only</label>
+    </div>
+
+    <table class="conc-grouped" id="concB"></table>
+  </div>
+</section>
+
+<!-- ─── VARIATION C ───────────────────────────────────────────── -->
+<section id="c" class="variation">
+  <div class="page">
+    <div class="variation-head">
+      <div class="eyebrow">Variation C</div>
+      <h2>Treemap — visual concentration</h2>
+      <p class="desc">A Morningstar-style portfolio X-ray. Tiles sized by value, nested under asset-class borders. Label only shows when the tile is big enough to read. Compact top-10 table below for legibility — the treemap is the glance, the table is the reference. Good for a standalone page; too tall to inline on the ledger.</p>
+    </div>
+
+    <div class="app-header">
+      <a class="brand" href="#">fiscus</a>
+      <nav>
+        <a href="#">ledger</a>
+        <a href="#">flows</a>
+        <a href="#" aria-current="page">concentration</a>
+        <a href="#">accounts</a>
+      </nav>
+      <div class="right">synced 14 min ago</div>
+    </div>
+
+    <div class="c-grid">
+      <div class="c-treemap-wrap">
+        <svg class="c-treemap" id="treemap" viewBox="0 0 1000 560" preserveAspectRatio="none" role="img" aria-label="Treemap of positions, sized by value"></svg>
+      </div>
+      <div class="c-legend">
+        <div class="item"><span class="dot"></span>private</div>
+        <div class="item"><span class="dot d2"></span>equities &amp; funds</div>
+        <div class="item"><span class="dot d3"></span>cash</div>
+        <div class="item"><span class="dot d4"></span>crypto</div>
+        <div class="item"><span class="dot d5"></span>other</div>
+      </div>
+
+      <div class="c-below">
+        <div>
+          <div class="section-head"><h2>top 10 positions</h2><span class="sub">by value</span></div>
+          <table class="conc c-topten" id="concC-top">
+            <thead>
+              <tr>
+                <th>position</th>
+                <th>class</th>
+                <th class="num-col">value</th>
+                <th class="num-col">%</th>
+              </tr>
+            </thead>
+            <tbody id="concC-top-body"></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="section-head"><h2>by asset class</h2><span class="sub">rollup</span></div>
+          <table class="conc c-topten" id="concC-class">
+            <thead>
+              <tr>
+                <th>class</th>
+                <th class="num-col">count</th>
+                <th class="num-col">value</th>
+                <th class="num-col">%</th>
+              </tr>
+            </thead>
+            <tbody id="concC-class-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // ───────── sample data ─────────
+  // class: cash | equities | crypto | private | other
+  // liquidity: t0 (cash) | t1 (public) | t2 (retirement) | t3 (private)
+  const POSITIONS = [
+    // private
+    { name: "Stable Labs",            sub: "SBS · private co",     inst: "Direct",      cls: "private",  liq: "t3", cents:  85900000 },
+    { name: "SHV Fund III",           sub: "evergreen fund",       inst: "SHV",         cls: "private",  liq: "t3", cents:  64200000 },
+    { name: "Anthropic",              sub: "SBS · private co",     inst: "Direct",      cls: "private",  liq: "t3", cents:  52800000 },
+    { name: "Ramp",                   sub: "SBS · private co",     inst: "Direct",      cls: "private",  liq: "t3", cents:  31500000 },
+    { name: "SHV Fund II",            sub: "evergreen fund",       inst: "SHV",         cls: "private",  liq: "t3", cents:  19100000 },
+    { name: "Grandma $50k",           sub: "asset-level",          inst: "Personal",    cls: "private",  liq: "t3", cents:  13600000 },
+    { name: "Vanta",                  sub: "SBS · private co",     inst: "Direct",      cls: "private",  liq: "t3", cents:   8400000 },
+
+    // equities (brokerage, retirement, education)
+    { name: "VTI",                    sub: "brokerage",            inst: "Fidelity",    cls: "equities", liq: "t1", cents:  61200000 },
+    { name: "VXUS",                   sub: "brokerage",            inst: "Fidelity",    cls: "equities", liq: "t1", cents:  24300000 },
+    { name: "Tyler 401(k) · FXAIX",   sub: "retirement",           inst: "Fidelity",    cls: "equities", liq: "t2", cents:  58700000 },
+    { name: "Spouse 401(k) · VTSAX",  sub: "retirement",           inst: "Vanguard",    cls: "equities", liq: "t2", cents:  41200000 },
+    { name: "Tyler Roth IRA",         sub: "retirement",           inst: "Fidelity",    cls: "equities", liq: "t2", cents:   9900000 },
+    { name: "529 · Kiddo",            sub: "education",            inst: "NY 529",      cls: "equities", liq: "t2", cents:   7400000 },
+    { name: "RSU vested · ACME",      sub: "brokerage",            inst: "Schwab",      cls: "equities", liq: "t1", cents:  12400000 },
+    { name: "BND",                    sub: "brokerage",            inst: "Fidelity",    cls: "equities", liq: "t1", cents:   6200000 },
+
+    // cash
+    { name: "Chase Checking",         sub: "operating",            inst: "Chase",       cls: "cash",     liq: "t0", cents:  42000000 },
+    { name: "Ally HYSA",              sub: "emergency fund",       inst: "Ally",        cls: "cash",     liq: "t0", cents:  28500000 },
+    { name: "Apple Savings",          sub: "buffer",               inst: "Apple",       cls: "cash",     liq: "t0", cents:   8100000 },
+    { name: "Fidelity CMA",           sub: "sweep",                inst: "Fidelity",    cls: "cash",     liq: "t0", cents:   5700000 },
+
+    // crypto
+    { name: "BTC",                    sub: "coinbase",             inst: "Coinbase",    cls: "crypto",   liq: "t1", cents:  22800000 },
+    { name: "ETH",                    sub: "coinbase",             inst: "Coinbase",    cls: "crypto",   liq: "t1", cents:  14300000 },
+    { name: "SOL",                    sub: "coinbase",             inst: "Coinbase",    cls: "crypto",   liq: "t1", cents:   5000000 },
+
+    // other
+    { name: "I Bonds",                sub: "treasury direct",      inst: "Treasury",    cls: "other",    liq: "t2", cents:   4100000 },
+    { name: "Physical Silver",        sub: "vault",                inst: "Personal",    cls: "other",    liq: "t3", cents:   1800000 },
+  ];
+
+  const TOTAL_CENTS = POSITIONS.reduce((s, p) => s + p.cents, 0);
+  const fmtUSD = (cents) => "$" + Math.round(cents / 100).toLocaleString();
+  const fmtPct = (pct) => (pct * 100).toFixed(1) + "%";
+  const CLASS_LABEL = { private: "Private", equities: "Equities & Funds", cash: "Cash", crypto: "Crypto", other: "Other" };
+  const LIQ_LABEL = { t0: "T+0 · Cash", t1: "T+1 · Public markets", t2: "T+N · Retirement / locked", t3: "T+∞ · Private" };
+
+  // ───────── nav highlight ─────────
+  const nav = document.querySelector(".proto-nav");
+  const links = nav.querySelectorAll("a[data-jump]");
+  const sections = ["a", "b", "c"].map(id => document.getElementById(id));
+  function updateNav() {
+    const y = window.scrollY + 80;
+    let active = sections[0].id;
+    for (const s of sections) { if (s.offsetTop <= y) active = s.id; }
+    links.forEach(a => a.classList.toggle("active", a.dataset.jump === active));
+  }
+  window.addEventListener("scroll", updateNav, { passive: true });
+  updateNav();
+
+  // ───────── Variation A: sortable flat table ─────────
+  const concABody = document.getElementById("concA-body");
+  let concASort = "value";
+
+  function renderA() {
+    const sorted = [...POSITIONS];
+    if (concASort === "value") sorted.sort((a, b) => b.cents - a.cents);
+    else if (concASort === "pct") sorted.sort((a, b) => b.cents - a.cents); // same
+    else sorted.sort((a, b) => a.name.localeCompare(b.name));
+
+    const max = sorted[0].cents;
+    let cum = 0;
+    concABody.innerHTML = sorted.map(p => {
+      const pct = p.cents / TOTAL_CENTS;
+      cum += pct;
+      const barW = (p.cents / max * 100).toFixed(2);
+      return `
+        <tr>
+          <td class="row-name">${p.name}</td>
+          <td class="sub">${CLASS_LABEL[p.cls]}</td>
+          <td class="bar-cell"><span class="bar"><span class="fill" style="width: ${barW}%"></span></span></td>
+          <td class="num-col">${fmtUSD(p.cents)}</td>
+          <td class="num-col pct-cell">${fmtPct(pct)}</td>
+          <td class="num-col cum-cell">${(cum * 100).toFixed(0)}%</td>
+        </tr>`;
+    }).join("");
+
+    // update headers' sorted class
+    document.querySelectorAll("#concA thead th").forEach(th => th.classList.remove("sorted"));
+    const sortColMap = { value: 3, pct: 4, name: 0 };
+    const idx = sortColMap[concASort];
+    document.querySelectorAll("#concA thead th")[idx]?.classList.add("sorted");
+  }
+  renderA();
+  document.querySelectorAll(".section-head .tools button[data-sort]").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".section-head .tools button[data-sort]").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      concASort = b.dataset.sort;
+      renderA();
+    });
+  });
+
+  // ───────── Variation B: grouped table ─────────
+  const concBEl = document.getElementById("concB");
+
+  function renderB(mode) {
+    let header = `
+      <thead>
+        <tr>
+          <th>position</th>
+          <th></th>
+          <th class="num-col">value</th>
+          <th class="num-col">%</th>
+          <th class="num-col">cum</th>
+        </tr>
+      </thead>`;
+
+    const sorted = [...POSITIONS].sort((a, b) => b.cents - a.cents);
+
+    if (mode === "flat") {
+      let cum = 0;
+      const max = sorted[0].cents;
+      const rows = sorted.map(p => {
+        const pct = p.cents / TOTAL_CENTS;
+        cum += pct;
+        const barW = (p.cents / max * 100).toFixed(2);
+        return `<tr class="row">
+          <td class="row-name">${p.name}<span class="sub">${p.inst}</span></td>
+          <td class="bar-cell"><span class="bar"><span class="fill" style="width: ${barW}%"></span></span></td>
+          <td class="num-col">${fmtUSD(p.cents)}</td>
+          <td class="num-col">${fmtPct(pct)}</td>
+          <td class="num-col cum-cell">${(cum * 100).toFixed(0)}%</td>
+        </tr>`;
+      }).join("");
+      concBEl.innerHTML = header + `<tbody>${rows}</tbody>`;
+      return;
+    }
+
+    const keyFn = mode === "class" ? (p) => p.cls
+                : mode === "inst"  ? (p) => p.inst
+                : (p) => p.liq;
+    const labelFn = mode === "class" ? (k) => CLASS_LABEL[k]
+                  : mode === "inst"  ? (k) => k
+                  : (k) => LIQ_LABEL[k];
+
+    const groups = new Map();
+    for (const p of sorted) {
+      const k = keyFn(p);
+      if (!groups.has(k)) groups.set(k, { key: k, total: 0, items: [] });
+      const g = groups.get(k);
+      g.total += p.cents;
+      g.items.push(p);
+    }
+    const groupsArr = [...groups.values()].sort((a, b) => b.total - a.total);
+
+    let cum = 0;
+    const html = groupsArr.map(g => {
+      const gpct = g.total / TOTAL_CENTS;
+      cum += gpct;
+      const max = g.items[0].cents;
+      const head = `<tr class="group-head">
+        <td colspan="2">${labelFn(g.key)} <span class="count">· ${g.items.length}</span></td>
+        <td class="num-col">${fmtUSD(g.total)}</td>
+        <td class="num-col">${fmtPct(gpct)}</td>
+        <td class="num-col cum-cell">${(cum * 100).toFixed(0)}%</td>
+      </tr>`;
+      const rows = g.items.map(p => {
+        const pct = p.cents / TOTAL_CENTS;
+        const barW = (p.cents / max * 100).toFixed(2);
+        return `<tr class="row">
+          <td class="row-name">${p.name}<span class="sub">${p.inst}</span></td>
+          <td class="bar-cell"><span class="bar"><span class="fill" style="width: ${barW}%"></span></span></td>
+          <td class="num-col">${fmtUSD(p.cents)}</td>
+          <td class="num-col">${fmtPct(pct)}</td>
+          <td class="num-col cum-cell"></td>
+        </tr>`;
+      }).join("");
+      return head + rows;
+    }).join("");
+
+    concBEl.innerHTML = header + `<tbody>${html}</tbody>`;
+  }
+  renderB("flat");
+  document.querySelectorAll("#b-tabs button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#b-tabs button").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      renderB(b.dataset.g);
+    });
+  });
+
+  // ───────── Variation C: treemap ─────────
+  // simple slice-and-dice by class, then dice within
+  const CLASS_ORDER = ["private", "equities", "cash", "crypto", "other"];
+  const CLASS_OPACITY = { private: 1, equities: 0.65, cash: 0.4, crypto: 0.2, other: 0.08 };
+
+  function buildTreemap() {
+    const svg = document.getElementById("treemap");
+    const W = 1000, H = 560;
+    const PAD = 2;
+
+    // group by class, preserve order
+    const groups = CLASS_ORDER.map(cls => {
+      const items = POSITIONS.filter(p => p.cls === cls).sort((a, b) => b.cents - a.cents);
+      const total = items.reduce((s, p) => s + p.cents, 0);
+      return { cls, items, total };
+    }).filter(g => g.total > 0);
+
+    const grandTotal = groups.reduce((s, g) => s + g.total, 0);
+
+    // slice horizontally by class area
+    let x = 0;
+    let html = "";
+    for (const g of groups) {
+      const w = (g.total / grandTotal) * W;
+      // dice items within: alternate orientation based on aspect ratio
+      const availH = H;
+      const aspect = w / availH;
+      const dice = aspect > 1; // wider than tall → stack vertically
+      let cursor = 0;
+      const opacity = CLASS_OPACITY[g.cls];
+      for (const item of g.items) {
+        const frac = item.cents / g.total;
+        let ix, iy, iw, ih;
+        if (dice) {
+          iw = frac * w;
+          ih = availH;
+          ix = x + cursor;
+          iy = 0;
+          cursor += iw;
+        } else {
+          iw = w;
+          ih = frac * availH;
+          ix = x;
+          iy = cursor;
+          cursor += ih;
+        }
+        const rx = ix + PAD, ry = iy + PAD;
+        const rw = Math.max(iw - PAD * 2, 0), rh = Math.max(ih - PAD * 2, 0);
+        const showLabel = rw > 70 && rh > 28;
+        const showSub = rw > 90 && rh > 46;
+        html += `<rect class="cell-rect" x="${rx}" y="${ry}" width="${rw}" height="${rh}" style="fill-opacity:${opacity}; fill: var(--fg);"></rect>`;
+        if (showLabel) {
+          const textFill = opacity > 0.5 ? "#ffffff" : "var(--fg)";
+          html += `<text class="cell-label" x="${rx + 8}" y="${ry + 16}" style="fill: ${textFill}">${escape(item.name)}</text>`;
+          if (showSub) {
+            html += `<text class="cell-sub" x="${rx + 8}" y="${ry + 30}" style="fill: ${opacity > 0.5 ? 'rgba(255,255,255,0.75)' : 'var(--fg-muted)'}">${fmtUSD(item.cents)} · ${fmtPct(item.cents / grandTotal)}</text>`;
+          }
+        }
+        html += `<title>${escape(item.name)} — ${fmtUSD(item.cents)} (${fmtPct(item.cents / grandTotal)})</title>`;
+      }
+      // category outline + label
+      html += `<rect class="cat-rect" x="${x + 1}" y="${1}" width="${w - 2}" height="${H - 2}"></rect>`;
+      html += `<text class="cat-label" x="${x + 8}" y="${H - 8}">${CLASS_LABEL[g.cls]} · ${fmtPct(g.total / grandTotal)}</text>`;
+      x += w;
+    }
+    svg.innerHTML = html;
+  }
+  function escape(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  buildTreemap();
+
+  // top 10
+  const top10 = [...POSITIONS].sort((a, b) => b.cents - a.cents).slice(0, 10);
+  document.getElementById("concC-top-body").innerHTML = top10.map(p => `
+    <tr>
+      <td class="row-name">${p.name}</td>
+      <td class="sub">${CLASS_LABEL[p.cls]}</td>
+      <td class="num-col">${fmtUSD(p.cents)}</td>
+      <td class="num-col">${fmtPct(p.cents / TOTAL_CENTS)}</td>
+    </tr>`).join("");
+
+  // class rollup
+  const byClass = new Map();
+  for (const p of POSITIONS) {
+    if (!byClass.has(p.cls)) byClass.set(p.cls, { count: 0, total: 0 });
+    const g = byClass.get(p.cls);
+    g.count += 1; g.total += p.cents;
+  }
+  const classRows = CLASS_ORDER.filter(c => byClass.has(c)).map(c => ({ cls: c, ...byClass.get(c) }));
+  classRows.sort((a, b) => b.total - a.total);
+  document.getElementById("concC-class-body").innerHTML = classRows.map(r => `
+    <tr>
+      <td>${CLASS_LABEL[r.cls]}</td>
+      <td class="num-col muted">${r.count}</td>
+      <td class="num-col">${fmtUSD(r.total)}</td>
+      <td class="num-col">${fmtPct(r.total / TOTAL_CENTS)}</td>
+    </tr>`).join("");
+</script>
+
+</body>
+</html>
