@@ -5,6 +5,11 @@ import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import Shell from '../layouts/Shell.astro';
 
+const accessEmail = Astro.request.headers.get('cf-access-authenticated-user-email')?.toLowerCase() ?? '';
+if (accessEmail !== 'tyler.crimm@gmail.com') {
+  return new Response('Not Found', { status: 404 });
+}
+
 const d = drizzle(env.DB, { schema });
 
 // Pull every table's contents. Order matters only for readability.
