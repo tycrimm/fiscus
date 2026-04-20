@@ -16,7 +16,7 @@ const TZ = 'America/Los_Angeles';
 
 export function fmtDate(sec: number | null | undefined): string {
   return sec
-    ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ })
+    ? new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TZ })
     : '—';
 }
 
