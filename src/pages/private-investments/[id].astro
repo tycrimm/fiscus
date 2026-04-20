@@ -237,6 +237,7 @@ const debugPayload = {
               <th class="num-col">PPS</th>
               <th class="num-col">Cost Basis</th>
               <th class="num-col">Current</th>
+              <th class="num-col delta-col">Δ</th>
               <th class="num-col">MOIC</th>
             </tr>
           </thead>
@@ -254,10 +255,12 @@ const debugPayload = {
                   <td class="num-col">{fmtShares(r.shares)}</td>
                   <td class="num-col">{fmtPPS(r.price_per_share_cents)}</td>
                   <td class="num-col">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
-                  <td class="num-col">
-                    {cur == null ? '—' : fmtUSD.format(cur / 100)}
-                    {cur != null && delta !== 0 && (
-                      <span class={`delta ${dpos ? 'pos' : 'neg'}`}>{signedUSD(delta)}</span>
+                  <td class="num-col">{cur == null ? '—' : fmtUSD.format(cur / 100)}</td>
+                  <td class="num-col delta-col">
+                    {cur != null && delta !== 0 ? (
+                      <span class={dpos ? 'pos' : 'neg'}>{signedUSD(delta)}</span>
+                    ) : (
+                      <span class="muted">—</span>
                     )}
                   </td>
                   <td class:list={['num-col', { muted: moic != null && Math.abs(moic - 1) < 0.01 }]}>
@@ -309,12 +312,12 @@ const debugPayload = {
                   <td>{label}</td>
                   <td class="note-cell">{v.note ?? ''}</td>
                   <td class="num-col">{fmtUSD.format(v.value_cents / 100)}</td>
-                  <td class="num-col">
+                  <td class="num-col delta-col">
                     {hasDelta ? (
-                      <span class={dpos ? 'pos' : 'neg'}>
-                        {signedUSD(deltaTotal)}
-                        <span class="delta-pct">{signedPct(deltaPct)}</span>
-                      </span>
+                      <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
+                        <div>{signedUSD(deltaTotal)}</div>
+                        <div class="delta-pct">{signedPct(deltaPct)}</div>
+                      </div>
                     ) : (
                       <span class="muted">—</span>
                     )}
@@ -439,6 +442,7 @@ const debugPayload = {
     width: 100%;
     border-collapse: collapse;
     font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
   }
   .ledger-table th {
     text-align: left;
@@ -449,30 +453,36 @@ const debugPayload = {
     font-weight: 500;
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
   }
   .ledger-table td {
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--rule);
     vertical-align: baseline;
   }
+  .ledger-table tbody tr:last-child td { border-bottom: none; }
   .ledger-table .num-col {
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .ledger-table .delta {
-    display: inline-block;
-    margin-left: var(--space-2);
+  /* Δ columns: smaller, muted by default; .pos/.neg override the color. */
+  .ledger-table .delta-col {
     font-size: var(--size-xs);
     color: var(--fg-muted);
   }
-  .ledger-table .delta.pos { color: var(--pos); }
-  .ledger-table .delta.neg { color: var(--neg); }
-  .ledger-table .delta-pct {
-    display: inline-block;
-    margin-left: var(--space-1);
+  .ledger-table .delta-col .pos { color: var(--pos); }
+  .ledger-table .delta-col .neg { color: var(--neg); }
+  /* Stacked $ + % delta for valuation marks. Each line right-aligns via the
+     inherited num-col text-align; grid keeps them vertically compact. */
+  .ledger-table .delta-cell {
+    display: grid;
+    gap: 0;
+    line-height: 1.25;
+  }
+  .ledger-table .delta-cell .delta-pct {
     font-size: var(--size-xs);
-    opacity: 0.75;
+    opacity: 0.7;
   }
   .note-cell {
     color: var(--fg-muted);
