@@ -19,6 +19,170 @@ async function rows<T>(d: DB, query: SQL, cols: readonly string[]): Promise<T[]>
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0));
 
+// === Private-investment value derivation ============================
+//
+// The single source of truth for what a private investment is worth at
+// time t. Rule:
+//
+//   1. If there's an asset-level manual override (investment_id IS NULL,
+//      as_of ≤ t), the latest such override IS the total value. Done.
+//      Used for funds, non-share holdings ("Grandma $50k"), and for
+//      replacing a PPS-derived total with a conservative estimate.
+//
+//   2. Otherwise, sum across rounds with entry_date ≤ t. Per round:
+//        - Per-round manual override (investment_id = round.id, as_of ≤ t)
+//          takes precedence if present.
+//        - Else, if the asset has any round with PPS and entry_date ≤ t,
+//          value = round.shares × latest_round_PPS. "Last round sets the
+//          mark" — applies equally to mark-ups and down-rounds.
+//        - Else, fall back to round.cost_basis_cents (unconverted
+//          SAFE/note or other PPS-less round).
+//
+// Auto-generated marks don't exist in this model. Every row in
+// `valuations` is an intentional manual signal.
+
+type RoundInput = {
+  id: string;
+  asset_id: string;
+  shares: number | null;
+  pps_cents: number | null;
+  cost_basis_cents: number;
+  entry_date: number;
+};
+
+type ValuationInput = {
+  id: string;
+  asset_id: string;
+  investment_id: string | null;
+  as_of: number;
+  value_cents: number;
+};
+
+type DerivedAssetValue = {
+  total_cents: number;
+  asset_level_override: boolean;
+  per_round: Map<string, number>;
+};
+
+function deriveAssetValue(
+  rounds: RoundInput[],
+  valuations: ValuationInput[],
+  at_sec: number,
+): DerivedAssetValue {
+  const assetLevel = valuations
+    .filter((v) => v.investment_id == null && v.as_of <= at_sec)
+    .reduce<ValuationInput | null>((best, v) => (!best || v.as_of >= best.as_of ? v : best), null);
+  if (assetLevel) {
+    return {
+      total_cents: assetLevel.value_cents,
+      asset_level_override: true,
+      per_round: new Map(),
+    };
+  }
+
+  const activeRounds = rounds.filter((r) => r.entry_date <= at_sec);
+  if (activeRounds.length === 0) {
+    return { total_cents: 0, asset_level_override: false, per_round: new Map() };
+  }
+
+  const latestPPSRound = activeRounds
+    .filter((r) => r.pps_cents != null)
+    .reduce<RoundInput | null>((best, r) => (!best || r.entry_date >= best.entry_date ? r : best), null);
+  const latestPPSCents = latestPPSRound?.pps_cents ?? null;
+
+  const perRound = new Map<string, number>();
+  let total = 0;
+  for (const r of activeRounds) {
+    const override = valuations
+      .filter((v) => v.investment_id === r.id && v.as_of <= at_sec)
+      .reduce<ValuationInput | null>((best, v) => (!best || v.as_of >= best.as_of ? v : best), null);
+    let value: number;
+    if (override) {
+      value = override.value_cents;
+    } else if (r.shares != null && latestPPSCents != null) {
+      value = Math.round(r.shares * latestPPSCents);
+    } else {
+      value = r.cost_basis_cents;
+    }
+    perRound.set(r.id, value);
+    total += value;
+  }
+  return { total_cents: total, asset_level_override: false, per_round: perRound };
+}
+
+async function fetchRoundsAndValuations(
+  d: DB,
+  filter: { assetId?: string } = {},
+): Promise<{
+  rounds: RoundInput[];
+  valuations: ValuationInput[];
+}> {
+  const roundsSql = filter.assetId
+    ? sql`
+        SELECT i.id, i.asset_id, i.shares, i.price_per_share_cents AS pps_cents,
+          i.cost_basis_cents, i.entry_date
+        FROM investments i
+        WHERE i.asset_id = ${filter.assetId} AND i.archived_at IS NULL
+      `
+    : sql`
+        SELECT i.id, i.asset_id, i.shares, i.price_per_share_cents AS pps_cents,
+          i.cost_basis_cents, i.entry_date
+        FROM investments i
+        JOIN private_investments pi ON pi.id = i.asset_id
+        WHERE i.archived_at IS NULL AND pi.archived_at IS NULL
+      `;
+  const valsSql = filter.assetId
+    ? sql`
+        SELECT v.id, v.asset_id, v.investment_id, v.as_of, v.value_cents
+        FROM valuations v WHERE v.asset_id = ${filter.assetId}
+      `
+    : sql`
+        SELECT v.id, v.asset_id, v.investment_id, v.as_of, v.value_cents
+        FROM valuations v
+        JOIN private_investments pi ON pi.id = v.asset_id
+        WHERE pi.archived_at IS NULL
+      `;
+  const rRows = await rows<Record<string, unknown>>(
+    d,
+    roundsSql,
+    ['id', 'asset_id', 'shares', 'pps_cents', 'cost_basis_cents', 'entry_date'],
+  );
+  const vRows = await rows<Record<string, unknown>>(
+    d,
+    valsSql,
+    ['id', 'asset_id', 'investment_id', 'as_of', 'value_cents'],
+  );
+  return {
+    rounds: rRows.map((r) => ({
+      id: String(r.id),
+      asset_id: String(r.asset_id),
+      shares: r.shares == null ? null : num(r.shares),
+      pps_cents: r.pps_cents == null ? null : num(r.pps_cents),
+      cost_basis_cents: num(r.cost_basis_cents),
+      entry_date: num(r.entry_date),
+    })),
+    valuations: vRows.map((v) => ({
+      id: String(v.id),
+      asset_id: String(v.asset_id),
+      investment_id: v.investment_id == null ? null : String(v.investment_id),
+      as_of: num(v.as_of),
+      value_cents: num(v.value_cents),
+    })),
+  };
+}
+
+function groupByAsset<T extends { asset_id: string }>(xs: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const x of xs) {
+    const arr = m.get(x.asset_id);
+    if (arr) arr.push(x);
+    else m.set(x.asset_id, [x]);
+  }
+  return m;
+}
+
+// ====================================================================
+
 export async function netWorth(d: DB) {
   const [liqRow] = await rows<{ cents: number }>(
     d,
@@ -34,24 +198,20 @@ export async function netWorth(d: DB) {
   );
   const liquidCents = num(liqRow?.cents);
 
-  const [privRow] = await rows<{ cents: number }>(
-    d,
-    sql`
-      WITH ranked AS (
-        SELECT v.value_cents,
-          ROW_NUMBER() OVER (
-            PARTITION BY v.asset_id, COALESCE(v.investment_id, '__asset_level__')
-            ORDER BY v.as_of DESC
-          ) AS rn
-        FROM valuations v
-        JOIN private_investments pi ON pi.id = v.asset_id
-        WHERE pi.archived_at IS NULL
-      )
-      SELECT COALESCE(SUM(value_cents), 0) AS cents FROM ranked WHERE rn = 1
-    `,
-    ['cents'],
-  );
-  const privateCents = num(privRow?.cents);
+  const now = Math.floor(Date.now() / 1000);
+  const { rounds, valuations } = await fetchRoundsAndValuations(d);
+  const assetsWithRounds = groupByAsset(rounds);
+  const valsByAsset = groupByAsset(valuations);
+  const assetIds = new Set([...assetsWithRounds.keys(), ...valsByAsset.keys()]);
+  let privateCents = 0;
+  for (const assetId of assetIds) {
+    const { total_cents } = deriveAssetValue(
+      assetsWithRounds.get(assetId) ?? [],
+      valsByAsset.get(assetId) ?? [],
+      now,
+    );
+    privateCents += total_cents;
+  }
 
   const totalCents = liquidCents + privateCents;
   return {
@@ -106,27 +266,47 @@ type PrivateInvestmentRow = {
 };
 
 export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRow[]> {
-  return rows<PrivateInvestmentRow>(
+  const meta = await rows<{
+    id: string;
+    kind: string;
+    name: string;
+    notes: string | null;
+    owner: 'tyler' | 'julianne' | 'joint';
+    total_cost_basis_cents: number;
+    investment_count: number;
+  }>(
     d,
     sql`
-      WITH latest_per_leaf AS (
-        SELECT v.asset_id, v.value_cents,
-          ROW_NUMBER() OVER (
-            PARTITION BY v.asset_id, COALESCE(v.investment_id, '__asset_level__')
-            ORDER BY v.as_of DESC
-          ) AS rn
-        FROM valuations v
-      )
       SELECT pi.id, pi.kind, pi.name, pi.notes, pi.owner,
-        (SELECT COALESCE(SUM(value_cents), 0) FROM latest_per_leaf WHERE asset_id = pi.id AND rn = 1) AS current_value_cents,
         (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS total_cost_basis_cents,
         (SELECT COUNT(*) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS investment_count
       FROM private_investments pi
       WHERE pi.archived_at IS NULL
       ORDER BY pi.kind, pi.name
     `,
-    ['id', 'kind', 'name', 'notes', 'owner', 'current_value_cents', 'total_cost_basis_cents', 'investment_count'],
+    ['id', 'kind', 'name', 'notes', 'owner', 'total_cost_basis_cents', 'investment_count'],
   );
+  const now = Math.floor(Date.now() / 1000);
+  const { rounds, valuations } = await fetchRoundsAndValuations(d);
+  const roundsByAsset = groupByAsset(rounds);
+  const valsByAsset = groupByAsset(valuations);
+  return meta.map((row) => {
+    const { total_cents } = deriveAssetValue(
+      roundsByAsset.get(row.id) ?? [],
+      valsByAsset.get(row.id) ?? [],
+      now,
+    );
+    return {
+      id: row.id,
+      kind: row.kind,
+      name: row.name,
+      notes: row.notes,
+      owner: row.owner,
+      current_value_cents: total_cents,
+      total_cost_basis_cents: num(row.total_cost_basis_cents),
+      investment_count: num(row.investment_count),
+    };
+  });
 }
 
 export async function getPrivateInvestment(d: DB, assetId: string) {
@@ -137,25 +317,11 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
   );
   if (!asset) throw new Error(`Private investment not found: ${assetId}`);
 
-  // Latest-per-leaf summed — same semantic as listPrivateInvestments and netWorth.
-  // Partitions on investment_id with a sentinel so asset-level marks also count.
-  const [valRow] = await rows<{ cents: number }>(
-    d,
-    sql`
-      WITH latest_per_leaf AS (
-        SELECT v.value_cents,
-          ROW_NUMBER() OVER (
-            PARTITION BY COALESCE(v.investment_id, '__asset_level__')
-            ORDER BY v.as_of DESC
-          ) AS rn
-        FROM valuations v
-        WHERE v.asset_id = ${assetId}
-      )
-      SELECT COALESCE(SUM(value_cents), 0) AS cents FROM latest_per_leaf WHERE rn = 1
-    `,
-    ['cents'],
-  );
-  const currentValueCents = num(valRow?.cents);
+  const { rounds: derivRounds, valuations: derivVals } = await fetchRoundsAndValuations(d, {
+    assetId,
+  });
+  const now = Math.floor(Date.now() / 1000);
+  const derived = deriveAssetValue(derivRounds, derivVals, now);
 
   const [basisRow] = await rows<{ cents: number }>(
     d,
@@ -171,15 +337,22 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
     d,
     sql`
       SELECT i.id, i.asset_id, i.security_type, i.round_label, i.shares, i.price_per_share_cents,
-        i.cost_basis_cents, i.entry_date, i.created_at,
-        (SELECT value_cents FROM valuations WHERE investment_id = i.id ORDER BY as_of DESC LIMIT 1) AS latest_value_cents,
-        (SELECT as_of        FROM valuations WHERE investment_id = i.id ORDER BY as_of DESC LIMIT 1) AS latest_as_of
+        i.cost_basis_cents, i.entry_date, i.created_at
       FROM investments i
       WHERE i.asset_id = ${assetId} AND i.archived_at IS NULL
       ORDER BY i.entry_date DESC
     `,
-    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'price_per_share_cents', 'cost_basis_cents', 'entry_date', 'created_at', 'latest_value_cents', 'latest_as_of'],
+    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'price_per_share_cents', 'cost_basis_cents', 'entry_date', 'created_at'],
   );
+  // Annotate each round with its derived current value (null when the asset
+  // total comes from an asset-level override — the round doesn't have a
+  // meaningful per-round value in that regime).
+  const investments = invs.map((i) => ({
+    ...i,
+    derived_value_cents: derived.asset_level_override
+      ? null
+      : (derived.per_round.get(String(i.id)) ?? 0),
+  }));
 
   const vals = await rows<Record<string, unknown>>(
     d,
@@ -201,11 +374,12 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
 
   return {
     asset,
-    investments: invs,
+    investments,
     valuations: vals,
     fund_details: fd[0] ?? null,
-    current_value_cents: currentValueCents,
+    current_value_cents: derived.total_cents,
     cost_basis_cents: costBasisCents,
+    asset_level_override: derived.asset_level_override,
   };
 }
 
@@ -244,21 +418,10 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     `,
     ['account_id', 'balance_cents', 'is_liability', 'as_of'],
   );
-  const vals = await rows<{ asset_id: string; investment_id: string | null; value_cents: number; as_of: number }>(
-    d,
-    sql`
-      SELECT v.asset_id, v.investment_id, v.value_cents, v.as_of
-      FROM valuations v
-      JOIN private_investments pi ON pi.id = v.asset_id
-      WHERE pi.archived_at IS NULL
-      ORDER BY v.as_of ASC
-    `,
-    ['asset_id', 'investment_id', 'value_cents', 'as_of'],
-  );
+  const { rounds: allRounds, valuations: allVals } = await fetchRoundsAndValuations(d);
 
-  if (snaps.length === 0 && vals.length === 0) return [];
+  if (snaps.length === 0 && allRounds.length === 0 && allVals.length === 0) return [];
 
-  // Bucket per-day per-leaf: only the latest entry per (leaf, day) survives.
   const acctByDate = new Map<string, Map<string, { balance: number; liability: boolean }>>();
   for (const s of snaps) {
     const day = ptDateKey(num(s.as_of));
@@ -266,57 +429,60 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     if (!m) { m = new Map(); acctByDate.set(day, m); }
     m.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability) });
   }
-  const valByDate = new Map<string, Map<string, number>>();
-  for (const v of vals) {
-    const day = ptDateKey(num(v.as_of));
-    const leaf = `${v.asset_id}::${v.investment_id ?? '__asset__'}`;
-    let m = valByDate.get(day);
-    if (!m) { m = new Map(); valByDate.set(day, m); }
-    m.set(leaf, num(v.value_cents));
-  }
 
-  // Anchor to earliest *liquid* snapshot — private valuations carry historical
-  // entry_dates (years back), but those pre-snapshot days have liquid=0 and
-  // paint a misleading picture. Pre-warm private state with older valuations
-  // so the earliest rendered day still reflects them. Fall back to earliest
-  // valuation if there are no liquid snapshots at all.
+  const roundsByAsset = groupByAsset(allRounds);
+  const valsByAsset = groupByAsset(allVals);
+  const privateAssetIds = new Set([...roundsByAsset.keys(), ...valsByAsset.keys()]);
+
+  // End-of-day unix seconds for a YMD string — used as the `at_sec` for
+  // derivation so same-day events (round entry, override mark) count toward
+  // this day's total.
+  const endOfDaySec = (ymd: string): number => {
+    const [y, m, dd] = ymd.split('-').map(Number);
+    return Math.floor(Date.UTC(y, m - 1, dd + 1) / 1000) - 1;
+  };
+
+  // Pick the earliest liquid snapshot or earliest private event to anchor the
+  // series. Private events include round entry_dates and valuation as_ofs.
+  const privateEventDays: string[] = [];
+  for (const r of allRounds) privateEventDays.push(ptDateKey(r.entry_date));
+  for (const v of allVals) privateEventDays.push(ptDateKey(v.as_of));
+  const earliestPrivateDay = privateEventDays.length > 0
+    ? privateEventDays.reduce((a, b) => (a < b ? a : b))
+    : null;
+
   const start = snaps.length > 0
     ? ptDateKey(num(snaps[0].as_of))
-    : [...valByDate.keys()].sort()[0]!;
+    : earliestPrivateDay ?? ptDateKey(Math.floor(Date.now() / 1000));
   const today = ptDateKey(Math.floor(Date.now() / 1000));
 
   const acctState = new Map<string, { balance: number; liability: boolean }>();
-  const valState = new Map<string, number>();
-
-  // Pre-warm: apply any observations strictly before `start` so carry-forward
-  // state is correct on day 0. snaps/vals are already sorted ASC by as_of, so
-  // later observations correctly overwrite earlier ones in the Maps.
   for (const s of snaps) {
     if (ptDateKey(num(s.as_of)) < start) {
       acctState.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability) });
-    }
-  }
-  for (const v of vals) {
-    if (ptDateKey(num(v.as_of)) < start) {
-      const leaf = `${v.asset_id}::${v.investment_id ?? '__asset__'}`;
-      valState.set(leaf, num(v.value_cents));
     }
   }
 
   const series: NetWorthPoint[] = [];
 
   let day = start;
-  // Hard cap to defend against pathological data; ~3y of daily points is plenty.
   for (let i = 0; i < 1200 && day <= today; i++) {
     const au = acctByDate.get(day);
     if (au) for (const [k, v] of au) acctState.set(k, v);
-    const vu = valByDate.get(day);
-    if (vu) for (const [k, v] of vu) valState.set(k, v);
 
     let liquid = 0;
     for (const v of acctState.values()) liquid += v.liability ? -v.balance : v.balance;
+
+    const endSec = endOfDaySec(day);
     let priv = 0;
-    for (const v of valState.values()) priv += v;
+    for (const assetId of privateAssetIds) {
+      const { total_cents } = deriveAssetValue(
+        roundsByAsset.get(assetId) ?? [],
+        valsByAsset.get(assetId) ?? [],
+        endSec,
+      );
+      priv += total_cents;
+    }
 
     series.push({ date: day, liquid_cents: liquid, private_cents: priv, total_cents: liquid + priv });
     day = nextYmd(day);
@@ -346,32 +512,20 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
 
 export type AssetValuePoint = { as_of: number; date: string; value_cents: number };
 
-// One cumulative value per distinct as_of: replay valuations in order, keep the latest
-// per (asset-level vs investment_id) leaf, sum. Unlike netWorthSeries this doesn't
-// expand to daily points — the chart step-interpolates between events.
+// Emit a point at every event that can move the derived value: each round's
+// entry_date (new capital + mark-up of prior rounds from the new PPS) and
+// each manual valuation's as_of (override point). At each event we re-derive
+// the full asset value so the series reflects the current rule exactly.
 export async function privateInvestmentValueSeries(d: DB, assetId: string): Promise<AssetValuePoint[]> {
-  const events = await rows<{ investment_id: string | null; value_cents: number; as_of: number }>(
-    d,
-    sql`
-      SELECT v.investment_id, v.value_cents, v.as_of
-      FROM valuations v
-      WHERE v.asset_id = ${assetId}
-      ORDER BY v.as_of ASC, v.created_at ASC
-    `,
-    ['investment_id', 'value_cents', 'as_of'],
-  );
-  const byLeaf = new Map<string, number>();
-  const byAsOf = new Map<number, number>();
-  for (const e of events) {
-    const leaf = e.investment_id ?? '__asset__';
-    byLeaf.set(leaf, num(e.value_cents));
-    let total = 0;
-    for (const v of byLeaf.values()) total += v;
-    byAsOf.set(num(e.as_of), total);
-  }
-  return [...byAsOf.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([as_of, value_cents]) => ({ as_of, date: ptDateKey(as_of), value_cents }));
+  const { rounds, valuations } = await fetchRoundsAndValuations(d, { assetId });
+  const timestamps = new Set<number>();
+  for (const r of rounds) timestamps.add(r.entry_date);
+  for (const v of valuations) timestamps.add(v.as_of);
+  const sorted = [...timestamps].sort((a, b) => a - b);
+  return sorted.map((t) => {
+    const { total_cents } = deriveAssetValue(rounds, valuations, t);
+    return { as_of: t, date: ptDateKey(t), value_cents: total_cents };
+  });
 }
 
 export async function getAccount(d: DB, accountId: string) {

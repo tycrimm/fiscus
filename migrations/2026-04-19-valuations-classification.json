@@ -1,0 +1,266 @@
+[
+  {
+    "id": "201a65f5-7a3f-4c9d-a998-622b1f142569",
+    "asset_name": "Abacus Power",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "cf668354-7f7e-4fa7-8570-1afde1a72860",
+    "asset_name": "Advanced Spades",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "21a8669a-b944-4ff0-8e28-dbd1f7d7336e",
+    "asset_name": "Advanced Spades",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "e5ba724c-f7c2-4e0a-848c-2fd4c5395487",
+    "asset_name": "Aria Networks",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "d9a2fa39-a977-4278-8ade-257054e4c9fc",
+    "asset_name": "Aria Networks",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "ebaf5af7-6407-40a3-95d0-9d8fb8fad2f3",
+    "asset_name": "Aria Networks",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "5e366954-fe8c-46ba-b71e-8e2bf3340457",
+    "asset_name": "Attotude",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "e89f3f51-210b-4b98-b002-cddbfec235f0",
+    "asset_name": "Attotude",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "9c2d7036-00d8-4763-9400-5b33709bffdf",
+    "asset_name": "Attotude",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "758fb777-dd30-4ac4-b01e-926f1bebe3fa",
+    "asset_name": "Attotude",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "d040c2e9-bcac-464d-a6e4-19f361b18db5",
+    "asset_name": "Attotude",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "58a8457c-1890-4209-8552-37b70546e772",
+    "asset_name": "Attotude",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "103b26e4-9679-4949-9e95-cb18f5cb7cf2",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "2ba2731e-f96c-46e8-ba1d-878c6e7424bc",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "a73a1087-3d98-42cb-ad9c-ebf5fb0a6e18",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "d852a74e-c091-4269-9e70-78e2e449746f",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "88cc3ced-6823-499d-9e10-2795bb54141d",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "91b965cf-5c95-45d0-88e0-e00711ff0f2d",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "31156f7a-b262-45ac-a4cf-5d072a6a4bff",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "951acd0e-eafb-4674-80fe-163c7a6d061b",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "0482423a-ae24-4e78-8969-2c95ee325019",
+    "asset_name": "Celero Communications",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "0f16109b-7c42-4981-b509-66fe4cfec136",
+    "asset_name": "Dost EDA",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "e2fda680-5d43-418a-83a4-61f9b1ee2ec7",
+    "asset_name": "GridCare",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "6119b4b0-de57-48bb-b696-4d78605f50df",
+    "asset_name": "IO Products",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "077ca48c-3f02-4a0f-a196-2eb539028743",
+    "asset_name": "IO Products",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "ef015b93-55c0-4508-95dc-7ffedc041075",
+    "asset_name": "Integrated Biosciences",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "9edb9b23-4b20-46f4-bad1-42b0cad1ba0c",
+    "asset_name": "Kiln",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "f7e3b6f4-d652-4c17-b667-6088e0ddfd2e",
+    "asset_name": "Matic Robots",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "71502249-3949-4b96-9985-9d74d946a06b",
+    "asset_name": "OpenAI",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "b94f434e-8556-47ad-ab71-e91aa5b947c1",
+    "asset_name": "OpenAI",
+    "action": "KEEP",
+    "reason": "manual/meaningful basis"
+  },
+  {
+    "id": "9dea76a7-b143-44d2-87b0-f3f2b2c2873f",
+    "asset_name": "OpenAI",
+    "action": "KEEP",
+    "reason": "manual/meaningful basis"
+  },
+  {
+    "id": "717f36f5-5721-4e9b-9e9e-d19861dba31d",
+    "asset_name": "OpenAI",
+    "action": "KEEP",
+    "reason": "manual/meaningful basis"
+  },
+  {
+    "id": "ecc7db2f-6048-45a1-a5e8-e7dfa3495fe8",
+    "asset_name": "Paradigm Fund — GP stake",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "0568becb-4302-43c9-a26d-e7bb426f3e9e",
+    "asset_name": "Paradigm Fund — GP stake",
+    "action": "KEEP",
+    "reason": "manual/meaningful basis"
+  },
+  {
+    "id": "556aef31-3daf-4022-8e69-4b69c1fcfa60",
+    "asset_name": "Ramp",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "00196e2c-7f37-4a34-8756-726e945f3b78",
+    "asset_name": "Ramp",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "6c459e25-d8dd-45a2-a6dc-226ba1e2962b",
+    "asset_name": "Ramp",
+    "action": "DELETE",
+    "reason": "auto:last-round (derivable)"
+  },
+  {
+    "id": "c70fc17c-2e8b-4e42-b77e-a67345d2c3bd",
+    "asset_name": "Ridge Biosciences",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "30ed85da-c531-4145-8933-f2585b0a804b",
+    "asset_name": "Ridge Biosciences",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "baddf6fc-953f-4add-a2d3-114f70918804",
+    "asset_name": "Run",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "1c9ee2b8-5a83-4ff4-bdff-dd87e0a8ad18",
+    "asset_name": "Run",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "765a843c-10e8-485d-8760-c106c3edfcd4",
+    "asset_name": "Run",
+    "action": "KEEP",
+    "reason": "manual/meaningful basis"
+  },
+  {
+    "id": "1177a56c-d016-4e7c-8e3c-3a1544296ff9",
+    "asset_name": "Trebellar",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  },
+  {
+    "id": "6f1bb5b8-648b-4ae4-9bec-35fc61e59294",
+    "asset_name": "nEYE Systems",
+    "action": "DELETE",
+    "reason": "auto:entry (redundant with cost_basis)"
+  }
+]

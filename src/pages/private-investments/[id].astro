@@ -37,8 +37,7 @@ type Inv = {
   price_per_share_cents: number | null;
   cost_basis_cents: number;
   entry_date: number;
-  latest_value_cents: number | null;
-  latest_as_of: number | null;
+  derived_value_cents: number | null;
 };
 type Val = {
   id: string;
@@ -224,10 +223,10 @@ const debugPayload = {
           </thead>
           <tbody>
             {rounds.map((r) => {
-              const cur = r.latest_value_cents ?? 0;
-              const delta = cur - r.cost_basis_cents;
+              const cur = r.derived_value_cents;
+              const delta = cur == null ? 0 : cur - r.cost_basis_cents;
               const dpos = delta >= 0;
-              const moic = r.cost_basis_cents > 0 ? cur / r.cost_basis_cents : null;
+              const moic = cur != null && r.cost_basis_cents > 0 ? cur / r.cost_basis_cents : null;
               return (
                 <tr>
                   <td>{fmtDate(r.entry_date)}</td>
@@ -237,8 +236,8 @@ const debugPayload = {
                   <td class="num-col">{fmtPPS(r.price_per_share_cents)}</td>
                   <td class="num-col">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
                   <td class="num-col">
-                    {fmtUSD.format(cur / 100)}
-                    {delta !== 0 && (
+                    {cur == null ? '—' : fmtUSD.format(cur / 100)}
+                    {cur != null && delta !== 0 && (
                       <span class={`delta ${dpos ? 'pos' : 'neg'}`}>{signedUSD(delta)}</span>
                     )}
                   </td>
