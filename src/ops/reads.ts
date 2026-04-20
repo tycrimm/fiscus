@@ -269,6 +269,9 @@ type PrivateInvestmentRow = {
   name: string;
   notes: string | null;
   owner: 'tyler' | 'julianne' | 'joint';
+  stage: string | null;
+  bear_pct: number | null;
+  bull_pct: number | null;
   current_value_cents: number;
   total_cost_basis_cents: number;
   investment_count: number;
@@ -281,19 +284,22 @@ export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRo
     name: string;
     notes: string | null;
     owner: 'tyler' | 'julianne' | 'joint';
+    stage: string | null;
+    bear_pct: number | null;
+    bull_pct: number | null;
     total_cost_basis_cents: number;
     investment_count: number;
   }>(
     d,
     sql`
-      SELECT pi.id, pi.kind, pi.name, pi.notes, pi.owner,
+      SELECT pi.id, pi.kind, pi.name, pi.notes, pi.owner, pi.stage, pi.bear_pct, pi.bull_pct,
         (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS total_cost_basis_cents,
         (SELECT COUNT(*) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS investment_count
       FROM private_investments pi
       WHERE pi.archived_at IS NULL
       ORDER BY pi.kind, pi.name
     `,
-    ['id', 'kind', 'name', 'notes', 'owner', 'total_cost_basis_cents', 'investment_count'],
+    ['id', 'kind', 'name', 'notes', 'owner', 'stage', 'bear_pct', 'bull_pct', 'total_cost_basis_cents', 'investment_count'],
   );
   const now = Math.floor(Date.now() / 1000);
   const { rounds, valuations } = await fetchRoundsAndValuations(d);
@@ -311,6 +317,9 @@ export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRo
       name: row.name,
       notes: row.notes,
       owner: row.owner,
+      stage: row.stage == null ? null : String(row.stage),
+      bear_pct: row.bear_pct == null ? null : num(row.bear_pct),
+      bull_pct: row.bull_pct == null ? null : num(row.bull_pct),
       current_value_cents: total_cents,
       total_cost_basis_cents: num(row.total_cost_basis_cents),
       investment_count: num(row.investment_count),
@@ -321,8 +330,8 @@ export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRo
 export async function getPrivateInvestment(d: DB, assetId: string) {
   const [asset] = await rows<Record<string, unknown>>(
     d,
-    sql`SELECT id, kind, name, notes, owner, archived_at, created_at FROM private_investments WHERE id = ${assetId}`,
-    ['id', 'kind', 'name', 'notes', 'owner', 'archived_at', 'created_at'],
+    sql`SELECT id, kind, name, notes, owner, stage, bear_pct, bull_pct, archived_at, created_at FROM private_investments WHERE id = ${assetId}`,
+    ['id', 'kind', 'name', 'notes', 'owner', 'stage', 'bear_pct', 'bull_pct', 'archived_at', 'created_at'],
   );
   if (!asset) throw new Error(`Private investment not found: ${assetId}`);
 

@@ -60,6 +60,15 @@ export const privateInvestments = sqliteTable('private_investments', {
   owner: text('owner', {
     enum: ['tyler', 'julianne', 'joint'],
   }).notNull().default('joint'),
+  // Lifecycle bucket driving default bear/bull band. Nullable → falls back to
+  // kind-based bucket (fund→fund, private_company→growth, else→other).
+  stage: text('stage', {
+    enum: ['seed', 'early', 'growth', 'late', 'fund', 'other'],
+  }),
+  // Per-asset override multipliers on the stage default. Stored as decimal
+  // fractions (0.7 = 70%). Null → use the stage bucket's default.
+  bearPct: real('bear_pct'),
+  bullPct: real('bull_pct'),
   archivedAt: integer('archived_at'),
   createdAt: integer('created_at').notNull().$defaultFn(nowSec),
 });

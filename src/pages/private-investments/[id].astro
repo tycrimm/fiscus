@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { getPrivateInvestment, privateInvestmentValueSeries } from '../../ops/reads';
 import { fmtUSD, fmtDate, prettyKind, pluralize } from '../../lib/format';
 import { irr, type Cashflow } from '../../lib/irr';
+import { bandFor, effectiveStage, applyBand, STAGE_LABEL, type Stage } from '../../lib/scenarios';
 import Shell from '../../layouts/Shell.astro';
 import PrivateInvestmentChart from '../../components/PrivateInvestmentChart.astro';
 
@@ -27,6 +28,9 @@ const asset = detail.asset as {
   name: string;
   notes: string | null;
   owner: 'tyler' | 'julianne' | 'joint';
+  stage: Stage | null;
+  bear_pct: number | null;
+  bull_pct: number | null;
 };
 
 type Inv = {
@@ -100,6 +104,27 @@ const irrPos = (irrPct ?? 0) >= 0;
 const heldLabel = heldDays >= 365
   ? `${(heldDays / 365).toFixed(1)}y held`
   : `${heldDays}d held`;
+
+// Scenario band — bear/bull around the expected current value, driven by
+// stage (or kind fallback) with per-asset overrides when set.
+const stageKey = effectiveStage({
+  kind: asset.kind,
+  stage: asset.stage,
+  bear_pct: asset.bear_pct,
+  bull_pct: asset.bull_pct,
+});
+const band = bandFor({
+  kind: asset.kind,
+  stage: asset.stage,
+  bear_pct: asset.bear_pct,
+  bull_pct: asset.bull_pct,
+});
+const { bear_cents: bearCents, bull_cents: bullCents } = applyBand(currentValueCents, band);
+const bearLabel = `${(band.bear_mult * 100).toFixed(0)}%`;
+const bullLabel = band.bull_mult >= 2
+  ? `${band.bull_mult.toFixed(1)}×`
+  : `${(band.bull_mult * 100).toFixed(0)}%`;
+const stageOverridden = asset.bear_pct != null || asset.bull_pct != null;
 
 // Cumulative asset total at each distinct as_of for per-mark deltas.
 const cumulativeByAsOf = new Map<number, number>();
@@ -209,6 +234,27 @@ const debugPayload = {
     </section>
 
     <PrivateInvestmentChart series={series} />
+
+    <section class="block">
+      <h2>
+        Scenario range
+        <span class="stage-badge">{STAGE_LABEL[stageKey]}{stageOverridden && ' · override'}</span>
+      </h2>
+      <div class="band">
+        <div class="band-col">
+          <div class="band-label">bear <span class="mult">{bearLabel}</span></div>
+          <div class="band-val num muted">{fmtUSD.format(bearCents / 100)}</div>
+        </div>
+        <div class="band-col">
+          <div class="band-label">expected</div>
+          <div class="band-val num">{fmtUSD.format(currentValueCents / 100)}</div>
+        </div>
+        <div class="band-col">
+          <div class="band-label">bull <span class="mult">{bullLabel}</span></div>
+          <div class="band-val num muted">{fmtUSD.format(bullCents / 100)}</div>
+        </div>
+      </div>
+    </section>
 
     {fund && (
       <section class="block">
@@ -436,7 +482,50 @@ const debugPayload = {
     letter-spacing: 0.12em;
     font-weight: 500;
     margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
   }
+  .stage-badge {
+    font-size: var(--size-xs);
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  .band {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-6);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .band-col { display: grid; gap: var(--space-1); }
+  .band-col:nth-child(2) { text-align: center; }
+  .band-col:nth-child(3) { text-align: right; }
+  .band-label {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    display: flex;
+    gap: var(--space-1);
+    align-items: baseline;
+  }
+  .band-col:nth-child(2) .band-label { justify-content: center; }
+  .band-col:nth-child(3) .band-label { justify-content: flex-end; }
+  .band-label .mult {
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+  .band-val {
+    font-size: var(--size-lg);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .band-val.muted { color: var(--fg-muted); font-weight: 400; }
 
   .ledger-table {
     width: 100%;

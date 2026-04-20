@@ -4,6 +4,7 @@ import { db } from '../db';
 import { netWorth, netWorthSeries, listAccounts, listPrivateInvestments } from '../ops/reads';
 import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
 import { computeDeltas, computeAllocation, topConcentration } from '../lib/metrics';
+import { bandForValue, type Stage } from '../lib/scenarios';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
@@ -76,6 +77,25 @@ const deltas = computeDeltas(series);
 const { categories: allocCategories, totalCents: grossAssetsCents } = computeAllocation(accounts, privateInv);
 const topPositions = topConcentration(accounts, privateInv, grossAssetsCents);
 
+// Aggregate scenario band across private investments. Liquid balances have
+// no uncertainty, so total range = liquid + (bear/bull sum of privates).
+let privateBearCents = 0;
+let privateBullCents = 0;
+for (const pi of privateInv) {
+  const { bear_cents, bull_cents } = bandForValue(pi.current_value_cents, {
+    kind: pi.kind,
+    stage: pi.stage as Stage | null,
+    bear_pct: pi.bear_pct,
+    bull_pct: pi.bull_pct,
+  });
+  privateBearCents += bear_cents;
+  privateBullCents += bull_cents;
+}
+const liquidCents = Math.round(nw.liquid_usd * 100);
+const nwBearCents = liquidCents + privateBearCents;
+const nwBullCents = liquidCents + privateBullCents;
+const hasRange = privateInv.length > 0 && nwBullCents > nwBearCents;
+
 const deltaRows: Array<{ label: string; d: { cents: number; pct: number } | null }> = [
   { label: '1d',  d: deltas.d1  },
   { label: '1w',  d: deltas.w1  },
@@ -96,10 +116,21 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
       <aside class="rail">
         <div class="rail-label">net worth</div>
         <div class="rail-value num">{fmtUSD.format(nw.total_usd)}</div>
+        {hasRange && (
+          <div class="rail-range num">
+            {fmtUSD.format(nwBearCents / 100)} — {fmtUSD.format(nwBullCents / 100)}
+          </div>
+        )}
 
         <div class="rail-breakdown">
           <div class="bd-row"><span class="cat">liquid</span><span class="val num">{fmtUSD.format(nw.liquid_usd)}</span></div>
           <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
+          {hasRange && (
+            <div class="bd-row bd-subrow">
+              <span class="cat">· range</span>
+              <span class="val num muted">{fmtUSD.format(privateBearCents / 100)} — {fmtUSD.format(privateBullCents / 100)}</span>
+            </div>
+          )}
         </div>
 
         <div class="rail-label">change</div>
@@ -220,7 +251,17 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
     line-height: 1.05;
     margin-top: calc(-1 * var(--space-2));
   }
+  .rail-range {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    margin-top: calc(-1 * var(--space-2));
+  }
   .rail-breakdown { display: grid; gap: 0; }
+  .bd-subrow { border-bottom: 1px solid var(--rule); padding: var(--space-1) 0 var(--space-2); }
+  .bd-subrow .cat { font-style: italic; opacity: 0.8; }
+  .bd-subrow .val.muted { color: var(--fg-muted); font-size: var(--size-xs); }
   .bd-row {
     display: grid;
     grid-template-columns: 1fr auto;

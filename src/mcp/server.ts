@@ -129,7 +129,7 @@ server.registerTool(
   'add_private_investment',
   {
     description:
-      'Create a private investment (private company, fund, loan receivable, 529 plan, gift earmark, or other). Returns the new asset id.',
+      'Create a private investment (private company, fund, loan receivable, 529 plan, gift earmark, or other). Returns the new asset id. Stage (seed/early/growth/late/fund/other) drives the default bear/bull band on the dashboard — set it if known. bearPct/bullPct override the stage default when you have specific conviction (e.g. 0.8 / 1.4 for a tight-band late-stage name).',
     inputSchema: {
       kind: z.enum([
         'private_company',
@@ -142,9 +142,38 @@ server.registerTool(
       name: z.string().min(1).max(200),
       notes: z.string().max(2000).optional(),
       owner: z.enum(['tyler', 'julianne', 'joint']).default('joint'),
+      stage: z.enum(['seed', 'early', 'growth', 'late', 'fund', 'other']).optional(),
+      bearPct: z.number().finite().min(0).max(1).optional().describe('0.7 = bear case is 70% of expected'),
+      bullPct: z.number().finite().min(1).max(20).optional().describe('1.5 = bull case is 150% of expected'),
     },
   },
   async (input) => json(await privateInv.addPrivateInvestment(db, input)),
+);
+
+server.registerTool(
+  'update_private_investment',
+  {
+    description:
+      'Update fields on an existing private investment. Pass only the fields you want to change. Most common use: set `stage` to drive scenario bands (seed → ±wide, late → ±tight), or set per-asset `bearPct`/`bullPct` to override the stage default. Pass `stage: null` to clear stage and fall back to kind-based defaults.',
+    inputSchema: {
+      id: z.string().uuid(),
+      name: z.string().min(1).max(200).optional(),
+      notes: z.string().max(2000).nullable().optional(),
+      owner: z.enum(['tyler', 'julianne', 'joint']).optional(),
+      kind: z.enum([
+        'private_company',
+        'fund',
+        'loan_receivable',
+        'gift_earmark',
+        'education_529',
+        'other',
+      ]).optional(),
+      stage: z.enum(['seed', 'early', 'growth', 'late', 'fund', 'other']).nullable().optional(),
+      bearPct: z.number().finite().min(0).max(1).nullable().optional(),
+      bullPct: z.number().finite().min(1).max(20).nullable().optional(),
+    },
+  },
+  async ({ id, ...patch }) => json(await privateInv.updatePrivateInvestment(db, id, patch)),
 );
 
 server.registerTool(

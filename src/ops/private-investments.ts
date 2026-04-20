@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db';
 import { privateInvestments, investments, valuations, fundDetails } from '../db/schema';
+import type { Stage } from '../lib/scenarios';
 
 export type PrivateInvestmentKind =
   | 'private_company'
@@ -21,7 +22,15 @@ const toUnix = (v: number | string): number => {
 
 export async function addPrivateInvestment(
   d: DB,
-  input: { kind: PrivateInvestmentKind; name: string; notes?: string; owner?: 'tyler' | 'julianne' | 'joint' },
+  input: {
+    kind: PrivateInvestmentKind;
+    name: string;
+    notes?: string;
+    owner?: 'tyler' | 'julianne' | 'joint';
+    stage?: Stage;
+    bearPct?: number;
+    bullPct?: number;
+  },
 ) {
   const [row] = await d
     .insert(privateInvestments)
@@ -30,9 +39,39 @@ export async function addPrivateInvestment(
       name: input.name.trim(),
       notes: input.notes ?? null,
       owner: input.owner ?? 'joint',
+      stage: input.stage ?? null,
+      bearPct: input.bearPct ?? null,
+      bullPct: input.bullPct ?? null,
     })
     .returning();
   if (!row) throw new Error('Private investment insert failed');
+  return row;
+}
+
+export async function updatePrivateInvestment(
+  d: DB,
+  id: string,
+  patch: {
+    name?: string;
+    notes?: string | null;
+    owner?: 'tyler' | 'julianne' | 'joint';
+    kind?: PrivateInvestmentKind;
+    stage?: Stage | null;
+    bearPct?: number | null;
+    bullPct?: number | null;
+  },
+) {
+  const set: Record<string, unknown> = {};
+  if (patch.name != null) set.name = patch.name.trim();
+  if ('notes' in patch) set.notes = patch.notes;
+  if (patch.owner != null) set.owner = patch.owner;
+  if (patch.kind != null) set.kind = patch.kind;
+  if ('stage' in patch) set.stage = patch.stage;
+  if ('bearPct' in patch) set.bearPct = patch.bearPct;
+  if ('bullPct' in patch) set.bullPct = patch.bullPct;
+  if (Object.keys(set).length === 0) throw new Error('updatePrivateInvestment: no fields to update');
+  const [row] = await d.update(privateInvestments).set(set).where(eq(privateInvestments.id, id)).returning();
+  if (!row) throw new Error(`Private investment not found: ${id}`);
   return row;
 }
 

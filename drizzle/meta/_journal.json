@@ -50,6 +50,13 @@
       "when": 1776632520564,
       "tag": "0006_wonderful_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1776705623100,
+      "tag": "0007_sparkling_abomination",
+      "breakpoints": true
     }
   ]
 }
