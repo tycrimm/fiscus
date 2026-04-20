@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { db } from '../../db';
 import { getPrivateInvestment, privateInvestmentValueSeries } from '../../ops/reads';
 import { fmtUSD, fmtDate, prettyKind, pluralize } from '../../lib/format';
+import { irr, type Cashflow } from '../../lib/irr';
 import Shell from '../../layouts/Shell.astro';
 import PrivateInvestmentChart from '../../components/PrivateInvestmentChart.astro';
 
@@ -72,6 +73,27 @@ const gainCents = currentValueCents - costBasisCents;
 const gainPct = costBasisCents > 0 ? gainCents / costBasisCents : 0;
 const gainPos = gainCents >= 0;
 
+// IRR: dated negative cashflows per round (skipping zero-basis rounds, e.g.
+// equity grants), terminal positive at today using the latest mark. Anchoring
+// the terminal at today — not the mark date — lets the rate decay naturally
+// while a mark goes stale. Suppressed for funds (we only have aggregate
+// called/distributed without dates) and for holdings under 90 days.
+const nowSec = Math.floor(Date.now() / 1000);
+const MIN_HOLD_DAYS = 90;
+const contribFlows: Cashflow[] = fund
+  ? []
+  : investments
+      .filter((r) => r.cost_basis_cents > 0)
+      .map((r) => ({ t_sec: r.entry_date, amount_cents: -r.cost_basis_cents }));
+const earliestContribSec = contribFlows.length > 0
+  ? Math.min(...contribFlows.map((c) => c.t_sec))
+  : null;
+const heldDays = earliestContribSec != null ? (nowSec - earliestContribSec) / 86400 : 0;
+const irrPct = contribFlows.length > 0 && currentValueCents > 0 && heldDays >= MIN_HOLD_DAYS
+  ? irr([...contribFlows, { t_sec: nowSec, amount_cents: currentValueCents }])
+  : null;
+const irrPos = (irrPct ?? 0) >= 0;
+
 // Cumulative asset total at each distinct as_of for per-mark deltas.
 const cumulativeByAsOf = new Map<number, number>();
 for (const p of series) cumulativeByAsOf.set(p.as_of, p.value_cents);
@@ -123,6 +145,14 @@ const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 1
           {signedUSD(gainCents)}
           <span class="gain-pct">{signedPct(gainPct)}</span>
         </div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">IRR</div>
+        {irrPct != null ? (
+          <div class={`stat-val num ${irrPos ? 'pos' : 'neg'}`}>{signedPct(irrPct)}</div>
+        ) : (
+          <div class="stat-val num muted">—</div>
+        )}
       </div>
     </section>
 
@@ -293,7 +323,7 @@ const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 1
 
   .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--space-4);
     padding: var(--space-4) 0;
     border-top: 1px solid var(--rule);
