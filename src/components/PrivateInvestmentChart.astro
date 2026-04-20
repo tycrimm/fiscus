@@ -110,6 +110,7 @@ const hoverPoints = series.map((p) => ({
         <span class="num pct">({changePos ? '+' : '−'}{(Math.abs(changePct) * 100).toFixed(1)}%)</span>
       </div>
     )}
+    <div class="pi-readout" aria-live="polite"></div>
   </header>
   {series.length === 0 ? (
     <p class="pi-empty">NO VALUATIONS YET.</p>
@@ -135,7 +136,6 @@ const hoverPoints = series.map((p) => ({
           <circle class="pi-dot" r="3.5" />
         </g>
       </svg>
-      <div class="pi-readout" aria-live="polite"></div>
       <div class="pi-axis">
         {ticks.map((t) => (
           <span class="tick" style={`left: ${(t.x / W) * 100}%`}>{t.label}</span>
@@ -169,7 +169,8 @@ const hoverPoints = series.map((p) => ({
     const hoverG = wrap.querySelector<SVGGElement>('.pi-hover')!;
     const cross = hoverG.querySelector<SVGLineElement>('.pi-cross')!;
     const dot = hoverG.querySelector<SVGCircleElement>('.pi-dot')!;
-    const readout = wrap.querySelector<HTMLElement>('.pi-readout')!;
+    const head = wrap.parentElement!.querySelector<HTMLElement>('.pi-head')!;
+    const readout = head.querySelector<HTMLElement>('.pi-readout')!;
 
     const onMove = (e: PointerEvent) => {
       const rect = svg.getBoundingClientRect();
@@ -188,11 +189,11 @@ const hoverPoints = series.map((p) => ({
       hoverG.style.display = '';
       const suffix = best.eventKind === 'round' ? 'round' : 'mark';
       readout.textContent = `${best.eventLabel} ${suffix} · ${fmtDate(best.date)} · ${fmtUSD.format(best.value / 100)}`;
-      readout.classList.add('visible');
+      head.classList.add('hovering');
     };
     const onLeave = () => {
       hoverG.style.display = 'none';
-      readout.classList.remove('visible');
+      head.classList.remove('hovering');
     };
     wrap.addEventListener('pointermove', onMove);
     wrap.addEventListener('pointerleave', onLeave);
@@ -202,6 +203,7 @@ const hoverPoints = series.map((p) => ({
 <style>
   .pi-chart { display: grid; gap: var(--space-2); }
   .pi-head {
+    position: relative;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -212,6 +214,7 @@ const hoverPoints = series.map((p) => ({
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--fg-muted);
+    transition: opacity 80ms linear;
   }
   .pi-delta {
     display: inline-flex;
@@ -219,10 +222,13 @@ const hoverPoints = series.map((p) => ({
     align-items: baseline;
     font-size: var(--size-sm);
     font-variant-numeric: tabular-nums;
+    transition: opacity 80ms linear;
   }
   .pi-delta .pct { color: var(--fg-muted); font-size: var(--size-xs); }
   .pi-delta.pos { color: var(--pos); }
   .pi-delta.neg { color: var(--neg); }
+  .pi-head.hovering .pi-label,
+  .pi-head.hovering .pi-delta { opacity: 0; }
 
   .pi-wrap {
     position: relative;
@@ -251,19 +257,19 @@ const hoverPoints = series.map((p) => ({
   }
   .pi-readout {
     position: absolute;
-    top: -1.6em;
-    right: 0;
-    font-size: var(--size-xs);
+    inset: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    font-size: var(--size-sm);
     font-variant-numeric: tabular-nums;
     color: var(--fg);
-    background: var(--bg);
-    padding: 2px 6px;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 80ms linear;
     pointer-events: none;
   }
-  .pi-readout.visible { opacity: 1; }
+  .pi-head.hovering .pi-readout { opacity: 1; }
 
   .pi-axis {
     position: relative;

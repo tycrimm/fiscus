@@ -89,6 +89,7 @@ const hoverPoints = series.map((p, i) => ({
         <span class="num pct">({changePos ? '+' : '−'}{(Math.abs(changePct) * 100).toFixed(2)}%)</span>
       </div>
     )}
+    <div class="nw-readout" aria-live="polite"></div>
   </header>
 
   {series.length === 0 ? (
@@ -110,7 +111,6 @@ const hoverPoints = series.map((p, i) => ({
           <circle class="nw-dot" r="3" />
         </g>
       </svg>
-      <div class="nw-readout" aria-live="polite"></div>
       <div class="nw-axis">
         {ticks.map((t) => (
           <span class="tick" style={`left: ${(xAt(t.i) / W) * 100}%`}>{t.label}</span>
@@ -140,7 +140,8 @@ const hoverPoints = series.map((p, i) => ({
     const hoverG = wrap.querySelector<SVGGElement>('.nw-hover')!;
     const cross = hoverG.querySelector<SVGLineElement>('.nw-cross')!;
     const dot = hoverG.querySelector<SVGCircleElement>('.nw-dot')!;
-    const readout = wrap.querySelector<HTMLElement>('.nw-readout')!;
+    const head = wrap.parentElement!.querySelector<HTMLElement>('.nw-head')!;
+    const readout = head.querySelector<HTMLElement>('.nw-readout')!;
 
     const onMove = (e: PointerEvent) => {
       const rect = svg.getBoundingClientRect();
@@ -158,11 +159,11 @@ const hoverPoints = series.map((p, i) => ({
       dot.setAttribute('cy', String(best.y));
       hoverG.style.display = '';
       readout.textContent = `${fmtDate(best.date)} · ${fmtUSD.format(best.total / 100)}${best.synthetic ? ' · baseline' : ''}`;
-      readout.classList.add('visible');
+      head.classList.add('hovering');
     };
     const onLeave = () => {
       hoverG.style.display = 'none';
-      readout.classList.remove('visible');
+      head.classList.remove('hovering');
     };
     wrap.addEventListener('pointermove', onMove);
     wrap.addEventListener('pointerleave', onLeave);
@@ -176,6 +177,7 @@ const hoverPoints = series.map((p, i) => ({
     padding-bottom: var(--space-6);
   }
   .nw-head {
+    position: relative;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -187,6 +189,7 @@ const hoverPoints = series.map((p, i) => ({
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--fg-muted);
+    transition: opacity 80ms linear;
   }
   .nw-delta {
     display: inline-flex;
@@ -194,10 +197,13 @@ const hoverPoints = series.map((p, i) => ({
     align-items: baseline;
     font-size: var(--size-sm);
     font-variant-numeric: tabular-nums;
+    transition: opacity 80ms linear;
   }
   .nw-delta .pct { color: var(--fg-muted); font-size: var(--size-xs); }
   .nw-delta.pos { color: var(--pos); }
   .nw-delta.neg { color: var(--neg); }
+  .nw-head.hovering .nw-label,
+  .nw-head.hovering .nw-delta { opacity: 0; }
 
   .nw-wrap {
     position: relative;
@@ -229,19 +235,19 @@ const hoverPoints = series.map((p, i) => ({
   }
   .nw-readout {
     position: absolute;
-    top: 0;
-    right: 0;
-    font-size: var(--size-xs);
+    inset: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    font-size: var(--size-sm);
     font-variant-numeric: tabular-nums;
     color: var(--fg);
-    background: var(--bg);
-    padding: 2px 6px;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 80ms linear;
     pointer-events: none;
   }
-  .nw-readout.visible { opacity: 1; }
+  .nw-head.hovering .nw-readout { opacity: 1; }
   .nw-axis {
     position: relative;
     height: 1em;
