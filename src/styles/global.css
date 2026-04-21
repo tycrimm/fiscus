@@ -26,6 +26,11 @@
   --space-8: 2rem;
   --space-12: 3rem;
   --space-16: 4rem;
+
+  /* Total y-offset any secondary sticky element (page rails) needs to clear
+     the top-level app header. Header = space-6 padding-top + ~1.3rem line +
+     space-3 padding-bottom + 1px border ≈ 3.1rem; plus a small visual gap. */
+  --header-offset: 3.5rem;
 }
 
 *,
