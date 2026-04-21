@@ -58,7 +58,9 @@ function rollupByInstitution(rows: typeof accounts): InstGroup[] {
 const cashInsts   = rollupByInstitution(cash);
 const investInsts = rollupByInstitution(invest);
 const otherInsts  = rollupByInstitution(other);
-const liabInsts   = rollupByInstitution(liab);
+// Liabilities render as per-account rows (one link per card/loan) so each
+// maps 1:1 to a detail page. Sorted by size so the biggest debt lands on top.
+const liabRows = [...liab].sort((a, b) => (b.latest_cents ?? 0) - (a.latest_cents ?? 0));
 
 const sumAccts = (rows: typeof accounts) => rows.reduce((acc, r) => acc + (r.latest_cents ?? 0), 0);
 const cashTotal = sumAccts(cash);
@@ -175,15 +177,22 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
           </LedgerSection>
         )}
 
-        {liabInsts.length > 0 && (
+        {liabRows.length > 0 && (
           <LedgerSection
             title="Liabilities"
             count={pluralize(liab.length, 'account')}
             subtotal={fmtUSDsigned(-liabTotal)}
             negSubtotal
           >
-            {liabInsts.map((inst) => (
-              <LedgerInstitution institution={inst.institution} totalCents={inst.totalCents} kinds={inst.kinds} negative />
+            {liabRows.map((a) => (
+              <LedgerRow
+                name={a.name}
+                sub={`${a.institution} · ${prettyKind(a.kind)}${a.note ? ` · ${a.note}` : ''}`}
+                owner={a.owner}
+                amount={fmtUSD.format((a.latest_cents ?? 0) / 100)}
+                negAmount
+                href={`/accounts/${a.id}`}
+              />
             ))}
           </LedgerSection>
         )}

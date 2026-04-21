@@ -1,0 +1,376 @@
+---
+import { env } from 'cloudflare:workers';
+import { db } from '../../db';
+import { getAccount } from '../../ops/reads';
+import { fmtUSD, fmtDate, prettyKind, pluralize } from '../../lib/format';
+import Shell from '../../layouts/Shell.astro';
+import AccountBalanceChart, { type BalancePoint } from '../../components/AccountBalanceChart.astro';
+
+const { id } = Astro.params;
+if (!id) return new Response('Not found', { status: 404 });
+
+const d = db(env.DB);
+
+let detail: Awaited<ReturnType<typeof getAccount>>;
+try {
+  detail = await getAccount(d, id);
+} catch {
+  return new Response('Not found', { status: 404 });
+}
+
+const account = detail.account as {
+  id: string;
+  institution: string;
+  name: string;
+  kind: string;
+  currency: string;
+  is_liability: number;
+  source: string;
+  owner: 'tyler' | 'julianne' | 'joint';
+  note: string | null;
+  plaid_account_id: string | null;
+  created_at: number;
+  archived_at: number | null;
+};
+
+type Snap = {
+  id: string;
+  balance_cents: number;
+  currency: string;
+  as_of: number;
+  source: string;
+  created_at: number;
+};
+
+// getAccount returns snapshots DESC; chart wants ASC. Keep both orientations:
+// asc for the chart + delta math, desc for the table (newest on top reads like
+// an activity feed — "$400 added yesterday").
+const snapshotsDesc = detail.snapshots as unknown as Snap[];
+const snapshotsAsc = [...snapshotsDesc].sort((a, b) => a.as_of - b.as_of);
+
+const isLiability = !!account.is_liability;
+const currentCents = snapshotsAsc.length > 0 ? snapshotsAsc[snapshotsAsc.length - 1].balance_cents : 0;
+const latestAsOf = snapshotsAsc.length > 0 ? snapshotsAsc[snapshotsAsc.length - 1].as_of : null;
+
+// All-time change: signed from the first snapshot. For liabilities, flip so
+// "paid down" reads as positive (green) — net-worth framing.
+const earliestCents = snapshotsAsc.length > 0 ? snapshotsAsc[0].balance_cents : 0;
+const rawChange = currentCents - earliestCents;
+const netWorthChange = isLiability ? -rawChange : rawChange;
+const changePct = earliestCents !== 0 ? rawChange / earliestCents : 0;
+const netWorthChangePct = isLiability ? -changePct : changePct;
+const changePos = netWorthChange >= 0;
+
+const chartSeries: BalancePoint[] = snapshotsAsc.map((s) => ({
+  as_of: s.as_of,
+  balance_cents: s.balance_cents,
+  source: s.source,
+}));
+
+const signedUSD = (cents: number) => (cents >= 0 ? '+' : '−') + fmtUSD.format(Math.abs(cents) / 100);
+const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 100).toFixed(1) + '%';
+
+// Per-row delta = this snapshot vs the previous (older) one. On a credit card,
+// a positive delta = new charges; on checking, a positive delta = deposit. The
+// color flips on liabilities so "more debt" reads red even though the raw
+// balance went up.
+const prevByAsOf = new Map<number, number>();
+for (let i = 1; i < snapshotsAsc.length; i++) {
+  prevByAsOf.set(snapshotsAsc[i].as_of, snapshotsAsc[i - 1].balance_cents);
+}
+
+const debugPayload = {
+  generated_at: new Date().toISOString(),
+  account,
+  snapshots: snapshotsDesc,
+  totals: {
+    current_cents: currentCents,
+    earliest_cents: earliestCents,
+    raw_change_cents: rawChange,
+    net_worth_change_cents: netWorthChange,
+  },
+};
+---
+<Shell title={account.name}>
+  <div class="detail">
+    <header class="detail-head">
+      <div class="head-top">
+        <a href="/" class="back">← back</a>
+      </div>
+      <h1>{account.name}</h1>
+      <div class="meta">
+        <span class="inst">{account.institution}</span>
+        <span class="dot">·</span>
+        <span class="kind">{prettyKind(account.kind)}</span>
+        {isLiability && <><span class="dot">·</span><span class="liab">liability</span></>}
+        <span class="dot">·</span>
+        <span class={`owner ${account.owner}`}>{account.owner}</span>
+      </div>
+      {account.note && <p class="notes">{account.note}</p>}
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-label">{isLiability ? 'amount owed' : 'balance'}</div>
+        <div class={`stat-val num ${isLiability ? 'neg' : ''}`}>
+          {fmtUSD.format(currentCents / 100)}
+        </div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">as of</div>
+        <div class="stat-val num muted">{latestAsOf != null ? fmtDate(latestAsOf) : '—'}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">change (all-time)</div>
+        {snapshotsAsc.length > 1 ? (
+          <div class={`stat-val num ${changePos ? 'pos' : 'neg'}`}>
+            {signedUSD(netWorthChange)}
+            <span class="gain-pct">{signedPct(netWorthChangePct)}</span>
+          </div>
+        ) : (
+          <div class="stat-val num muted">—</div>
+        )}
+      </div>
+      <div class="stat">
+        <div class="stat-label">snapshots</div>
+        <div class="stat-val num muted">{pluralize(snapshotsAsc.length, 'point')}</div>
+      </div>
+    </section>
+
+    <div class="chart-col">
+      <AccountBalanceChart series={chartSeries} isLiability={isLiability} />
+    </div>
+
+    {snapshotsDesc.length > 0 && (
+      <section class="block">
+        <h2>Snapshots</h2>
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Source</th>
+              <th class="num-col">{isLiability ? 'Balance owed' : 'Balance'}</th>
+              <th class="num-col delta-col">Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshotsDesc.map((s) => {
+              const prev = prevByAsOf.get(s.as_of);
+              const hasDelta = prev != null;
+              const rawDelta = hasDelta ? s.balance_cents - (prev as number) : 0;
+              // Flip sign so green/red align with net-worth impact on liabilities.
+              const nwDelta = isLiability ? -rawDelta : rawDelta;
+              const dpos = nwDelta >= 0;
+              const deltaPct = hasDelta && (prev as number) !== 0 ? rawDelta / (prev as number) : 0;
+              const nwPct = isLiability ? -deltaPct : deltaPct;
+              return (
+                <tr>
+                  <td>{fmtDate(s.as_of)}</td>
+                  <td class="src-cell">{s.source}</td>
+                  <td class="num-col">{fmtUSD.format(s.balance_cents / 100)}</td>
+                  <td class="num-col delta-col">
+                    {hasDelta && rawDelta !== 0 ? (
+                      <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
+                        <div>{signedUSD(rawDelta)}</div>
+                        <div class="delta-pct">{signedPct(nwPct)}</div>
+                      </div>
+                    ) : (
+                      <span class="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    <footer class="detail-foot">
+      <button
+        id="debug-copy"
+        type="button"
+        class="debug-btn"
+        data-payload={JSON.stringify(debugPayload)}
+      >copy debug</button>
+    </footer>
+  </div>
+
+  <script>
+    const btn = document.getElementById('debug-copy');
+    if (btn instanceof HTMLButtonElement) {
+      btn.addEventListener('click', async () => {
+        const payload = btn.dataset.payload ?? '';
+        const original = btn.textContent ?? 'copy debug';
+        try {
+          await navigator.clipboard.writeText(payload);
+          btn.textContent = 'copied';
+        } catch {
+          btn.textContent = 'failed';
+        }
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      });
+    }
+  </script>
+</Shell>
+
+<style>
+  .detail {
+    display: grid;
+    gap: var(--space-6);
+  }
+  .detail-head { display: grid; gap: var(--space-2); }
+  .head-top { display: flex; }
+  .back {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+  .back:hover { color: var(--fg); }
+  h1 {
+    font-size: var(--size-2xl);
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    margin: 0;
+    text-transform: none;
+  }
+  .meta {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .meta .dot { opacity: 0.55; }
+  .meta .inst { color: var(--fg); }
+  .meta .liab { color: var(--neg); }
+  .meta .owner { color: var(--fg); font-weight: 500; }
+  .meta .owner.joint { color: var(--fg-muted); font-weight: 400; }
+  .notes {
+    font-size: var(--size-sm);
+    color: var(--fg-muted);
+    margin: var(--space-2) 0 0;
+    max-width: 48rem;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .stat-label {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-1);
+  }
+  .stat-val {
+    font-size: var(--size-xl);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-val.muted { color: var(--fg-muted); font-weight: 400; }
+  .stat-val.pos { color: var(--pos); }
+  .stat-val.neg { color: var(--neg); }
+  .gain-pct {
+    margin-left: var(--space-2);
+    font-size: var(--size-sm);
+    color: var(--fg-muted);
+  }
+
+  .chart-col { min-width: 0; }
+
+  .block { display: grid; gap: var(--space-3); }
+  .block h2 {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .ledger-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .ledger-table th {
+    text-align: left;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    font-weight: 500;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  .ledger-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: baseline;
+  }
+  .ledger-table tbody tr:last-child td { border-bottom: none; }
+  .ledger-table .num-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ledger-table .delta-col {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+  .ledger-table .delta-col .pos { color: var(--pos); }
+  .ledger-table .delta-col .neg { color: var(--neg); }
+  .ledger-table .delta-cell {
+    display: grid;
+    gap: 0;
+    line-height: 1.25;
+  }
+  .ledger-table .delta-cell .delta-pct {
+    font-size: var(--size-xs);
+    opacity: 0.7;
+  }
+  .src-cell {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .detail-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--rule);
+  }
+  .debug-btn {
+    font-family: inherit;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    background: none;
+    border: 1px solid var(--rule);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+  }
+  .debug-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
+
+  @media (max-width: 40rem) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .ledger-table { font-size: var(--size-xs); }
+    .ledger-table th, .ledger-table td { padding: var(--space-1) var(--space-2); }
+  }
+</style>

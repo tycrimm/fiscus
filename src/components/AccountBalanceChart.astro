@@ -1,0 +1,133 @@
+---
+import { fmtUSD, fmtTickMonthYearShort } from '../lib/format';
+import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
+import Chart, { type ChartHoverPoint, type ChartMark, type ChartTick, type ChartYTick } from './Chart.astro';
+
+export type BalancePoint = {
+  as_of: number;
+  balance_cents: number;
+  source: string;
+};
+
+interface Props {
+  series: BalancePoint[];
+  isLiability?: boolean;
+}
+
+const { series, isLiability = false } = Astro.props;
+
+// Time-scaled x-axis — real gaps between snapshots are visually honest (a
+// credit-card sync twice a week shouldn't look as dense as daily data).
+const tMin = series.length ? series[0].as_of : 0;
+const nowSec = Math.floor(Date.now() / 1000);
+const tMax = series.length ? Math.max(series[series.length - 1].as_of, nowSec) : nowSec;
+const tRange = Math.max(tMax - tMin, 1);
+
+const xAt = (sec: number) => ((sec - tMin) / tRange) * CHART_W;
+
+const values = series.map((p) => p.balance_cents);
+const lo = values.length ? Math.min(...values) : 0;
+const hi = values.length ? Math.max(...values) : 0;
+const span = Math.max(hi - lo, 1);
+const yMin = Math.max(0, lo - span * 0.1);
+const yMax = hi + span * 0.1;
+const yRange = yMax - yMin || 1;
+
+const yAt = (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
+
+// Step path: balance held constant between snapshots, then extended flat to
+// "today" so the line visually reaches the right edge.
+function buildStepPath(): string {
+  if (series.length === 0) return '';
+  const parts: string[] = [];
+  parts.push(`M ${xAt(series[0].as_of).toFixed(2)} ${yAt(series[0].balance_cents).toFixed(2)}`);
+  for (let i = 1; i < series.length; i++) {
+    const prevY = yAt(series[i - 1].balance_cents);
+    const x = xAt(series[i].as_of);
+    const y = yAt(series[i].balance_cents);
+    parts.push(`L ${x.toFixed(2)} ${prevY.toFixed(2)}`);
+    parts.push(`L ${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  const lastY = yAt(series[series.length - 1].balance_cents);
+  parts.push(`L ${xAt(tMax).toFixed(2)} ${lastY.toFixed(2)}`);
+  return parts.join(' ');
+}
+
+const stepPath = buildStepPath();
+
+const area =
+  series.length > 0
+    ? `${stepPath} L ${CHART_W.toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(series[0].as_of).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
+    : '';
+
+const ticks: ChartTick[] = [];
+const MIN_TICK_GAP = 80;
+for (const p of series) {
+  const x = xAt(p.as_of);
+  if (ticks.length === 0 || x - ticks[ticks.length - 1].x >= MIN_TICK_GAP) {
+    ticks.push({ x, label: fmtTickMonthYearShort(p.as_of) });
+  }
+}
+const nowX = xAt(nowSec);
+if (ticks.length > 0 && nowX - ticks[ticks.length - 1].x < MIN_TICK_GAP) {
+  ticks.pop();
+}
+ticks.push({ x: nowX, label: 'today' });
+
+function niceStep(range: number, count: number): number {
+  const rawStep = range / (count - 1);
+  if (rawStep <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+  const mult = normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
+  return mult * magnitude;
+}
+function fmtMoneyTick(cents: number): string {
+  const d = cents / 100;
+  if (d >= 1_000_000) return `$${(d / 1_000_000).toFixed(d % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (d >= 1_000) return `$${Math.round(d / 1_000)}K`;
+  return `$${Math.round(d)}`;
+}
+const yTicks: ChartYTick[] = [];
+if (series.length > 0) {
+  const step = niceStep(yMax - yMin, 3);
+  const first = Math.ceil(yMin / step) * step;
+  for (let v = first; v <= yMax; v += step) {
+    yTicks.push({ y: yAt(v), label: fmtMoneyTick(v) });
+  }
+}
+
+const marks: ChartMark[] = series.map((p) => ({ x: xAt(p.as_of), y: yAt(p.balance_cents) }));
+
+const first = series[0];
+const last = series[series.length - 1];
+const rawChange = last && first ? last.balance_cents - first.balance_cents : 0;
+// For liabilities, rising balance = worse → flip the sign for the delta
+// display so green/red read correctly (more debt ≠ "positive" change).
+const change = isLiability ? -rawChange : rawChange;
+const changePct = first && first.balance_cents !== 0 ? rawChange / first.balance_cents : 0;
+const signedChangePct = isLiability ? -changePct : changePct;
+
+const fmtReadoutDate = (sec: number) =>
+  new Date(sec * 1000).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles',
+  });
+
+const points: ChartHoverPoint[] = series.map((p) => ({
+  x: xAt(p.as_of),
+  y: yAt(p.balance_cents),
+  readout: `${fmtReadoutDate(p.as_of)} · ${fmtUSD.format(p.balance_cents / 100)}`,
+}));
+---
+<Chart
+  label={`balance history · ${series.length} snapshot${series.length === 1 ? '' : 's'}`}
+  empty="NO SNAPSHOTS YET."
+  delta={series.length > 1 ? { cents: change, pct: signedChangePct, pctDecimals: 1 } : null}
+  area={area}
+  paths={stepPath ? [{ d: stepPath, variant: 'solid' as const }] : []}
+  marks={marks}
+  ticks={ticks}
+  yTicks={yTicks}
+  points={points}
+  dotR={3.5}
+/>
