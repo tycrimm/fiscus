@@ -112,6 +112,19 @@ server.registerTool(
 );
 
 server.registerTool(
+  'set_account_owner',
+  {
+    description:
+      'Change the owner of an account (tyler, julianne, or joint). Use when a card/loan/account was mis-attributed at creation.',
+    inputSchema: {
+      accountId: z.string().uuid(),
+      owner: z.enum(['tyler', 'julianne', 'joint']),
+    },
+  },
+  async ({ accountId, owner }) => json(await accounts.setAccountOwner(db, accountId, owner)),
+);
+
+server.registerTool(
   'update_balance',
   {
     description:

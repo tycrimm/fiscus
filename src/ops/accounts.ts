@@ -50,6 +50,20 @@ export async function addAccount(
   return acct;
 }
 
+export async function setAccountOwner(
+  d: DB,
+  accountId: string,
+  owner: 'tyler' | 'julianne' | 'joint',
+) {
+  const [acct] = await d
+    .update(accounts)
+    .set({ owner })
+    .where(eq(accounts.id, accountId))
+    .returning();
+  if (!acct) throw new Error(`Account ${accountId} not found`);
+  return acct;
+}
+
 export async function setAccountNote(d: DB, accountId: string, note: string | null) {
   const trimmed = note?.trim();
   const [acct] = await d
