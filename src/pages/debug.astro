@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema';
+import { fmtDateTime } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
 
 const accessEmail = Astro.request.headers.get('cf-access-authenticated-user-email')?.toLowerCase() ?? '';
@@ -12,7 +13,34 @@ if (accessEmail !== 'tyler.crimm@gmail.com') {
 
 const d = drizzle(env.DB, { schema });
 
+type SyncLogRow = {
+  id: string;
+  item_id: string;
+  institution: string | null;
+  synced_at: number;
+  kind: string;
+  ok: number;
+  error: string | null;
+  raw_json: string;
+};
+const syncLogRes = await d.run(sql.raw(`
+  SELECT psl.id, psl.item_id, pi.institution_name AS institution,
+    psl.synced_at, psl.kind, psl.ok, psl.error, psl.raw_json
+  FROM plaid_sync_log psl
+  LEFT JOIN plaid_items pi ON pi.id = psl.item_id
+  ORDER BY psl.synced_at DESC
+  LIMIT 50
+`));
+const syncLog = ((syncLogRes as unknown as { results?: SyncLogRow[] }).results ?? []) as SyncLogRow[];
+
+// Pretty-print the raw_json once per row for the collapsed detail view.
+function prettyJson(s: string): string {
+  try { return JSON.stringify(JSON.parse(s), null, 2); }
+  catch { return s; }
+}
+
 // Pull every table's contents. Order matters only for readability.
+// plaid_sync_log lives in its own section above (with raw_json togglable).
 const tableNames = [
   'institutions',
   'accounts',
@@ -24,7 +52,6 @@ const tableNames = [
   'securities',
   'holdings',
   'plaid_items',
-  'plaid_sync_log',
 ] as const;
 
 const dump: Record<string, unknown[]> = {};
@@ -32,9 +59,7 @@ for (const t of tableNames) {
   // Avoid spilling encrypted access tokens into the page
   const cols = t === 'plaid_items'
     ? `id, plaid_item_id, institution_plaid_id, institution_name, status, cursor, last_sync_at, last_error, created_at`
-    : t === 'plaid_sync_log'
-      ? `id, item_id, synced_at, kind, ok, error, length(raw_json) AS raw_json_bytes`
-      : '*';
+    : '*';
   const r = await d.run(sql.raw(`SELECT ${cols} FROM ${t} ORDER BY 1 LIMIT 500`));
   dump[t] = (r as any).results ?? r;
 }
@@ -46,8 +71,42 @@ const counts = Object.fromEntries(
 <Shell title="debug">
   <h1>debug</h1>
   <p class="muted" style="font-size: var(--size-sm); margin-bottom: var(--space-6)">
-    Raw D1 dump. Encrypted Plaid access tokens are excluded; sync log raw payloads are summarized as byte counts.
+    Raw D1 dump. Encrypted Plaid access tokens are excluded.
   </p>
+
+  <h2 style="margin-top: var(--space-6)">Sync Log</h2>
+  {syncLog.length === 0 ? (
+    <p class="muted">NO SYNC ATTEMPTS YET.</p>
+  ) : (
+    <table class="log">
+      <thead>
+        <tr>
+          <th>when</th>
+          <th>institution</th>
+          <th>kind</th>
+          <th>ok</th>
+          <th>detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {syncLog.map((l) => (
+          <tr class:list={{ failed: !l.ok }}>
+            <td class="muted">{fmtDateTime(l.synced_at)}</td>
+            <td>{l.institution ?? <span class="muted">—</span>}</td>
+            <td class="muted">{l.kind}</td>
+            <td><span class:list={['ok-badge', l.ok ? 'pos' : 'neg']}>{l.ok ? 'ok' : 'err'}</span></td>
+            <td class="detail">
+              {l.error && <span class="err-msg">{l.error}</span>}
+              <details>
+                <summary>raw</summary>
+                <pre class="dump">{prettyJson(l.raw_json)}</pre>
+              </details>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
 
   <h2 style="margin-top: var(--space-6)">Counts</h2>
   <pre class="dump">{JSON.stringify(counts, null, 2)}</pre>
@@ -68,4 +127,55 @@ const counts = Object.fromEntries(
     white-space: pre-wrap;
     word-break: break-word;
   }
+
+  table.log {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+  }
+  table.log th {
+    text-align: left;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    font-weight: 500;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+  }
+  table.log td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  table.log tr.failed td { background: color-mix(in srgb, var(--neg) 4%, transparent); }
+  table.log .ok-badge {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+  }
+  table.log .ok-badge.pos { color: var(--pos); }
+  table.log .ok-badge.neg { color: var(--neg); }
+  table.log .detail { width: 60%; }
+  table.log .err-msg {
+    display: block;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: var(--size-xs);
+    color: var(--neg);
+    margin-bottom: var(--space-1);
+  }
+  table.log details > summary {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    cursor: pointer;
+    list-style: none;
+    width: max-content;
+  }
+  table.log details > summary::-webkit-details-marker { display: none; }
+  table.log details > summary::before { content: '▸ '; }
+  table.log details[open] > summary::before { content: '▾ '; }
+  table.log details[open] > summary { margin-bottom: var(--space-2); }
 </style>
