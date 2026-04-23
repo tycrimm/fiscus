@@ -555,6 +555,47 @@ export async function privateInvestmentValueSeries(d: DB, assetId: string): Prom
   });
 }
 
+export type SyncIssue = {
+  item_id: string;
+  institution: string;
+  last_sync_at: number | null;
+  last_error: string | null;
+  status: string;
+  stale: boolean;
+};
+
+// Cron runs daily at 10:00 UTC. A 30h threshold catches a missed run without
+// false-alarming during the normal sync window.
+const SYNC_STALE_SEC = 30 * 60 * 60;
+
+export async function syncHealth(d: DB): Promise<SyncIssue[]> {
+  const now = Math.floor(Date.now() / 1000);
+  const all = await rows<{
+    item_id: string;
+    institution: string;
+    last_sync_at: number | null;
+    last_error: string | null;
+    status: string;
+  }>(
+    d,
+    sql`SELECT id AS item_id, institution_name AS institution, last_sync_at, last_error, status FROM plaid_items`,
+    ['item_id', 'institution', 'last_sync_at', 'last_error', 'status'],
+  );
+  return all
+    .map((r) => {
+      const lastSync = r.last_sync_at == null ? null : num(r.last_sync_at);
+      return {
+        item_id: r.item_id,
+        institution: r.institution,
+        last_sync_at: lastSync,
+        last_error: r.last_error,
+        status: r.status,
+        stale: lastSync == null || now - lastSync > SYNC_STALE_SEC,
+      };
+    })
+    .filter((r) => r.last_error || r.status !== 'active' || r.stale);
+}
+
 export async function getAccount(d: DB, accountId: string) {
   const [account] = await rows<Record<string, unknown>>(
     d,

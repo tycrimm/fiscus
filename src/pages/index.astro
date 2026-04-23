@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
-import { netWorth, netWorthSeries, listAccounts, listPrivateInvestments } from '../ops/reads';
+import { netWorth, netWorthSeries, listAccounts, listPrivateInvestments, syncHealth } from '../ops/reads';
 import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
 import { computeDeltas, computeAllocation, topConcentration } from '../lib/metrics';
 import Shell from '../layouts/Shell.astro';
@@ -13,11 +13,12 @@ import AllocationMix from '../components/AllocationMix.astro';
 import Concentration from '../components/Concentration.astro';
 
 const d = db(env.DB);
-const [nw, series, accounts, privateInv] = await Promise.all([
+const [nw, series, accounts, privateInv, syncIssues] = await Promise.all([
   netWorth(d),
   netWorthSeries(d),
   listAccounts(d),
   listPrivateInvestments(d),
+  syncHealth(d),
 ]);
 
 const cash   = accounts.filter((a) => !a.is_liability && ['checking', 'savings'].includes(a.kind));
@@ -128,6 +129,23 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
       </aside>
 
       <div class="ledger-main">
+        {syncIssues.length > 0 && (
+          <a class="sync-alert" href="/connect">
+            <span class="alert-label">sync {syncIssues.length === 1 ? 'issue' : 'issues'}</span>
+            <span class="alert-list">
+              {syncIssues.map((i, idx) => (
+                <span class="alert-item">
+                  {idx > 0 && <span class="sep"> · </span>}
+                  {i.institution}
+                  <span class="alert-why">
+                    {' '}({i.last_error ? (i.last_error.length > 40 ? i.last_error.slice(0, 40) + '…' : i.last_error) : 'stale'})
+                  </span>
+                </span>
+              ))}
+            </span>
+          </a>
+        )}
+
         <NetWorthChart series={series} />
 
         {allocCategories.length > 0 && (
@@ -265,6 +283,28 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
   }
 
   .ledger-main { display: grid; gap: var(--space-4); }
+
+  .sync-alert {
+    display: flex;
+    gap: var(--space-3);
+    align-items: baseline;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--neg);
+    color: var(--neg);
+    text-decoration: none;
+    font-size: var(--size-sm);
+  }
+  .sync-alert:hover { background: color-mix(in srgb, var(--neg) 6%, transparent); }
+  .sync-alert .alert-label {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .sync-alert .alert-list { color: var(--fg); }
+  .sync-alert .alert-why { color: var(--fg-muted); }
+  .sync-alert .sep { color: var(--fg-muted); }
 
   @media (max-width: 52rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }

@@ -20,6 +20,27 @@ import {
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
+// Holdings error codes that mean "this item doesn't have Investments" — Plaid
+// doesn't expose an upfront signal for which items support the product, so we
+// attempt it on every item and treat these responses as "not applicable".
+const BENIGN_HOLDINGS_ERROR_CODES = new Set([
+  'NO_INVESTMENT_ACCOUNTS',
+  'PRODUCT_NOT_READY',
+  'PRODUCTS_NOT_SUPPORTED',
+  'ITEM_PRODUCT_NOT_READY',
+]);
+
+// Plaid SDK throws via axios; the structured error sits on err.response.data.
+// Falls back to the axios message when the body isn't present.
+function plaidErrorInfo(err: unknown): { code: string | null; message: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  const body = (err as { response?: { data?: { error_code?: unknown; error_message?: unknown } } })
+    ?.response?.data;
+  const code = typeof body?.error_code === 'string' ? body.error_code : null;
+  const plaidMsg = typeof body?.error_message === 'string' ? body.error_message : null;
+  return { code, message: plaidMsg ?? message };
+}
+
 // ─── Item lifecycle ─────────────────────────────────────────────────────────
 
 export async function createPlaidItem(
@@ -128,9 +149,10 @@ export async function syncItemAccountsAndBalances(d: DB, env: PlaidEnv, itemId: 
 
     return { itemId, accountsInserted: inserted, snapshotsWritten: snapshots };
   } catch (e) {
+    const { code, message } = plaidErrorInfo(e);
     ok = false;
-    errorMsg = e instanceof Error ? e.message : String(e);
-    raw = { error: errorMsg };
+    errorMsg = code ? `${code}: ${message}` : message;
+    raw = { error: errorMsg, code };
     await d
       .update(plaidItems)
       .set({ lastError: errorMsg, status: 'error' })
@@ -153,9 +175,10 @@ export async function syncItemAccountsAndBalances(d: DB, env: PlaidEnv, itemId: 
  * position into `holdings` (append-only, same pattern as balance_snapshots).
  *
  * Many items don't have the Investments product (Mercury, retail bank
- * checking, etc.) — Plaid will throw PRODUCT_NOT_READY or
- * NO_INVESTMENT_ACCOUNTS in that case. Caller should treat throws as
- * "not applicable, skip" rather than a hard error.
+ * checking, credit cards, etc.) — Plaid returns NO_INVESTMENT_ACCOUNTS /
+ * PRODUCT_NOT_READY / PRODUCTS_NOT_SUPPORTED in that case. We treat those
+ * as "not applicable" — no log row, no thrown error, just `{ skipped: true }`.
+ * Only real failures get logged and re-thrown.
  */
 export async function syncItemHoldings(d: DB, env: PlaidEnv, itemId: string) {
   const { accessToken } = await getDecryptedAccessToken(d, env, itemId);
@@ -164,6 +187,7 @@ export async function syncItemHoldings(d: DB, env: PlaidEnv, itemId: string) {
   let raw: unknown;
   let ok = true;
   let errorMsg: string | null = null;
+  let skipped = false;
   try {
     const resp = await plaid.investmentsHoldingsGet({ access_token: accessToken });
     raw = resp.data;
@@ -214,18 +238,25 @@ export async function syncItemHoldings(d: DB, env: PlaidEnv, itemId: string) {
 
     return { itemId, securitiesUpserted: secIdMap.size, holdingsWritten: snapshots };
   } catch (e) {
+    const { code, message } = plaidErrorInfo(e);
+    if (code && BENIGN_HOLDINGS_ERROR_CODES.has(code)) {
+      skipped = true;
+      return { itemId, skipped: true as const, reason: code };
+    }
     ok = false;
-    errorMsg = e instanceof Error ? e.message : String(e);
-    raw = { error: errorMsg };
+    errorMsg = code ? `${code}: ${message}` : message;
+    raw = { error: errorMsg, code };
     throw e;
   } finally {
-    await d.insert(plaidSyncLog).values({
-      itemId,
-      kind: 'holdings',
-      ok,
-      rawJson: JSON.stringify(raw),
-      error: errorMsg,
-    });
+    if (!skipped) {
+      await d.insert(plaidSyncLog).values({
+        itemId,
+        kind: 'holdings',
+        ok,
+        rawJson: JSON.stringify(raw),
+        error: errorMsg,
+      });
+    }
   }
 }
 

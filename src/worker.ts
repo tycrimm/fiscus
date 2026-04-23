@@ -33,12 +33,12 @@ async function runPlaidSync(env: Env): Promise<void> {
       console.error('[cron] balance sync failed', it.id, e);
     }
     // 2. Holdings — only items with the Investments product (brokerages, IRAs).
-    //    Mercury/checking-only items will throw NO_INVESTMENT_ACCOUNTS or
-    //    PRODUCT_NOT_READY; treat as "not applicable" and continue.
+    //    syncItemHoldings silently returns `{ skipped }` for items without the
+    //    product; only real failures throw here.
     try {
       await syncItemHoldings(d, plaidEnv, it.id);
     } catch (e) {
-      console.log('[cron] holdings sync skipped', it.id, e instanceof Error ? e.message : String(e));
+      console.error('[cron] holdings sync failed', it.id, e instanceof Error ? e.message : String(e));
     }
   }
 }
