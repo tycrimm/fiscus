@@ -44,13 +44,23 @@ const syncTitle = lastSyncedAt != null
         )}
       </nav>
       {lastSyncedAt != null && (
-        <span class="synced" title={syncTitle}>
-          <svg class="sync-icon" viewBox="0 0 10 10" aria-hidden="true">
-            <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1" />
-            <path d="M5 2.5 L5 5 L7 6" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          {fmtRelative(lastSyncedAt)}
-        </span>
+        showDebug ? (
+          <a href="/debug" class="synced" title={syncTitle}>
+            <svg class="sync-icon" viewBox="0 0 10 10" aria-hidden="true">
+              <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1" />
+              <path d="M5 2.5 L5 5 L7 6" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            {fmtRelative(lastSyncedAt)}
+          </a>
+        ) : (
+          <span class="synced" title={syncTitle}>
+            <svg class="sync-icon" viewBox="0 0 10 10" aria-hidden="true">
+              <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1" />
+              <path d="M5 2.5 L5 5 L7 6" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            {fmtRelative(lastSyncedAt)}
+          </span>
+        )
       )}
     </header>
     <slot />
@@ -64,8 +74,9 @@ const syncTitle = lastSyncedAt != null
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: var(--fg-muted);
-        cursor: help;
+        text-decoration: none;
       }
+      .app-header a.synced:hover { color: var(--fg); }
       .app-header .sync-icon {
         width: 0.75rem;
         height: 0.75rem;
