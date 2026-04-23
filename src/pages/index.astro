@@ -70,6 +70,7 @@ const investTotal = sumAccts(invest);
 const otherTotal = sumAccts(other);
 const liabTotal = sumAccts(liab);
 const privateTotal = privateInv.reduce((acc, r) => acc + r.current_value_cents, 0);
+const uncalledTotal = privateInv.reduce((acc, r) => acc + r.outstanding_cost_basis_cents, 0);
 
 const lastSyncedAt = accounts.reduce<number | null>(
   (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
@@ -104,6 +105,12 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
         <div class="rail-breakdown">
           <div class="bd-row"><span class="cat">liquid</span><span class="val num">{fmtUSD.format(nw.liquid_usd)}</span></div>
           <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
+          {uncalledTotal > 0 && (
+            <div class="bd-row uncalled" title="Committed SBS / fund allocations not yet wired — keep this much accessible for the next capital call.">
+              <span class="cat">uncalled</span>
+              <span class="val num muted">{fmtUSD.format(uncalledTotal / 100)}</span>
+            </div>
+          )}
         </div>
 
         <div class="rail-label">change</div>
@@ -180,17 +187,23 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
 
         {privateInv.length > 0 && (
           <LedgerSection title="Private Investments" count={pluralize(privateInv.length, 'position')} subtotal={fmtUSDsigned(privateTotal)}>
-            {privateInv.map((pi) => (
-              <LedgerRow
-                name={pi.name}
-                sub={pi.investment_count > 0
-                  ? `${prettyKind(pi.kind)} · ${pluralize(pi.investment_count, 'position')}`
-                  : prettyKind(pi.kind)}
-                owner={pi.owner}
-                amount={fmtUSD.format(pi.current_value_cents / 100)}
-                href={`/private-investments/${pi.id}`}
-              />
-            ))}
+            {privateInv.map((pi) => {
+              const baseSub = pi.investment_count > 0
+                ? `${prettyKind(pi.kind)} · ${pluralize(pi.investment_count, 'position')}`
+                : prettyKind(pi.kind);
+              const sub = pi.outstanding_cost_basis_cents > 0
+                ? `${baseSub} · ${fmtUSD.format(pi.outstanding_cost_basis_cents / 100)} uncalled`
+                : baseSub;
+              return (
+                <LedgerRow
+                  name={pi.name}
+                  sub={sub}
+                  owner={pi.owner}
+                  amount={fmtUSD.format(pi.current_value_cents / 100)}
+                  href={`/private-investments/${pi.id}`}
+                />
+              );
+            })}
           </LedgerSection>
         )}
 

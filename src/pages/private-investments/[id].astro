@@ -41,6 +41,7 @@ type Inv = {
   price_per_share_cents: number | null;
   cost_basis_cents: number;
   entry_date: number;
+  funded_at: number | null;
   derived_value_cents: number | null;
 };
 type Val = {
@@ -72,25 +73,27 @@ const rounds = [...investments].sort((a, b) => a.entry_date - b.entry_date);
 // latest_value_cents would miss asset-level marks where investment_id IS NULL.
 const currentValueCents = detail.current_value_cents;
 const costBasisCents = detail.cost_basis_cents;
+const outstandingCents = detail.outstanding_cost_basis_cents;
 const gainCents = currentValueCents - costBasisCents;
 const gainPct = costBasisCents > 0 ? gainCents / costBasisCents : 0;
 const gainPos = gainCents >= 0;
 const moic = costBasisCents > 0 ? currentValueCents / costBasisCents : null;
 
 // IRR: dated negative cashflows per round (skipping zero-basis rounds, e.g.
-// equity grants), terminal positive at today using the latest mark. Anchoring
-// the terminal at today — not the mark date — lets the rate decay naturally
-// while a mark goes stale. Always computed when derivable; the days-held
-// indicator next to the rate signals when a number is extrapolated from a
-// short window (e.g. 4679% over 207d reads honestly once you see "207d").
-// Suppressed only when truly undefined: funds (no dated calls/distributions),
-// no contributions, or same-day cashflows.
+// equity grants, and pending/uncalled tranches whose cash hasn't moved),
+// terminal positive at today using the latest mark. Anchoring the terminal at
+// today — not the mark date — lets the rate decay naturally while a mark
+// goes stale. Always computed when derivable; the days-held indicator next to
+// the rate signals when a number is extrapolated from a short window (e.g.
+// 4679% over 207d reads honestly once you see "207d"). Suppressed only when
+// truly undefined: funds (no dated calls/distributions), no contributions, or
+// same-day cashflows.
 const nowSec = Math.floor(Date.now() / 1000);
 const contribFlows: Cashflow[] = fund
   ? []
   : investments
-      .filter((r) => r.cost_basis_cents > 0)
-      .map((r) => ({ t_sec: r.entry_date, amount_cents: -r.cost_basis_cents }));
+      .filter((r) => r.cost_basis_cents > 0 && r.funded_at != null)
+      .map((r) => ({ t_sec: r.funded_at ?? r.entry_date, amount_cents: -r.cost_basis_cents }));
 const earliestContribSec = contribFlows.length > 0
   ? Math.min(...contribFlows.map((c) => c.t_sec))
   : null;
@@ -201,7 +204,14 @@ const debugPayload = {
       </div>
       <div class="stat">
         <div class="stat-label">cost basis</div>
-        <div class="stat-val num muted">{fmtUSD.format(costBasisCents / 100)}</div>
+        <div class="stat-val num muted">
+          {fmtUSD.format(costBasisCents / 100)}
+          {outstandingCents > 0 && (
+            <span class="gain-pct" title="Allocation committed but not yet wired (capital call pending)">
+              + {fmtUSD.format(outstandingCents / 100)} uncalled
+            </span>
+          )}
+        </div>
       </div>
       <div class="stat">
         <div class="stat-label">gain</div>
@@ -293,12 +303,16 @@ const debugPayload = {
           <tbody>
             {rounds.map((r) => {
               const cur = r.derived_value_cents;
+              const pending = r.funded_at == null;
               const delta = cur == null ? 0 : cur - r.cost_basis_cents;
               const dpos = delta >= 0;
               const moic = cur != null && r.cost_basis_cents > 0 ? cur / r.cost_basis_cents : null;
               return (
-                <tr>
-                  <td>{fmtDate(r.entry_date)}</td>
+                <tr class:list={[{ pending }]}>
+                  <td>
+                    {fmtDate(r.entry_date)}
+                    {pending && <span class="pending-tag" title="Allocation committed but wire not yet sent">pending</span>}
+                  </td>
                   <td>{r.round_label ?? '—'}</td>
                   <td>{r.security_type ?? '—'}</td>
                   <td class="num-col">{fmtShares(r.shares)}</td>
@@ -614,6 +628,20 @@ const debugPayload = {
     color: var(--fg-muted);
     font-size: var(--size-xs);
     max-width: 22rem;
+  }
+  /* Pending tranches: italicize cost basis and gray out the row to signal
+     "committed but wire not sent". The "pending" tag inline next to the date
+     is the explicit marker. */
+  .ledger-table tr.pending td { color: var(--fg-muted); font-style: italic; }
+  .ledger-table .pending-tag {
+    margin-left: var(--space-2);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-style: normal;
+    color: var(--fg-muted);
+    border: 1px solid var(--rule);
+    padding: 0 var(--space-1);
   }
 
   .fund-grid {

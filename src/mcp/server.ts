@@ -193,7 +193,7 @@ server.registerTool(
   'add_investment',
   {
     description:
-      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Current value is derived automatically: round.shares × latest_round_PPS, summed across rounds; no need to write a follow-up valuation. Use record_valuation only when you want to override the derivation (conservative mark, secondary price, write-down, fund NAV, non-share asset). Set qsbsEligible per IRC §1202 — each financing round qualifies independently.',
+      'Record a check / commit into a private investment. Used for SBS rounds, fund LP contributions, etc. Shares and pricePerShareDollars are optional (SAFEs and notes have no shares). costBasisDollars is required. Current value is derived automatically: round.shares × latest_round_PPS, summed across rounds; no need to write a follow-up valuation. Use record_valuation only when you want to override the derivation (conservative mark, secondary price, write-down, fund NAV, non-share asset). Set qsbsEligible per IRC §1202 — each financing round qualifies independently. Pass fundedAt=null to log a committed-but-uncalled allocation (pending wire) — it shows as outstanding capital and does not contribute to current value or cost basis until funded; pending rounds DO still contribute their PPS as the latest mark.',
     inputSchema: {
       assetId: z.string().uuid(),
       securityType: z
@@ -206,6 +206,12 @@ server.registerTool(
       pricePerShareDollars: z.number().finite().optional(),
       costBasisDollars: z.number().finite(),
       entryDate: z.string().max(30).describe('ISO date, e.g. "2024-03-08"'),
+      fundedAt: z
+        .string()
+        .max(30)
+        .nullable()
+        .optional()
+        .describe('ISO date the wire cleared. Default = entryDate. Pass null for pending/uncalled.'),
       qsbsEligible: z.boolean().optional().describe('§1202 QSBS eligibility for this specific tranche'),
     },
   },
@@ -216,7 +222,7 @@ server.registerTool(
   'update_investment',
   {
     description:
-      'Update fields on an existing investment (check / round). Pass only the fields you want to change. Use to relabel rounds (e.g. seed mis-tagged as Series A), set qsbsEligible, fix shares/price, or correct entry date. Current value derives from the round fields automatically.',
+      'Update fields on an existing investment (check / round). Pass only the fields you want to change. Use to relabel rounds (e.g. seed mis-tagged as Series A), set qsbsEligible, fix shares/price, or correct entry date. Pass fundedAt with a date to mark a pending tranche as funded (wire cleared); pass null to revert to pending/uncalled. Current value derives from the round fields automatically.',
     inputSchema: {
       id: z.string().uuid(),
       securityType: z.string().max(100).nullable().optional(),
@@ -225,6 +231,12 @@ server.registerTool(
       pricePerShareDollars: z.number().finite().nullable().optional(),
       costBasisDollars: z.number().finite().optional(),
       entryDate: z.string().max(30).optional().describe('ISO date'),
+      fundedAt: z
+        .string()
+        .max(30)
+        .nullable()
+        .optional()
+        .describe('ISO date the wire cleared, or null to mark pending/uncalled.'),
       qsbsEligible: z.boolean().nullable().optional(),
     },
   },

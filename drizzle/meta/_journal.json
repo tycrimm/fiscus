@@ -57,6 +57,13 @@
       "when": 1776705623100,
       "tag": "0007_sparkling_abomination",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1776982372576,
+      "tag": "0008_remarkable_violations",
+      "breakpoints": true
     }
   ]
 }

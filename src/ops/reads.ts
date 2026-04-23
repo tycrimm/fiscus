@@ -30,7 +30,7 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0))
 //      Used for funds, non-share holdings ("Grandma $50k"), and for
 //      replacing a PPS-derived total with a conservative estimate.
 //
-//   2. Otherwise, sum across rounds with entry_date ≤ t. Per round:
+//   2. Otherwise, sum across FUNDED rounds with entry_date ≤ t. Per round:
 //        - Per-round manual override (investment_id = round.id, as_of ≤ t)
 //          takes precedence if present.
 //        - Else, if the asset has any round with PPS and entry_date ≤ t,
@@ -38,6 +38,12 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0))
 //          mark" — applies equally to mark-ups and down-rounds.
 //        - Else, fall back to round.cost_basis_cents (unconverted
 //          SAFE/note or other PPS-less round).
+//
+// Pending (funded_at IS NULL) rounds DO contribute their PPS to the
+// latest-round mark — the round is happening regardless of whether our
+// wire has cleared, and existing shares are now worth the new price. They
+// do NOT contribute their own shares/cost-basis to current value or cost
+// basis; that capital is "uncalled" and tracked separately.
 //
 // Auto-generated marks don't exist in this model. Every row in
 // `valuations` is an intentional manual signal.
@@ -51,6 +57,7 @@ type RoundInput = {
   pps_cents: number | null;
   cost_basis_cents: number;
   entry_date: number;
+  funded_at: number | null;
 };
 
 type ValuationInput = {
@@ -89,14 +96,19 @@ function deriveAssetValue(
     return { total_cents: 0, asset_level_override: false, per_round: new Map() };
   }
 
+  // Latest PPS uses ALL active rounds (funded + pending). The pending C round
+  // is real evidence of the new mark even before our wire clears.
   const latestPPSRound = activeRounds
     .filter((r) => r.pps_cents != null)
     .reduce<RoundInput | null>((best, r) => (!best || r.entry_date >= best.entry_date ? r : best), null);
   const latestPPSCents = latestPPSRound?.pps_cents ?? null;
 
+  // Value contributions only count for funded rounds — uncalled capital
+  // doesn't add to current value (the cash hasn't moved).
   const perRound = new Map<string, number>();
   let total = 0;
   for (const r of activeRounds) {
+    if (r.funded_at == null) continue;
     const override = valuations
       .filter((v) => v.investment_id === r.id && v.as_of <= at_sec)
       .reduce<ValuationInput | null>((best, v) => (!best || v.as_of >= best.as_of ? v : best), null);
@@ -125,14 +137,14 @@ async function fetchRoundsAndValuations(
     ? sql`
         SELECT i.id, i.asset_id, i.security_type, i.round_label,
           i.shares, i.price_per_share_cents AS pps_cents,
-          i.cost_basis_cents, i.entry_date
+          i.cost_basis_cents, i.entry_date, i.funded_at
         FROM investments i
         WHERE i.asset_id = ${filter.assetId} AND i.archived_at IS NULL
       `
     : sql`
         SELECT i.id, i.asset_id, i.security_type, i.round_label,
           i.shares, i.price_per_share_cents AS pps_cents,
-          i.cost_basis_cents, i.entry_date
+          i.cost_basis_cents, i.entry_date, i.funded_at
         FROM investments i
         JOIN private_investments pi ON pi.id = i.asset_id
         WHERE i.archived_at IS NULL AND pi.archived_at IS NULL
@@ -151,7 +163,7 @@ async function fetchRoundsAndValuations(
   const rRows = await rows<Record<string, unknown>>(
     d,
     roundsSql,
-    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'pps_cents', 'cost_basis_cents', 'entry_date'],
+    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'pps_cents', 'cost_basis_cents', 'entry_date', 'funded_at'],
   );
   const vRows = await rows<Record<string, unknown>>(
     d,
@@ -168,6 +180,7 @@ async function fetchRoundsAndValuations(
       pps_cents: r.pps_cents == null ? null : num(r.pps_cents),
       cost_basis_cents: num(r.cost_basis_cents),
       entry_date: num(r.entry_date),
+      funded_at: r.funded_at == null ? null : num(r.funded_at),
     })),
     valuations: vRows.map((v) => ({
       id: String(v.id),
@@ -273,7 +286,8 @@ type PrivateInvestmentRow = {
   bear_pct: number | null;
   bull_pct: number | null;
   current_value_cents: number;
-  total_cost_basis_cents: number;
+  total_cost_basis_cents: number;       // funded only (deployed capital)
+  outstanding_cost_basis_cents: number; // pending wires (committed but uncalled)
   investment_count: number;
 };
 
@@ -288,18 +302,22 @@ export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRo
     bear_pct: number | null;
     bull_pct: number | null;
     total_cost_basis_cents: number;
+    outstanding_cost_basis_cents: number;
     investment_count: number;
   }>(
     d,
     sql`
       SELECT pi.id, pi.kind, pi.name, pi.notes, pi.owner, pi.stage, pi.bear_pct, pi.bull_pct,
-        (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS total_cost_basis_cents,
+        (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments
+         WHERE asset_id = pi.id AND archived_at IS NULL AND funded_at IS NOT NULL) AS total_cost_basis_cents,
+        (SELECT COALESCE(SUM(cost_basis_cents), 0) FROM investments
+         WHERE asset_id = pi.id AND archived_at IS NULL AND funded_at IS NULL) AS outstanding_cost_basis_cents,
         (SELECT COUNT(*) FROM investments WHERE asset_id = pi.id AND archived_at IS NULL) AS investment_count
       FROM private_investments pi
       WHERE pi.archived_at IS NULL
       ORDER BY pi.kind, pi.name
     `,
-    ['id', 'kind', 'name', 'notes', 'owner', 'stage', 'bear_pct', 'bull_pct', 'total_cost_basis_cents', 'investment_count'],
+    ['id', 'kind', 'name', 'notes', 'owner', 'stage', 'bear_pct', 'bull_pct', 'total_cost_basis_cents', 'outstanding_cost_basis_cents', 'investment_count'],
   );
   const now = Math.floor(Date.now() / 1000);
   const { rounds, valuations } = await fetchRoundsAndValuations(d);
@@ -322,6 +340,7 @@ export async function listPrivateInvestments(d: DB): Promise<PrivateInvestmentRo
       bull_pct: row.bull_pct == null ? null : num(row.bull_pct),
       current_value_cents: total_cents,
       total_cost_basis_cents: num(row.total_cost_basis_cents),
+      outstanding_cost_basis_cents: num(row.outstanding_cost_basis_cents),
       investment_count: num(row.investment_count),
     };
   });
@@ -341,35 +360,39 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
   const now = Math.floor(Date.now() / 1000);
   const derived = deriveAssetValue(derivRounds, derivVals, now);
 
-  const [basisRow] = await rows<{ cents: number }>(
+  const [basisRow] = await rows<{ funded: number; pending: number }>(
     d,
     sql`
-      SELECT COALESCE(SUM(cost_basis_cents), 0) AS cents
+      SELECT
+        COALESCE(SUM(CASE WHEN funded_at IS NOT NULL THEN cost_basis_cents ELSE 0 END), 0) AS funded,
+        COALESCE(SUM(CASE WHEN funded_at IS NULL THEN cost_basis_cents ELSE 0 END), 0) AS pending
       FROM investments WHERE asset_id = ${assetId} AND archived_at IS NULL
     `,
-    ['cents'],
+    ['funded', 'pending'],
   );
-  const costBasisCents = num(basisRow?.cents);
+  const costBasisCents = num(basisRow?.funded);
+  const outstandingCostBasisCents = num(basisRow?.pending);
 
   const invs = await rows<Record<string, unknown>>(
     d,
     sql`
       SELECT i.id, i.asset_id, i.security_type, i.round_label, i.shares, i.price_per_share_cents,
-        i.cost_basis_cents, i.entry_date, i.created_at
+        i.cost_basis_cents, i.entry_date, i.funded_at, i.created_at
       FROM investments i
       WHERE i.asset_id = ${assetId} AND i.archived_at IS NULL
       ORDER BY i.entry_date DESC
     `,
-    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'price_per_share_cents', 'cost_basis_cents', 'entry_date', 'created_at'],
+    ['id', 'asset_id', 'security_type', 'round_label', 'shares', 'price_per_share_cents', 'cost_basis_cents', 'entry_date', 'funded_at', 'created_at'],
   );
   // Annotate each round with its derived current value (null when the asset
   // total comes from an asset-level override — the round doesn't have a
-  // meaningful per-round value in that regime).
+  // meaningful per-round value in that regime; or when the round is pending
+  // and contributes no shares to the value derivation).
   const investments = invs.map((i) => ({
     ...i,
     derived_value_cents: derived.asset_level_override
       ? null
-      : (derived.per_round.get(String(i.id)) ?? 0),
+      : (derived.per_round.get(String(i.id)) ?? null),
   }));
 
   const vals = await rows<Record<string, unknown>>(
@@ -397,6 +420,7 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
     fund_details: fd[0] ?? null,
     current_value_cents: derived.total_cents,
     cost_basis_cents: costBasisCents,
+    outstanding_cost_basis_cents: outstandingCostBasisCents,
     asset_level_override: derived.asset_level_override,
   };
 }

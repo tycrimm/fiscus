@@ -85,11 +85,21 @@ export async function addInvestment(
     pricePerShareDollars?: number;
     costBasisDollars: number;
     entryDate: number | string;
+    // null (or "pending"-style intent) = committed but uncalled. Default:
+    // funded same-day as entry. Pass explicit null to record an allocation
+    // that hasn't wired yet.
+    fundedAt?: number | string | null;
     qsbsEligible?: boolean;
   },
 ) {
   const entryDate = toUnix(input.entryDate);
   const costBasisCents = Math.round(input.costBasisDollars * 100);
+  const fundedAt =
+    input.fundedAt === null
+      ? null
+      : input.fundedAt === undefined
+        ? entryDate
+        : toUnix(input.fundedAt);
   const [row] = await d
     .insert(investments)
     .values({
@@ -101,6 +111,7 @@ export async function addInvestment(
         input.pricePerShareDollars != null ? Math.round(input.pricePerShareDollars * 100) : null,
       costBasisCents,
       entryDate,
+      fundedAt,
       qsbsEligible: input.qsbsEligible ?? null,
     })
     .returning();
@@ -184,6 +195,9 @@ export async function updateInvestment(
     pricePerShareDollars?: number | null;
     costBasisDollars?: number;
     entryDate?: number | string;
+    // Pass a date to mark a pending tranche as funded (wire cleared); pass
+    // null to revert a tranche back to pending/uncalled.
+    fundedAt?: number | string | null;
     qsbsEligible?: boolean | null;
   },
 ) {
@@ -197,6 +211,7 @@ export async function updateInvestment(
   }
   if (patch.costBasisDollars != null) set.costBasisCents = Math.round(patch.costBasisDollars * 100);
   if (patch.entryDate != null) set.entryDate = toUnix(patch.entryDate);
+  if ('fundedAt' in patch) set.fundedAt = patch.fundedAt == null ? null : toUnix(patch.fundedAt);
   if ('qsbsEligible' in patch) set.qsbsEligible = patch.qsbsEligible;
   if (Object.keys(set).length === 0) throw new Error('updateInvestment: no fields to update');
   const [row] = await d.update(investments).set(set).where(eq(investments.id, id)).returning();
