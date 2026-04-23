@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { fmtDateTime } from '../lib/format';
+import { fmtDateTime, fmtRelative } from '../lib/format';
 
 interface Props {
   title?: string;
@@ -11,6 +11,18 @@ const path = Astro.url.pathname;
 const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 const accessEmail = Astro.request.headers.get('cf-access-authenticated-user-email')?.toLowerCase() ?? '';
 const showDebug = accessEmail === 'tyler.crimm@gmail.com';
+
+// Cron fires daily at 10:00 UTC (see wrangler.jsonc triggers.crons).
+function nextSyncSec(): number {
+  const now = new Date();
+  const next = new Date(now);
+  next.setUTCHours(10, 0, 0, 0);
+  if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+  return Math.floor(next.getTime() / 1000);
+}
+const syncTitle = lastSyncedAt != null
+  ? `Last: ${fmtDateTime(lastSyncedAt)} PT · Next: ${fmtDateTime(nextSyncSec())} PT`
+  : '';
 ---
 <!doctype html>
 <html lang="en">
@@ -32,17 +44,32 @@ const showDebug = accessEmail === 'tyler.crimm@gmail.com';
         )}
       </nav>
       {lastSyncedAt != null && (
-        <span class="synced">synced {fmtDateTime(lastSyncedAt)}</span>
+        <span class="synced" title={syncTitle}>
+          <svg class="sync-icon" viewBox="0 0 10 10" aria-hidden="true">
+            <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1" />
+            <path d="M5 2.5 L5 5 L7 6" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          {fmtRelative(lastSyncedAt)}
+        </span>
       )}
     </header>
     <slot />
     <style>
       .app-header .synced {
         margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
         font-size: var(--size-xs);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: var(--fg-muted);
+        cursor: help;
+      }
+      .app-header .sync-icon {
+        width: 0.75rem;
+        height: 0.75rem;
+        flex-shrink: 0;
       }
     </style>
   </body>

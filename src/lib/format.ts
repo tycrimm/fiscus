@@ -50,6 +50,21 @@ export function fmtTickMonthYearShort(sec: number): string {
   });
 }
 
+// Compact relative time. Past → "5m ago" / "2h ago" / "3d ago".
+// Future → "in 5m" / "in 2h". Anything under a minute is "just now".
+export function fmtRelative(sec: number | null | undefined): string {
+  if (!sec) return '—';
+  const diff = sec - Math.floor(Date.now() / 1000);
+  const abs = Math.abs(diff);
+  let val: string;
+  if (abs < 60) return 'just now';
+  if (abs < 3600) val = `${Math.round(abs / 60)}m`;
+  else if (abs < 86400) val = `${Math.round(abs / 3600)}h`;
+  else if (abs < 86400 * 30) val = `${Math.round(abs / 86400)}d`;
+  else val = `${Math.round(abs / (86400 * 30))}mo`;
+  return diff < 0 ? `${val} ago` : `in ${val}`;
+}
+
 export function fmtDateTime(sec: number | null | undefined): string {
   return sec
     ? new Date(sec * 1000).toLocaleString('en-US', {
