@@ -39,8 +39,12 @@ export function computeDeltas(series: NetWorthPoint[]): NetWorthDeltas {
     return { cents: c, pct };
   };
 
+  // 1D is the only window sensitive to today being carry-forward: if today
+  // hasn't synced yet, current == yesterday's values exactly, so 1D would
+  // read $0. Hide it rather than mislead. Longer windows are fine — a one-
+  // day slip at the right edge doesn't meaningfully distort them.
   return {
-    d1: delta(shiftYmd(today, -1)),
+    d1: current.fresh === false ? null : delta(shiftYmd(today, -1)),
     w1: delta(shiftYmd(today, -7)),
     m1: delta(shiftYmd(today, -30)),
     ytd: delta(`${today.slice(0, 4)}-01-01`),

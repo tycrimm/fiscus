@@ -407,6 +407,9 @@ export type NetWorthPoint = {
   private_cents: number;
   total_cents: number;
   synthetic?: boolean;     // true = backfilled baseline before first real snapshot
+  fresh?: boolean;         // true = this day had at least one real snapshot/event;
+                           // false = values are carry-forward from prior day (e.g.
+                           // pre-sync window after midnight PT before the 3am cron)
 };
 
 const PT_DATE_FMT = new Intl.DateTimeFormat('en-CA', {
@@ -446,6 +449,13 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
   const roundsByAsset = groupByAsset(allRounds);
   const valsByAsset = groupByAsset(allVals);
   const privateAssetIds = new Set([...roundsByAsset.keys(), ...valsByAsset.keys()]);
+
+  // Days with at least one real event (snapshot, round entry, valuation mark).
+  // Any other day's values are pure carry-forward from the prior day.
+  const freshDays = new Set<string>();
+  for (const s of snaps) freshDays.add(ptDateKey(num(s.as_of)));
+  for (const r of allRounds) freshDays.add(ptDateKey(r.entry_date));
+  for (const v of allVals) freshDays.add(ptDateKey(v.as_of));
 
   // End-of-day unix seconds for a YMD string — used as the `at_sec` for
   // derivation so same-day events (round entry, override mark) count toward
@@ -497,7 +507,13 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
       priv += total_cents;
     }
 
-    series.push({ date: day, liquid_cents: liquid, private_cents: priv, total_cents: liquid + priv });
+    series.push({
+      date: day,
+      liquid_cents: liquid,
+      private_cents: priv,
+      total_cents: liquid + priv,
+      fresh: freshDays.has(day),
+    });
     day = nextYmd(day);
   }
 
