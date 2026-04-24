@@ -1,0 +1,161 @@
+---
+import type { ChangeAttribution, AttributionKey, WindowKey, AttributionCell } from '../lib/metrics';
+import { ATTRIBUTION_LABEL, WINDOW_LABEL } from '../lib/metrics';
+import { fmtUSD } from '../lib/format';
+
+interface Props {
+  attribution: ChangeAttribution;
+}
+const { attribution } = Astro.props;
+
+const ROWS: AttributionKey[] = ['liquid', 'uncalled', 'private', 'liabilities', 'nw'];
+const WINDOWS: WindowKey[] = ['d1', 'w1', 'm1', 'ytd', 'y1'];
+
+// Abbreviate dollar magnitudes so the half-width grid stays readable:
+//   |x| < 1,000        → exact ($845)
+//   |x| < 1,000,000    → $1.2K precision (1 decimal under 100K, none over)
+//   else               → $1.2M (one decimal)
+function abbrUSD(cents: number): string {
+  const sign = cents < 0 ? '−' : '+';
+  const abs = Math.abs(cents) / 100;
+  if (abs === 0) return '$0';
+  if (abs < 1000) return `${sign}$${Math.round(abs).toLocaleString('en-US')}`;
+  if (abs < 100_000) return `${sign}$${(abs / 1000).toFixed(1)}K`;
+  if (abs < 1_000_000) return `${sign}$${Math.round(abs / 1000).toLocaleString('en-US')}K`;
+  return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+}
+
+function fmtPct(pct: number | null): string {
+  if (pct == null) return 'new';
+  const sign = pct < 0 ? '−' : '+';
+  const abs = Math.abs(pct) * 100;
+  // tighter precision under 1%; one decimal otherwise
+  return abs < 1 ? `${sign}${abs.toFixed(2)}%` : `${sign}${abs.toFixed(1)}%`;
+}
+
+function cellClass(cell: AttributionCell): string {
+  if (!cell) return 'muted';
+  if (cell.cents === 0) return 'zero';
+  return cell.cents > 0 ? 'pos' : 'neg';
+}
+
+const exactUSD = (cents: number): string => {
+  const sign = cents < 0 ? '−' : '+';
+  return `${sign}${fmtUSD.format(Math.abs(cents) / 100)}`;
+};
+---
+<section class="ch">
+  <header>
+    <h2>Change attribution</h2>
+    <span class="sub">how each bucket moved</span>
+  </header>
+  <table class="grid">
+    <thead>
+      <tr>
+        <th></th>
+        {WINDOWS.map((w) => <th>{WINDOW_LABEL[w]}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {ROWS.map((key) => {
+        const isTotal = key === 'nw';
+        return (
+          <tr class:list={[{ total: isTotal }]}>
+            <td>{ATTRIBUTION_LABEL[key].toLowerCase()}</td>
+            {WINDOWS.map((w) => {
+              const cell = attribution[key][w];
+              const cls = cellClass(cell);
+              const title = cell
+                ? `${exactUSD(cell.cents)}${cell.pct == null ? '' : ` · ${fmtPct(cell.pct)}`}`
+                : 'no history yet for this window';
+              return (
+                <td title={title}>
+                  {cell ? (
+                    <div class="stack">
+                      <span class={`d ${cls}`}>{cell.cents === 0 ? '$0' : abbrUSD(cell.cents)}</span>
+                      <span class="p">{cell.cents === 0 ? '—' : fmtPct(cell.pct)}</span>
+                    </div>
+                  ) : (
+                    <span class="muted">—</span>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</section>
+
+<style>
+  .ch { display: grid; gap: var(--space-3); }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+  h2 {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    margin: 0;
+  }
+  .sub {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+
+  .grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    white-space: nowrap;
+  }
+  thead th:first-child { text-align: left; }
+  tbody td {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    vertical-align: baseline;
+  }
+  tbody td:first-child {
+    text-align: left;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+  tbody tr.total td:first-child {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  tbody tr.total td {
+    border-top: 1px solid var(--rule-strong);
+    font-weight: 500;
+  }
+
+  .stack { display: grid; gap: 0; line-height: 1.15; }
+  .d { font-size: var(--size-sm); }
+  .p { font-size: var(--size-xs); color: var(--fg-muted); }
+  .zero { color: var(--fg-muted); }
+
+  @media (max-width: 40rem) {
+    thead th, tbody td { padding: var(--space-1); }
+    .d { font-size: var(--size-xs); }
+  }
+</style>

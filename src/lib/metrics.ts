@@ -52,6 +52,125 @@ export function computeDeltas(series: NetWorthPoint[]): NetWorthDeltas {
   };
 }
 
+// ─── change attribution (per-component deltas across windows) ──────────────
+//
+// For each window (1D, 1W, 1M, YTD, 1Y) and each balance-sheet component,
+// compute current − prior in NAV-impact terms. So a $5K liability increase
+// shows as −$5K (debt grew, NAV down); a fresh $14,824 uncalled allocation
+// shows as −$14,824 (cash earmarked, NAV down). The net-worth row is the sum
+// of the four bucket rows.
+
+export type AttributionKey = 'liquid' | 'uncalled' | 'private' | 'liabilities' | 'nw';
+export const ATTRIBUTION_LABEL: Record<AttributionKey, string> = {
+  liquid: 'Liquid',
+  uncalled: 'Uncalled',
+  private: 'Private',
+  liabilities: 'Liabilities',
+  nw: 'Net worth',
+};
+
+export type WindowKey = 'd1' | 'w1' | 'm1' | 'ytd' | 'y1';
+export const WINDOW_LABEL: Record<WindowKey, string> = {
+  d1: '1D',
+  w1: '1W',
+  m1: '1M',
+  ytd: 'YTD',
+  y1: '1Y',
+};
+
+export type AttributionCell = {
+  cents: number;       // NAV-impact contribution (signed)
+  pct: number | null;  // delta / |prior basis|; null when prior basis was 0
+} | null;              // null when window predates history
+
+export type AttributionRow = Record<WindowKey, AttributionCell>;
+export type ChangeAttribution = Record<AttributionKey, AttributionRow>;
+
+// Compute the gross-liquid (positives only) value at a series point — i.e.
+// liquid + liabilities, since liquid_cents is already net of liabilities.
+const grossLiquid = (p: NetWorthPoint) => p.liquid_cents + p.liabilities_cents;
+
+// NAV at a point = liquid + private − uncalled. Mirrors the displayed rail
+// header: gross_assets − liabilities − uncalled.
+const navAt = (p: NetWorthPoint) => p.liquid_cents + p.private_cents - p.uncalled_cents;
+
+const componentValue = (p: NetWorthPoint, key: AttributionKey): number => {
+  switch (key) {
+    case 'liquid': return grossLiquid(p);
+    case 'uncalled': return p.uncalled_cents;
+    case 'private': return p.private_cents;
+    case 'liabilities': return p.liabilities_cents;
+    case 'nw': return navAt(p);
+  }
+};
+
+// Sign of the NAV impact for a delta in this component's value:
+//   +1 = increasing this value increases NAV (liquid, private, nw)
+//   −1 = increasing this value decreases NAV (uncalled, liabilities)
+const navImpactSign = (key: AttributionKey): 1 | -1 =>
+  key === 'uncalled' || key === 'liabilities' ? -1 : 1;
+
+export function computeChangeAttribution(series: NetWorthPoint[]): ChangeAttribution {
+  const real = series.filter((p) => !p.synthetic);
+  const empty: AttributionRow = { d1: null, w1: null, m1: null, ytd: null, y1: null };
+  if (real.length < 2) {
+    return {
+      liquid: empty, uncalled: empty, private: empty, liabilities: empty, nw: empty,
+    };
+  }
+
+  const current = real[real.length - 1];
+  const today = current.date;
+  const firstRealDate = real[0].date;
+
+  const findAtOrBefore = (target: string): NetWorthPoint | null => {
+    if (target < firstRealDate) return null;
+    for (let i = real.length - 1; i >= 0; i--) {
+      if (real[i].date <= target) return real[i];
+    }
+    return null;
+  };
+
+  const targets: Record<WindowKey, string> = {
+    d1:  shiftYmd(today, -1),
+    w1:  shiftYmd(today, -7),
+    m1:  shiftYmd(today, -30),
+    ytd: `${today.slice(0, 4)}-01-01`,
+    y1:  shiftYmd(today, -365),
+  };
+
+  const cellFor = (key: AttributionKey, win: WindowKey): AttributionCell => {
+    // Same 1D carry-forward suppression as computeDeltas — if today's values
+    // are pure carry-forward, 1D would falsely read $0.
+    if (win === 'd1' && current.fresh === false) return null;
+    const prior = findAtOrBefore(targets[win]);
+    if (!prior || prior.date === today) return null;
+    const sign = navImpactSign(key);
+    const cur = componentValue(current, key);
+    const prev = componentValue(prior, key);
+    const cents = sign * (cur - prev);
+    const basis = Math.abs(prev);
+    const pct = basis > 0 ? (cur - prev) / basis : null;
+    return { cents, pct };
+  };
+
+  const rowFor = (key: AttributionKey): AttributionRow => ({
+    d1:  cellFor(key, 'd1'),
+    w1:  cellFor(key, 'w1'),
+    m1:  cellFor(key, 'm1'),
+    ytd: cellFor(key, 'ytd'),
+    y1:  cellFor(key, 'y1'),
+  });
+
+  return {
+    liquid:      rowFor('liquid'),
+    uncalled:    rowFor('uncalled'),
+    private:     rowFor('private'),
+    liabilities: rowFor('liabilities'),
+    nw:          rowFor('nw'),
+  };
+}
+
 // ─── allocation mix (% of gross assets, excludes liabilities) ───────────────
 
 type AllocAccount = {

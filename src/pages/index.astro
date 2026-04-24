@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { netWorth, netWorthSeries, listAccounts, listPrivateInvestments, syncHealth } from '../ops/reads';
 import { fmtUSD, fmtUSDsigned, prettyKind, pluralize } from '../lib/format';
-import { computeDeltas, computeAllocation, topConcentration } from '../lib/metrics';
+import { computeDeltas, computeAllocation, topConcentration, computeChangeAttribution } from '../lib/metrics';
 import Shell from '../layouts/Shell.astro';
 import LedgerSection from '../components/LedgerSection.astro';
 import LedgerRow from '../components/LedgerRow.astro';
@@ -11,6 +11,7 @@ import LedgerInstitution from '../components/LedgerInstitution.astro';
 import NetWorthChart from '../components/NetWorthChart.astro';
 import AllocationMix from '../components/AllocationMix.astro';
 import Concentration from '../components/Concentration.astro';
+import ChangeAttribution from '../components/ChangeAttribution.astro';
 
 const d = db(env.DB);
 const [nw, series, accounts, privateInv, syncIssues] = await Promise.all([
@@ -78,6 +79,7 @@ const lastSyncedAt = accounts.reduce<number | null>(
 );
 
 const deltas = computeDeltas(series);
+const attribution = computeChangeAttribution(series);
 const { categories: allocCategories, totalCents: grossAssetsCents } = computeAllocation(accounts, privateInv);
 const topPositions = topConcentration(accounts, privateInv, grossAssetsCents);
 
@@ -166,8 +168,9 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
 
         <NetWorthChart series={series} />
 
-        {(allocCategories.length > 0 || topPositions.length > 0) && (
-          <div class="summary-grid">
+        <div class="summary-grid">
+          <ChangeAttribution attribution={attribution} />
+          <div class="stack-col">
             {allocCategories.length > 0 && (
               <AllocationMix categories={allocCategories} totalCents={grossAssetsCents} />
             )}
@@ -175,7 +178,7 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
               <Concentration positions={topPositions} />
             )}
           </div>
-        )}
+        </div>
 
         {cashInsts.length > 0 && (
           <LedgerSection title="Cash & Equivalents" count={pluralize(cash.length, 'account')} subtotal={fmtUSDsigned(cashTotal)}>
@@ -322,14 +325,16 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
 
   .ledger-main { display: grid; gap: var(--space-4); }
 
-  /* Allocation + top positions side-by-side: each is only ~3 rows so they
-     waste horizontal space when stacked full-width. Collapse to single
-     column at narrow widths. */
+  /* Below the chart: change attribution matrix (left) sits next to the
+     stacked allocation + top-positions panels (right). Collapses to a
+     single column at narrow widths. */
   .summary-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-6);
+    align-items: start;
   }
+  .summary-grid .stack-col { display: grid; gap: var(--space-6); }
   @media (max-width: 64rem) {
     .summary-grid { grid-template-columns: 1fr; }
   }

@@ -427,7 +427,9 @@ export async function getPrivateInvestment(d: DB, assetId: string) {
 
 export type NetWorthPoint = {
   date: string;            // 'YYYY-MM-DD' in PT
-  liquid_cents: number;
+  liquid_cents: number;    // cash + invest + other − liabilities (legacy meaning)
+  liabilities_cents: number;     // sum of liability balances at this day (positive number)
+  uncalled_cents: number;        // sum of pending tranche cost basis active this day
   private_cents: number;
   total_cents: number;
   synthetic?: boolean;     // true = backfilled baseline before first real snapshot
@@ -459,6 +461,17 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     ['account_id', 'balance_cents', 'is_liability', 'as_of'],
   );
   const { rounds: allRounds, valuations: allVals } = await fetchRoundsAndValuations(d);
+
+  // For uncalled-per-day: a tranche is "uncalled" on day D when entry_date <= D
+  // AND (funded_at IS NULL OR funded_at > D). Today's funded_at NULL means
+  // pending forever (so far); a future funded_at means it gets called that day.
+  const uncalledTranches = allRounds
+    .filter((r) => r.cost_basis_cents > 0)
+    .map((r) => ({
+      cents: r.cost_basis_cents,
+      entry: ptDateKey(r.entry_date),
+      funded: r.funded_at == null ? null : ptDateKey(r.funded_at),
+    }));
 
   if (snaps.length === 0 && allRounds.length === 0 && allVals.length === 0) return [];
 
@@ -517,8 +530,13 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     const au = acctByDate.get(day);
     if (au) for (const [k, v] of au) acctState.set(k, v);
 
-    let liquid = 0;
-    for (const v of acctState.values()) liquid += v.liability ? -v.balance : v.balance;
+    let positives = 0;
+    let liabilities = 0;
+    for (const v of acctState.values()) {
+      if (v.liability) liabilities += v.balance;
+      else positives += v.balance;
+    }
+    const liquid = positives - liabilities;
 
     const endSec = endOfDaySec(day);
     let priv = 0;
@@ -531,9 +549,18 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
       priv += total_cents;
     }
 
+    let uncalled = 0;
+    for (const t of uncalledTranches) {
+      if (t.entry <= day && (t.funded == null || t.funded > day)) {
+        uncalled += t.cents;
+      }
+    }
+
     series.push({
       date: day,
       liquid_cents: liquid,
+      liabilities_cents: liabilities,
+      uncalled_cents: uncalled,
       private_cents: priv,
       total_cents: liquid + priv,
       fresh: freshDays.has(day),
@@ -553,6 +580,8 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
       pad.push({
         date: shiftYmd(anchor.date, -k),
         liquid_cents: anchor.liquid_cents,
+        liabilities_cents: anchor.liabilities_cents,
+        uncalled_cents: anchor.uncalled_cents,
         private_cents: anchor.private_cents,
         total_cents: anchor.total_cents,
         synthetic: true,
