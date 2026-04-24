@@ -100,7 +100,9 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
     <div class="ledger">
       <aside class="rail">
         <div class="rail-label">net worth</div>
-        <div class="rail-value num">{fmtUSD.format(nw.total_usd)}</div>
+        <div class="rail-value num" title={uncalledTotal > 0 ? `Net of ${fmtUSD.format(uncalledTotal / 100)} in uncalled SBS / fund commitments. Gross is ${fmtUSD.format(nw.total_usd)}.` : undefined}>
+          {fmtUSD.format((nw.total_cents - uncalledTotal) / 100)}
+        </div>
 
         <div class="rail-breakdown">
           <div class="bd-row" title={uncalledTotal > 0 ? `Gross liquid ${fmtUSD.format(nw.liquid_usd)} less ${fmtUSD.format(uncalledTotal / 100)} of uncalled SBS / fund commitments — what's actually spendable without breaking a capital call.` : undefined}>
@@ -291,9 +293,12 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
     color: var(--fg-muted);
   }
   .bd-row .bd-sub {
-    margin-left: var(--space-2);
+    display: block;
+    text-align: right;
+    margin: 0;
     font-size: var(--size-xs);
     color: var(--fg-muted);
+    line-height: 1.1;
   }
   .rail-meta {
     font-size: var(--size-xs);
