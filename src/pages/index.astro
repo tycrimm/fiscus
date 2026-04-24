@@ -160,12 +160,15 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
 
         <NetWorthChart series={series} />
 
-        {allocCategories.length > 0 && (
-          <AllocationMix categories={allocCategories} totalCents={grossAssetsCents} />
-        )}
-
-        {topPositions.length > 0 && (
-          <Concentration positions={topPositions} />
+        {(allocCategories.length > 0 || topPositions.length > 0) && (
+          <div class="summary-grid">
+            {allocCategories.length > 0 && (
+              <AllocationMix categories={allocCategories} totalCents={grossAssetsCents} />
+            )}
+            {topPositions.length > 0 && (
+              <Concentration positions={topPositions} />
+            )}
+          </div>
         )}
 
         {cashInsts.length > 0 && (
@@ -312,6 +315,18 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
   }
 
   .ledger-main { display: grid; gap: var(--space-4); }
+
+  /* Allocation + top positions side-by-side: each is only ~3 rows so they
+     waste horizontal space when stacked full-width. Collapse to single
+     column at narrow widths. */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
+  }
+  @media (max-width: 64rem) {
+    .summary-grid { grid-template-columns: 1fr; }
+  }
 
   .sync-alert {
     display: flex;
