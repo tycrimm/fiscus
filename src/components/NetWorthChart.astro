@@ -1,6 +1,6 @@
 ---
 import type { NetWorthPoint } from '../ops/reads';
-import { fmtUSD, fmtTickMonthDay } from '../lib/format';
+import { fmtUSD, fmtTickMonthDay, shiftYmd } from '../lib/format';
 import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
 import Chart, { type ChartHoverPoint, type ChartPath, type ChartTick } from './Chart.astro';
 
@@ -10,57 +10,41 @@ interface Props {
 
 const { series } = Astro.props;
 
-const xAt = (i: number) => (i / Math.max(series.length - 1, 1)) * CHART_W;
-const yAt = (() => {
-  const totals = series.map((p) => p.total_cents);
-  const lo = totals.length ? Math.min(...totals) : 0;
-  const hi = totals.length ? Math.max(...totals) : 0;
-  const span = Math.max(hi - lo, 1);
-  const yMin = lo - span * 0.08;
-  const yMax = hi + span * 0.08;
-  const yRange = yMax - yMin || 1;
-  return (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
-})();
+type WindowKey = '1d' | '1w' | '1m' | 'ytd' | '1y' | 'all';
+const DEFAULT_WINDOW: WindowKey = '1m';
 
-// Where real data begins (everything before is the synthetic baseline).
-const firstRealIdx = series.findIndex((p) => !p.synthetic);
-const hasSynthetic = firstRealIdx > 0;
-const realStart = hasSynthetic ? firstRealIdx : 0;
+// Slice the series for a window. Returns the points whose date is on or after
+// the window start. ALL returns the full series.
+function sliceForWindow(all: NetWorthPoint[], key: WindowKey): NetWorthPoint[] {
+  if (all.length === 0 || key === 'all') return all;
+  const today = all[all.length - 1].date;
+  let start: string;
+  switch (key) {
+    case '1d':  start = shiftYmd(today, -1); break;
+    case '1w':  start = shiftYmd(today, -7); break;
+    case '1m':  start = shiftYmd(today, -30); break;
+    case 'ytd': start = `${today.slice(0, 4)}-01-01`; break;
+    case '1y':  start = shiftYmd(today, -365); break;
+  }
+  // Include the latest point at-or-before the window start so the line begins
+  // at a real anchor (otherwise short windows can look like the chart rises
+  // out of nothing). If no such point exists, just return the in-window slice.
+  const inWindow = all.filter((p) => p.date >= start);
+  if (inWindow.length === 0 || inWindow[0].date === all[0].date) return inWindow;
+  const before = [...all].reverse().find((p) => p.date < start);
+  return before ? [before, ...inWindow] : inWindow;
+}
 
-const buildPath = (slice: typeof series, offset: number) =>
-  slice
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(offset + i).toFixed(2)} ${yAt(p.total_cents).toFixed(2)}`)
-    .join(' ');
-
-// Synthetic line stops AT the first real point so segments visually connect.
-const syntheticSlice = hasSynthetic ? series.slice(0, firstRealIdx + 1) : [];
-const realSlice = series.slice(realStart);
-const syntheticPath = hasSynthetic ? buildPath(syntheticSlice, 0) : '';
-const realPath = buildPath(realSlice, realStart);
-
-// Area only under the real series — synthetic stays as a hairline.
-const area =
-  realSlice.length > 1
-    ? `${realPath} L ${xAt(series.length - 1).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(realStart).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
-    : '';
-
-const paths: ChartPath[] = [];
-if (hasSynthetic) paths.push({ d: syntheticPath, variant: 'synthetic' });
-paths.push({ d: realPath, variant: 'solid' });
-
-// Up to 6 evenly spaced date ticks.
-const tickCount = Math.min(6, series.length);
-const ticks: ChartTick[] = Array.from({ length: tickCount }, (_, k) => {
-  const i = tickCount === 1 ? 0 : Math.round((k * (series.length - 1)) / (tickCount - 1));
-  return { x: xAt(i), label: fmtTickMonthDay(series[i].date) };
-});
-
-// Real-data delta only — synthetic baseline shouldn't drive the headline number.
-const realFirst = series[realStart];
-const realLast = series[series.length - 1];
-const change = realLast && realFirst ? realLast.total_cents - realFirst.total_cents : 0;
-const changePct = realFirst && realFirst.total_cents !== 0 ? change / realFirst.total_cents : 0;
-const realDays = series.length - realStart;
+type ChartConfig = {
+  label: string;
+  delta: { cents: number; pct: number; pctDecimals: number } | null;
+  area: string;
+  paths: ChartPath[];
+  ticks: ChartTick[];
+  points: ChartHoverPoint[];
+  hasData: boolean;
+  empty: string;
+};
 
 const fmtReadoutDate = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -69,28 +53,178 @@ const fmtReadoutDate = (ymd: string) => {
   });
 };
 
-const points: ChartHoverPoint[] = series.map((p, i) => ({
-  x: xAt(i),
-  y: yAt(p.total_cents),
-  readout: `${fmtReadoutDate(p.date)} · ${fmtUSD.format(p.total_cents / 100)}${p.synthetic ? ' · baseline' : ''}`,
+function buildConfig(slice: NetWorthPoint[], label: string): ChartConfig {
+  if (slice.length === 0) {
+    return {
+      label,
+      delta: null,
+      area: '',
+      paths: [],
+      ticks: [],
+      points: [],
+      hasData: false,
+      empty: 'NO SNAPSHOTS IN THIS WINDOW.',
+    };
+  }
+
+  const xAt = (i: number) => (i / Math.max(slice.length - 1, 1)) * CHART_W;
+  const yAt = (() => {
+    const totals = slice.map((p) => p.total_cents);
+    const lo = Math.min(...totals);
+    const hi = Math.max(...totals);
+    const span = Math.max(hi - lo, 1);
+    const yMin = lo - span * 0.08;
+    const yMax = hi + span * 0.08;
+    const yRange = yMax - yMin || 1;
+    return (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
+  })();
+
+  const firstRealIdx = slice.findIndex((p) => !p.synthetic);
+  const hasSynthetic = firstRealIdx > 0;
+  const realStart = hasSynthetic ? firstRealIdx : 0;
+
+  const buildPath = (segments: NetWorthPoint[], offset: number) =>
+    segments
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(offset + i).toFixed(2)} ${yAt(p.total_cents).toFixed(2)}`)
+      .join(' ');
+
+  const syntheticSlice = hasSynthetic ? slice.slice(0, firstRealIdx + 1) : [];
+  const realSlice = slice.slice(realStart);
+  const syntheticPath = hasSynthetic ? buildPath(syntheticSlice, 0) : '';
+  const realPath = buildPath(realSlice, realStart);
+
+  const area =
+    realSlice.length > 1
+      ? `${realPath} L ${xAt(slice.length - 1).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(realStart).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
+      : '';
+
+  const paths: ChartPath[] = [];
+  if (hasSynthetic) paths.push({ d: syntheticPath, variant: 'synthetic' });
+  paths.push({ d: realPath, variant: 'solid' });
+
+  const tickCount = Math.min(6, slice.length);
+  const ticks: ChartTick[] = Array.from({ length: tickCount }, (_, k) => {
+    const i = tickCount === 1 ? 0 : Math.round((k * (slice.length - 1)) / (tickCount - 1));
+    return { x: xAt(i), label: fmtTickMonthDay(slice[i].date) };
+  });
+
+  const realFirst = slice[realStart];
+  const realLast = slice[slice.length - 1];
+  const change = realLast && realFirst ? realLast.total_cents - realFirst.total_cents : 0;
+  const changePct = realFirst && realFirst.total_cents !== 0 ? change / realFirst.total_cents : 0;
+  const realDays = slice.length - realStart;
+
+  const points: ChartHoverPoint[] = slice.map((p, i) => ({
+    x: xAt(i),
+    y: yAt(p.total_cents),
+    readout: `${fmtReadoutDate(p.date)} · ${fmtUSD.format(p.total_cents / 100)}${p.synthetic ? ' · baseline' : ''}`,
+  }));
+
+  return {
+    label,
+    delta: realDays > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null,
+    area,
+    paths,
+    ticks,
+    points,
+    hasData: true,
+    empty: 'NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN.',
+  };
+}
+
+const WINDOWS: { key: WindowKey; label: string; chartLabel: string }[] = [
+  { key: '1d',  label: '1D',  chartLabel: 'net worth · 1d' },
+  { key: '1w',  label: '1W',  chartLabel: 'net worth · 1w' },
+  { key: '1m',  label: '1M',  chartLabel: 'net worth · 1m' },
+  { key: 'ytd', label: 'YTD', chartLabel: 'net worth · ytd' },
+  { key: '1y',  label: '1Y',  chartLabel: 'net worth · 1y' },
+  { key: 'all', label: 'ALL', chartLabel: 'net worth · all' },
+];
+
+const panes = WINDOWS.map((w) => ({
+  ...w,
+  config: buildConfig(sliceForWindow(series, w.key), w.chartLabel),
 }));
 ---
 <div class="nw-chart">
-  <Chart
-    label={`net worth · last ${series.length} days`}
-    empty="NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN."
-    delta={realDays > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null}
-    area={area}
-    paths={paths}
-    ticks={ticks}
-    points={points}
-  />
+  <div class="window-toggle" role="tablist" aria-label="chart window">
+    {WINDOWS.map((w) => (
+      <button
+        type="button"
+        role="tab"
+        data-window={w.key}
+        class:list={[{ active: w.key === DEFAULT_WINDOW }]}
+        aria-selected={w.key === DEFAULT_WINDOW}
+      >{w.label}</button>
+    ))}
+  </div>
+  {panes.map((p) => (
+    <div class="nw-pane" data-window={p.key} hidden={p.key !== DEFAULT_WINDOW}>
+      <Chart
+        label={p.config.label}
+        empty={p.config.empty}
+        delta={p.config.delta}
+        area={p.config.area}
+        paths={p.config.paths}
+        ticks={p.config.ticks}
+        points={p.config.points}
+      />
+    </div>
+  ))}
 </div>
+
+<script>
+  // Toggle the chart window: hide all panes except the one matching the
+  // clicked button. Each pane is a fully-rendered Chart with its own header
+  // (label + delta) and SVG, so swapping is just visibility.
+  for (const wrap of document.querySelectorAll<HTMLElement>('.nw-chart')) {
+    const buttons = wrap.querySelectorAll<HTMLButtonElement>('button[data-window]');
+    const panes = wrap.querySelectorAll<HTMLElement>('.nw-pane');
+    buttons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.window;
+        if (!target) return;
+        buttons.forEach((b) => {
+          const active = b.dataset.window === target;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panes.forEach((p) => {
+          p.hidden = p.dataset.window !== target;
+        });
+      });
+    });
+  }
+</script>
 
 <style>
   .nw-chart {
     margin-bottom: var(--space-8);
     border-bottom: 1px solid var(--rule);
     padding-bottom: var(--space-6);
+  }
+
+  .window-toggle {
+    display: flex;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+    justify-content: flex-end;
+  }
+  .window-toggle button {
+    font: inherit;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+    transition: color 80ms linear, border-color 80ms linear;
+  }
+  .window-toggle button:hover { color: var(--fg); }
+  .window-toggle button.active {
+    color: var(--fg);
+    border-color: var(--fg);
   }
 </style>
