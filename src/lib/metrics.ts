@@ -1,57 +1,6 @@
 import type { NetWorthPoint } from '../ops/reads';
 import { shiftYmd } from './format';
 
-// ─── net worth deltas over standard windows ─────────────────────────────────
-
-export type Delta = { cents: number; pct: number } | null;
-
-export type NetWorthDeltas = {
-  d1: Delta;
-  w1: Delta;
-  m1: Delta;
-  ytd: Delta;
-  y1: Delta;
-};
-
-export function computeDeltas(series: NetWorthPoint[]): NetWorthDeltas {
-  const empty: NetWorthDeltas = { d1: null, w1: null, m1: null, ytd: null, y1: null };
-  const real = series.filter((p) => !p.synthetic);
-  if (real.length < 2) return empty;
-
-  const current = real[real.length - 1];
-  const today = current.date;
-  const firstRealDate = real[0].date;
-
-  // Latest real point with date <= target. Returns null if target predates history.
-  const findAtOrBefore = (target: string): NetWorthPoint | null => {
-    if (target < firstRealDate) return null;
-    for (let i = real.length - 1; i >= 0; i--) {
-      if (real[i].date <= target) return real[i];
-    }
-    return null;
-  };
-
-  const delta = (target: string): Delta => {
-    const p = findAtOrBefore(target);
-    if (!p || p.date === today) return null;
-    const c = current.total_cents - p.total_cents;
-    const pct = p.total_cents !== 0 ? c / p.total_cents : 0;
-    return { cents: c, pct };
-  };
-
-  // 1D is the only window sensitive to today being carry-forward: if today
-  // hasn't synced yet, current == yesterday's values exactly, so 1D would
-  // read $0. Hide it rather than mislead. Longer windows are fine — a one-
-  // day slip at the right edge doesn't meaningfully distort them.
-  return {
-    d1: current.fresh === false ? null : delta(shiftYmd(today, -1)),
-    w1: delta(shiftYmd(today, -7)),
-    m1: delta(shiftYmd(today, -30)),
-    ytd: delta(`${today.slice(0, 4)}-01-01`),
-    y1: delta(shiftYmd(today, -365)),
-  };
-}
-
 // ─── change attribution (per-component deltas across windows) ──────────────
 //
 // For each window (1D, 1W, 1M, YTD, 1Y) and each balance-sheet component,

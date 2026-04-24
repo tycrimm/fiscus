@@ -1,0 +1,133 @@
+---
+import type { ChangeAttribution, AttributionKey, WindowKey, AttributionCell } from '../lib/metrics';
+import { WINDOW_LABEL } from '../lib/metrics';
+import { fmtUSD } from '../lib/format';
+
+interface Props {
+  attribution: ChangeAttribution;
+}
+const { attribution } = Astro.props;
+
+// Rail-fit labels: short forms so 5 component rows + a header line all sit in
+// 16rem of width without crowding.
+const ROWS: { key: AttributionKey; short: string }[] = [
+  { key: 'liquid',      short: 'liq' },
+  { key: 'uncalled',    short: 'unc' },
+  { key: 'private',     short: 'priv' },
+  { key: 'liabilities', short: 'liab' },
+  { key: 'nw',          short: 'nw' },
+];
+const WINDOWS: WindowKey[] = ['d1', 'w1', 'm1', 'ytd', 'y1'];
+
+// Abbreviation rules tuned for the rail's narrow column. Under $1K stays
+// exact (so "−$576" reads); $1K–$1M becomes K with one decimal under $10K and
+// none above; $1M+ becomes M with two decimals.
+function abbrUSD(cents: number): string {
+  const sign = cents < 0 ? '−' : '+';
+  const abs = Math.abs(cents) / 100;
+  if (abs === 0) return '$0';
+  if (abs < 1000) return `${sign}$${Math.round(abs).toLocaleString('en-US')}`;
+  if (abs < 10_000) return `${sign}$${(abs / 1000).toFixed(1)}K`;
+  if (abs < 1_000_000) return `${sign}$${Math.round(abs / 1000).toLocaleString('en-US')}K`;
+  return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+}
+
+function fmtPct(pct: number | null): string {
+  if (pct == null) return 'new';
+  const sign = pct < 0 ? '−' : '+';
+  const abs = Math.abs(pct) * 100;
+  return abs < 1 ? `${sign}${abs.toFixed(2)}%` : `${sign}${abs.toFixed(1)}%`;
+}
+
+function cellClass(cell: AttributionCell): string {
+  if (!cell) return 'muted';
+  if (cell.cents === 0) return 'zero';
+  return cell.cents > 0 ? 'pos' : 'neg';
+}
+
+const exactUSD = (cents: number): string => {
+  const sign = cents < 0 ? '−' : '+';
+  return `${sign}${fmtUSD.format(Math.abs(cents) / 100)}`;
+};
+---
+<table class="m">
+  <thead>
+    <tr>
+      <th></th>
+      {WINDOWS.map((w) => <th>{WINDOW_LABEL[w].toLowerCase()}</th>)}
+    </tr>
+  </thead>
+  <tbody>
+    {ROWS.map(({ key, short }) => {
+      const isTotal = key === 'nw';
+      return (
+        <tr class:list={[{ total: isTotal }]}>
+          <td>{short}</td>
+          {WINDOWS.map((w) => {
+            const cell = attribution[key][w];
+            const cls = cellClass(cell);
+            const title = cell
+              ? `${exactUSD(cell.cents)}${cell.pct == null ? '' : ` · ${fmtPct(cell.pct)}`}`
+              : 'no history yet';
+            return (
+              <td title={title}>
+                {cell ? (
+                  <div class="stack">
+                    <span class={`d ${cls}`}>{cell.cents === 0 ? '$0' : abbrUSD(cell.cents)}</span>
+                    {cell.cents !== 0 && <span class="p">{fmtPct(cell.pct)}</span>}
+                  </div>
+                ) : (
+                  <span class="muted">—</span>
+                )}
+              </td>
+            );
+          })}
+        </tr>
+      );
+    })}
+  </tbody>
+</table>
+
+<style>
+  .m {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.7rem;
+  }
+  thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: 0.625rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: var(--space-1) var(--space-1);
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+  }
+  thead th:first-child { text-align: left; }
+  tbody td {
+    padding: var(--space-1);
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+  tbody td:first-child {
+    text-align: left;
+    font-size: 0.625rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+  tbody tr.total td:first-child { color: var(--fg); font-weight: 500; }
+  tbody tr.total td {
+    border-top: 1px solid var(--rule-strong);
+    font-weight: 500;
+  }
+
+  .stack { display: grid; gap: 0; line-height: 1.1; }
+  .d { font-size: 0.7rem; }
+  .p { font-size: 0.625rem; color: var(--fg-muted); }
+  .zero { color: var(--fg-muted); }
+</style>
