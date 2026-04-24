@@ -105,17 +105,23 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
         </div>
 
         <div class="rail-breakdown">
-          <div class="bd-row" title={uncalledTotal > 0 ? `Gross liquid ${fmtUSD.format(nw.liquid_usd)} less ${fmtUSD.format(uncalledTotal / 100)} of uncalled SBS / fund commitments — what's actually spendable without breaking a capital call.` : undefined}>
+          {/* Liquid here is gross spendable assets (cash + invest + other);
+              liabilities live on their own row. NAV math: liquid − uncalled
+              + private − liabilities = the displayed net worth. */}
+          <div class="bd-row" title="Cash, investments, and other accounts — gross of debt. Liabilities show separately below.">
             <span class="cat">liquid</span>
-            <span class="val num">{fmtUSD.format((nw.liquid_cents - uncalledTotal) / 100)}</span>
+            <span class="val num">{fmtUSD.format((nw.liquid_cents + liabTotal - uncalledTotal) / 100)}</span>
           </div>
           {uncalledTotal > 0 && (
-            <div class="bd-row sub">
+            <div class="bd-row sub" title={`Committed SBS / fund allocations not yet wired (${fmtUSD.format(uncalledTotal / 100)}). Subtracted from spendable liquid because the cash is earmarked for an unscheduled capital call.`}>
               <span class="cat">uncalled</span>
               <span class="val num">−{fmtUSD.format(uncalledTotal / 100)}</span>
             </div>
           )}
           <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
+          {liabTotal > 0 && (
+            <div class="bd-row"><span class="cat">liabilities</span><span class="val num">−{fmtUSD.format(liabTotal / 100)}</span></div>
+          )}
         </div>
 
         <div class="rail-label">change</div>
