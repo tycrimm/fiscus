@@ -106,12 +106,12 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
           {uncalledTotal > 0 && (
             <div class="bd-row sub" title={`Committed SBS / fund allocations not yet wired (${fmtUSD.format(uncalledTotal / 100)}). Subtracted from spendable liquid because the cash is earmarked for an unscheduled capital call.`}>
               <span class="cat">uncalled</span>
-              <span class="val num">−{fmtUSD.format(uncalledTotal / 100)}</span>
+              <span class="val num neg">−{fmtUSD.format(uncalledTotal / 100)}</span>
             </div>
           )}
           <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
           {liabTotal > 0 && (
-            <div class="bd-row"><span class="cat">liabilities</span><span class="val num">−{fmtUSD.format(liabTotal / 100)}</span></div>
+            <div class="bd-row"><span class="cat">liabilities</span><span class="val num neg">−{fmtUSD.format(liabTotal / 100)}</span></div>
           )}
         </div>
 
@@ -233,7 +233,7 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
 <style>
   .ledger {
     display: grid;
-    grid-template-columns: 16rem 1fr;
+    grid-template-columns: 18rem 1fr;
     gap: var(--space-8);
     align-items: start;
   }
@@ -285,6 +285,9 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
   .bd-row.sub .cat,
   .bd-row.sub .val { color: var(--fg-muted); }
   .bd-row:has(+ .sub) { border-bottom: none; padding-bottom: var(--space-1); }
+  /* Negative breakdown values (uncalled, liabilities) read red. Specificity
+     here ties .sub's .val rule above; defined after so source order wins. */
+  .bd-row .val.neg { color: var(--neg); }
   .rail-meta {
     font-size: var(--size-xs);
     color: var(--fg-muted);
