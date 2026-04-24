@@ -94,6 +94,10 @@ const exactUSD = (cents: number): string => {
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
     font-size: 0.7rem;
+    /* Fixed layout = columns ignore content width and share evenly. Combined
+       with the explicit first-column width below, this gives the 5 data
+       columns an equal slice of whatever's left after the label column. */
+    table-layout: fixed;
   }
   thead th {
     font-weight: 500;
@@ -105,7 +109,13 @@ const exactUSD = (cents: number): string => {
     border-bottom: 1px solid var(--rule);
     text-align: right;
   }
-  thead th:first-child { text-align: left; }
+  /* Label column: fixed narrow width so the data columns get the rest. */
+  thead th:first-child,
+  tbody td:first-child {
+    width: 2.25rem;
+    text-align: left;
+    padding-right: var(--space-1);
+  }
   tbody td {
     padding: var(--space-1);
     border-bottom: 1px solid var(--rule);
@@ -114,7 +124,6 @@ const exactUSD = (cents: number): string => {
     white-space: nowrap;
   }
   tbody td:first-child {
-    text-align: left;
     font-size: 0.625rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
