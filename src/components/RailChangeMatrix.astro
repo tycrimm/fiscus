@@ -9,13 +9,14 @@ interface Props {
 const { attribution } = Astro.props;
 
 // Rail-fit labels: short forms so 5 component rows + a header line all sit in
-// 16rem of width without crowding.
+// 18rem of width without crowding. NW first so it mirrors the rail breakdown
+// above (net worth headline, then per-bucket drilldown).
 const ROWS: { key: AttributionKey; short: string }[] = [
+  { key: 'nw',          short: 'nw' },
   { key: 'liquid',      short: 'liq' },
   { key: 'uncalled',    short: 'unc' },
   { key: 'private',     short: 'priv' },
   { key: 'liabilities', short: 'liab' },
-  { key: 'nw',          short: 'nw' },
 ];
 const WINDOWS: WindowKey[] = ['d1', 'w1', 'm1', 'ytd', 'y1'];
 
@@ -131,7 +132,9 @@ const exactUSD = (cents: number): string => {
   }
   tbody tr.total td:first-child { color: var(--fg); font-weight: 500; }
   tbody tr.total td {
-    border-top: 1px solid var(--rule-strong);
+    /* NW lives at the top of the matrix; strong rule separates it from
+       the bucket drilldown below. */
+    border-bottom: 1px solid var(--rule-strong);
     font-weight: 500;
   }
 
