@@ -107,13 +107,14 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
         <div class="rail-breakdown">
           <div class="bd-row" title={uncalledTotal > 0 ? `Gross liquid ${fmtUSD.format(nw.liquid_usd)} less ${fmtUSD.format(uncalledTotal / 100)} of uncalled SBS / fund commitments — what's actually spendable without breaking a capital call.` : undefined}>
             <span class="cat">liquid</span>
-            <span class="val num">
-              {fmtUSD.format((nw.liquid_cents - uncalledTotal) / 100)}
-              {uncalledTotal > 0 && (
-                <span class="bd-sub">−{fmtUSD.format(uncalledTotal / 100)} uncalled</span>
-              )}
-            </span>
+            <span class="val num">{fmtUSD.format((nw.liquid_cents - uncalledTotal) / 100)}</span>
           </div>
+          {uncalledTotal > 0 && (
+            <div class="bd-row sub">
+              <span class="cat">uncalled</span>
+              <span class="val num">−{fmtUSD.format(uncalledTotal / 100)}</span>
+            </div>
+          )}
           <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
         </div>
 
@@ -292,14 +293,17 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
     font-size: var(--size-xs);
     color: var(--fg-muted);
   }
-  .bd-row .bd-sub {
-    display: block;
-    text-align: right;
-    margin: 0;
+  /* Sub-rows: smaller, muted, visually attached to the row above (no top
+     gap; suppress that row's bottom border via :has). Both columns inherit
+     the muted styling so the label and value read as secondary together. */
+  .bd-row.sub {
     font-size: var(--size-xs);
-    color: var(--fg-muted);
-    line-height: 1.1;
+    padding-top: 0;
+    border-bottom: 1px solid var(--rule);
   }
+  .bd-row.sub .cat,
+  .bd-row.sub .val { color: var(--fg-muted); }
+  .bd-row:has(+ .sub) { border-bottom: none; padding-bottom: var(--space-1); }
   .rail-meta {
     font-size: var(--size-xs);
     color: var(--fg-muted);
