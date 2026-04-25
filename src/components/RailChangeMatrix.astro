@@ -18,7 +18,12 @@ const ROWS: { key: AttributionKey; short: string }[] = [
   { key: 'private',     short: 'priv' },
   { key: 'liabilities', short: 'liab' },
 ];
-const WINDOWS: WindowKey[] = ['d1', 'w1', 'm1', 'ytd', 'y1'];
+// Only show windows where history actually reaches back that far. NW is the
+// canonical signal — every component shares the same window targets, so a
+// non-null NW cell means the column is showing real data for every row.
+// As the series ages, more columns turn on automatically.
+const ALL_WINDOWS: WindowKey[] = ['d1', 'w1', 'm1', 'ytd', 'y1'];
+const WINDOWS: WindowKey[] = ALL_WINDOWS.filter((w) => attribution.nw[w] != null);
 
 // Abbreviation rules tuned for the rail's narrow column. Under $1K stays
 // exact (so "−$576" reads); $1K–$1M becomes K with one decimal under $10K and

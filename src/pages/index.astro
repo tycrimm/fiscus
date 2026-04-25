@@ -131,8 +131,12 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
           )}
         </div>
 
-        <div class="rail-label">change · attribution</div>
-        <RailChangeMatrix attribution={attribution} />
+        {Object.values(attribution.nw).some((c) => c != null) && (
+          <>
+            <div class="rail-label">change</div>
+            <RailChangeMatrix attribution={attribution} />
+          </>
+        )}
 
         <div class="rail-meta">
           <div>{accounts.length} accounts · {privateInv.length} private</div>
