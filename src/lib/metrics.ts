@@ -18,13 +18,14 @@ export const ATTRIBUTION_LABEL: Record<AttributionKey, string> = {
   nw: 'Net worth',
 };
 
-export type WindowKey = 'd1' | 'w1' | 'm1' | 'ytd' | 'y1';
+export type WindowKey = 'd1' | 'w1' | 'm1' | 'ytd' | 'y1' | 'y5';
 export const WINDOW_LABEL: Record<WindowKey, string> = {
   d1: '1D',
   w1: '1W',
   m1: '1M',
   ytd: 'YTD',
   y1: '1Y',
+  y5: '5Y',
 };
 
 export type AttributionCell = {
@@ -61,7 +62,7 @@ const navImpactSign = (key: AttributionKey): 1 | -1 =>
 
 export function computeChangeAttribution(series: NetWorthPoint[]): ChangeAttribution {
   const real = series.filter((p) => !p.synthetic);
-  const empty: AttributionRow = { d1: null, w1: null, m1: null, ytd: null, y1: null };
+  const empty: AttributionRow = { d1: null, w1: null, m1: null, ytd: null, y1: null, y5: null };
   if (real.length < 2) {
     return {
       liquid: empty, uncalled: empty, private: empty, liabilities: empty, nw: empty,
@@ -86,6 +87,7 @@ export function computeChangeAttribution(series: NetWorthPoint[]): ChangeAttribu
     m1:  shiftYmd(today, -30),
     ytd: `${today.slice(0, 4)}-01-01`,
     y1:  shiftYmd(today, -365),
+    y5:  shiftYmd(today, -1825),
   };
 
   const cellFor = (key: AttributionKey, win: WindowKey): AttributionCell => {
@@ -109,6 +111,7 @@ export function computeChangeAttribution(series: NetWorthPoint[]): ChangeAttribu
     m1:  cellFor(key, 'm1'),
     ytd: cellFor(key, 'ytd'),
     y1:  cellFor(key, 'y1'),
+    y5:  cellFor(key, 'y5'),
   });
 
   return {
