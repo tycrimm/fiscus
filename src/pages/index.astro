@@ -70,6 +70,10 @@ const cashTotal = sumAccts(cash);
 const investTotal = sumAccts(invest);
 const otherTotal = sumAccts(other);
 const liabTotal = sumAccts(liab);
+// Tenor split: credit cards are revolving (typically paid within 30 days),
+// everything else (loans, etc.) is amortized term debt.
+const dueSoonTotal = sumAccts(liab.filter((a) => a.kind === 'credit_card'));
+const amortizedTotal = liabTotal - dueSoonTotal;
 const privateTotal = privateInv.reduce((acc, r) => acc + r.current_value_cents, 0);
 const uncalledTotal = privateInv.reduce((acc, r) => acc + r.outstanding_cost_basis_cents, 0);
 
@@ -112,6 +116,18 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
           <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
           {liabTotal > 0 && (
             <div class="bd-row"><span class="cat">liabilities</span><span class="val num neg">−{fmtUSD.format(liabTotal / 100)}</span></div>
+          )}
+          {liabTotal > 0 && dueSoonTotal > 0 && amortizedTotal > 0 && (
+            <>
+              <div class="bd-row sub" title="Revolving balances on credit cards — typically due in full within 30 days to avoid interest.">
+                <span class="cat">due soon</span>
+                <span class="val num">−{fmtUSD.format(dueSoonTotal / 100)}</span>
+              </div>
+              <div class="bd-row sub" title="Term debt with scheduled amortization (car loans, mortgage, etc.).">
+                <span class="cat">amortized</span>
+                <span class="val num">−{fmtUSD.format(amortizedTotal / 100)}</span>
+              </div>
+            </>
           )}
         </div>
 
