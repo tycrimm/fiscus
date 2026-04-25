@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fiscus — change attribution prototype (compact)</title>
+  <style>
+    /* ─── tokens copied from src/styles/global.css ─────────────────────── */
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --bg-subtle: #fafafa;
+      --fg: #0a0a0a;
+      --fg-muted: #666666;
+      --rule: #e5e5e5;
+      --rule-strong: #c8c8c8;
+      --pos: #0f7a3a;
+      --neg: #b00020;
+      --size-xs: 0.75rem;
+      --size-sm: 0.875rem;
+      --size-base: 1rem;
+      --size-lg: 1.125rem;
+      --size-xl: 1.5rem;
+      --size-2xl: 2.25rem;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-12: 3rem;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: var(--size-base);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--fg-muted); }
+    .pos { color: var(--pos); }
+    .neg { color: var(--neg); }
+    .zero { color: var(--fg-muted); }
+
+    /* ─── prototype scaffolding ────────────────────────────────────────── */
+    .vnav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--rule);
+      padding: var(--space-4) var(--space-6);
+      display: flex;
+      gap: var(--space-6);
+      align-items: baseline;
+    }
+    .vnav .brand {
+      font-size: var(--size-sm);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .vnav .links {
+      display: flex;
+      gap: var(--space-6);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .vnav a { color: inherit; text-decoration: none; }
+    .vnav a:hover, .vnav a.active { color: var(--fg); }
+    .vnav .meta {
+      margin-left: auto;
+      font-size: var(--size-xs);
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+    }
+
+    main {
+      max-width: 80rem;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-6) var(--space-12);
+      display: grid;
+      gap: var(--space-12);
+    }
+    .variation { display: grid; gap: var(--space-4); }
+    .variation-head {
+      display: grid;
+      gap: var(--space-1);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--rule);
+    }
+    .variation-head .vlabel {
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+    .variation-head h2 {
+      margin: 0;
+      font-size: var(--size-lg);
+      font-weight: 500;
+    }
+    .variation-head .desc {
+      font-size: var(--size-sm);
+      color: var(--fg-muted);
+      max-width: 56rem;
+    }
+    .variation-body { display: grid; gap: var(--space-6); }
+    .notes {
+      font-size: var(--size-sm);
+      color: var(--fg-muted);
+      max-width: 56rem;
+    }
+    .notes h3 {
+      margin: 0 0 var(--space-1);
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg);
+      font-weight: 500;
+    }
+    .notes ul { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); }
+
+    .section-head {
+      display: flex;
+      gap: var(--space-3);
+      align-items: baseline;
+      margin-bottom: var(--space-2);
+    }
+    .section-head h3 {
+      margin: 0;
+      font-size: var(--size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 500;
+    }
+    .section-head .sub {
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+
+    /* ─── shared matrix base ──────────────────────────────────────────── */
+    .ch-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+    .ch-table thead th {
+      font-weight: 500;
+      color: var(--fg-muted);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .ch-table thead th:first-child { text-align: left; }
+    .ch-table tbody td {
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      vertical-align: baseline;
+    }
+    .ch-table tbody td:first-child {
+      text-align: left;
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      white-space: nowrap;
+    }
+    .ch-table tbody tr.total td:first-child { color: var(--fg); font-weight: 500; }
+    .ch-table tbody tr.total td {
+      border-top: 1px solid var(--rule-strong);
+      font-weight: 500;
+    }
+
+    /* ─── A: half-width compact (stacked $ over %, abbreviated values) ─── */
+    .va-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+      align-items: start;
+    }
+    .va-grid .panel {
+      display: grid;
+      gap: var(--space-3);
+    }
+    .va-grid .panel-stub {
+      padding: var(--space-6);
+      border: 1px dashed var(--rule-strong);
+      color: var(--fg-muted);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-align: center;
+    }
+    .va .ch-table thead th { padding: var(--space-2) var(--space-2); }
+    .va .ch-table tbody td { padding: var(--space-2); }
+    .va .ch-table .delta-stack { display: grid; gap: 0; line-height: 1.15; }
+    .va .ch-table .delta-d { font-size: var(--size-sm); }
+    .va .ch-table .delta-p { font-size: var(--size-xs); color: var(--fg-muted); }
+
+    /* ─── B: single-line cells ($ and % inline per cell) ──────────────── */
+    .vb .ch-table thead th { padding: var(--space-2) var(--space-3); }
+    .vb .ch-table tbody td { padding: var(--space-2) var(--space-3); font-size: var(--size-sm); }
+    .vb .ch-table .delta-d { display: inline; }
+    .vb .ch-table .delta-p {
+      display: inline;
+      margin-left: var(--space-1);
+      font-size: var(--size-xs);
+      color: var(--fg-muted);
+    }
+
+    /* ─── C: rail-fit ($-only, abbreviated, in 16rem rail) ─────────────── */
+    .vc-frame {
+      display: grid;
+      grid-template-columns: 16rem 1fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+    .vc-rail { display: grid; gap: var(--space-4); }
+    .vc-rail-label {
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .vc-rail-value {
+      font-size: var(--size-2xl);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      margin-top: calc(-1 * var(--space-2));
+      font-variant-numeric: tabular-nums;
+    }
+    .vc-bd { display: grid; gap: 0; }
+    .vc-bd .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: baseline;
+      font-size: var(--size-sm);
+    }
+    .vc-bd .row:first-child { border-top: 1px solid var(--rule); }
+    .vc-bd .row .cat {
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .vc-bd .row.sub { font-size: var(--size-xs); padding-top: 0; }
+    .vc-bd .row.sub .cat, .vc-bd .row.sub .val { color: var(--fg-muted); }
+    .vc-bd .row:has(+ .sub) { border-bottom: none; padding-bottom: var(--space-1); }
+
+    .vc-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-size: var(--size-xs);
+    }
+    .vc-matrix thead th {
+      font-weight: 500;
+      color: var(--fg-muted);
+      font-size: 0.625rem;       /* even smaller than xs */
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: var(--space-1);
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+    }
+    .vc-matrix thead th:first-child { text-align: left; }
+    .vc-matrix tbody td {
+      padding: var(--space-1) var(--space-1);
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .vc-matrix tbody td:first-child {
+      text-align: left;
+      font-size: 0.625rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+    .vc-matrix tbody tr.total td { border-top: 1px solid var(--rule-strong); font-weight: 500; }
+    .vc-matrix tbody tr.total td:first-child { color: var(--fg); }
+  </style>
+</head>
+<body>
+  <nav class="vnav">
+    <span class="brand">FISCUS · change matrix · compact</span>
+    <div class="links">
+      <a href="#A" data-target="A">A · half-width stacked</a>
+      <a href="#B" data-target="B">B · single-line cells</a>
+      <a href="#C" data-target="C">C · in the rail</a>
+    </div>
+    <span class="meta">3 sizings · prototype</span>
+  </nav>
+
+  <main>
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- A: half-width compact (stacked $ over %, abbreviated)            -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation va" id="A">
+      <header class="variation-head">
+        <span class="vlabel">Variation A</span>
+        <h2>Half-width matrix — abbreviated $, stacked %</h2>
+        <p class="desc">Same matrix as before, but values abbreviated to K/M and tighter cell padding so it fits in roughly half the main content width. Could sit alongside Allocation, or replace one of the existing summary panels. Both $ and % preserved per cell.</p>
+      </header>
+      <div class="variation-body">
+        <div class="va-grid">
+          <div class="panel">
+            <div class="section-head">
+              <h3>Change attribution</h3>
+              <span class="sub">how each bucket moved</span>
+            </div>
+            <table class="ch-table">
+              <thead>
+                <tr>
+                  <th></th><th>1D</th><th>1W</th><th>1M</th><th>YTD</th><th>1Y</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>liquid</td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$2.4K</span><span class="delta-p">+0.3%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$14.8K</span><span class="delta-p">+1.8%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$38.7K</span><span class="delta-p">+4.8%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$72.4K</span><span class="delta-p">+9.4%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$186K</span><span class="delta-p">+28.3%</span></div></td>
+                </tr>
+                <tr>
+                  <td>uncalled</td>
+                  <td><div class="delta-stack"><span class="delta-d zero">$0</span><span class="delta-p">—</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">−$14.8K</span><span class="delta-p">new</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">−$14.8K</span><span class="delta-p">new</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">−$14.8K</span><span class="delta-p">new</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">−$14.8K</span><span class="delta-p">new</span></div></td>
+                </tr>
+                <tr>
+                  <td>private</td>
+                  <td><div class="delta-stack"><span class="delta-d neg">−$8.6K</span><span class="delta-p">−0.2%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$10.5K</span><span class="delta-p">+0.3%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$72.3K</span><span class="delta-p">+1.8%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$402K</span><span class="delta-p">+11.0%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$802K</span><span class="delta-p">+24.7%</span></div></td>
+                </tr>
+                <tr>
+                  <td>liabilities</td>
+                  <td><div class="delta-stack"><span class="delta-d zero">$0</span><span class="delta-p">—</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">+$1.2K</span><span class="delta-p">+0.7%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">+$5.5K</span><span class="delta-p">+3.3%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d neg">+$12.6K</span><span class="delta-p">+7.7%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">−$25.4K</span><span class="delta-p">−12.7%</span></div></td>
+                </tr>
+                <tr class="total">
+                  <td>net worth</td>
+                  <td><div class="delta-stack"><span class="delta-d neg">−$6.2K</span><span class="delta-p">−0.1%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$24.1K</span><span class="delta-p">+0.5%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$113K</span><span class="delta-p">+2.5%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$487K</span><span class="delta-p">+11.6%</span></div></td>
+                  <td><div class="delta-stack"><span class="delta-d pos">+$1.01M</span><span class="delta-p">+27.4%</span></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="panel-stub">allocation or top positions could sit here</div>
+        </div>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Where it lives:</strong> below the chart, half-width, paired with Allocation or Top Positions (or in a new 3-up summary row).</li>
+            <li><strong>Abbreviations:</strong> 1K under $1,000 stays exact ($845); $1K–$999K shows as +$2.4K / +$487K; ≥$1M as +$1.01M. Tabular nums keep columns aligned.</li>
+            <li><strong>"new" tag:</strong> uncalled freshly logged → "new" reads better than "+100%" or repeating the dollar.</li>
+            <li><strong>Risk:</strong> abbreviation loses precision (was $487,200, now $487K). Tooltip can show exact on hover.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- B: single-line cells (full width, less tall)                     -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation vb" id="B">
+      <header class="variation-head">
+        <span class="vlabel">Variation B</span>
+        <h2>Single-line cells — $ and % inline</h2>
+        <p class="desc">Full width, but each cell is one line: dollar then a smaller, muted percent right after. Lower vertical height per row. Trades the strong $/% hierarchy for a more table-like read.</p>
+      </header>
+      <div class="variation-body">
+        <div class="section-head">
+          <h3>Change attribution</h3>
+          <span class="sub">how each bucket moved across windows</span>
+        </div>
+        <table class="ch-table">
+          <thead>
+            <tr>
+              <th></th><th>1D</th><th>1W</th><th>1M</th><th>YTD</th><th>1Y</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>liquid</td>
+              <td><span class="delta-d pos">+$2,415</span><span class="delta-p">+0.3%</span></td>
+              <td><span class="delta-d pos">+$14,820</span><span class="delta-p">+1.8%</span></td>
+              <td><span class="delta-d pos">+$38,660</span><span class="delta-p">+4.8%</span></td>
+              <td><span class="delta-d pos">+$72,400</span><span class="delta-p">+9.4%</span></td>
+              <td><span class="delta-d pos">+$185,900</span><span class="delta-p">+28.3%</span></td>
+            </tr>
+            <tr>
+              <td>uncalled</td>
+              <td><span class="delta-d zero">$0</span><span class="delta-p">—</span></td>
+              <td><span class="delta-d neg">−$14,824</span><span class="delta-p">new</span></td>
+              <td><span class="delta-d neg">−$14,824</span><span class="delta-p">new</span></td>
+              <td><span class="delta-d neg">−$14,824</span><span class="delta-p">new</span></td>
+              <td><span class="delta-d neg">−$14,824</span><span class="delta-p">new</span></td>
+            </tr>
+            <tr>
+              <td>private</td>
+              <td><span class="delta-d neg">−$8,649</span><span class="delta-p">−0.2%</span></td>
+              <td><span class="delta-d pos">+$10,520</span><span class="delta-p">+0.3%</span></td>
+              <td><span class="delta-d pos">+$72,310</span><span class="delta-p">+1.8%</span></td>
+              <td><span class="delta-d pos">+$402,180</span><span class="delta-p">+11.0%</span></td>
+              <td><span class="delta-d pos">+$801,540</span><span class="delta-p">+24.7%</span></td>
+            </tr>
+            <tr>
+              <td>liabilities</td>
+              <td><span class="delta-d zero">$0</span><span class="delta-p">—</span></td>
+              <td><span class="delta-d neg">+$1,222</span><span class="delta-p">+0.7%</span></td>
+              <td><span class="delta-d neg">+$5,532</span><span class="delta-p">+3.3%</span></td>
+              <td><span class="delta-d neg">+$12,564</span><span class="delta-p">+7.7%</span></td>
+              <td><span class="delta-d pos">−$25,360</span><span class="delta-p">−12.7%</span></td>
+            </tr>
+            <tr class="total">
+              <td>net worth</td>
+              <td><span class="delta-d neg">−$6,234</span><span class="delta-p">−0.1%</span></td>
+              <td><span class="delta-d pos">+$24,118</span><span class="delta-p">+0.5%</span></td>
+              <td><span class="delta-d pos">+$112,500</span><span class="delta-p">+2.5%</span></td>
+              <td><span class="delta-d pos">+$487,200</span><span class="delta-p">+11.6%</span></td>
+              <td><span class="delta-d pos">+$1,012,800</span><span class="delta-p">+27.4%</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Same matrix, half the height:</strong> single-line cells reduce vertical real estate by ~50% vs stacked.</li>
+            <li><strong>Full precision:</strong> exact dollars retained at full width.</li>
+            <li><strong>Cost:</strong> harder to scan just the $ column or just the % column — they're visually fused.</li>
+            <li><strong>Fits where:</strong> full-width below the chart in its own section.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- C: in the rail (replaces the change rows)                        -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation vc" id="C">
+      <header class="variation-head">
+        <span class="vlabel">Variation C</span>
+        <h2>In the rail — replaces the existing change rows</h2>
+        <p class="desc">The matrix collapses into the rail itself, replacing the current 5-row vertical change list. $ only (abbreviated K/M), 4 component rows + NW total. Loses %, but gains attribution while taking less vertical space than the current change section.</p>
+      </header>
+      <div class="variation-body">
+        <div class="vc-frame">
+          <aside class="vc-rail">
+            <div class="vc-rail-label">net worth</div>
+            <div class="vc-rail-value num">$4,699,607</div>
+
+            <div class="vc-bd">
+              <div class="row">
+                <span class="cat">liquid</span>
+                <span class="val num">$842,654</span>
+              </div>
+              <div class="row sub">
+                <span class="cat">uncalled</span>
+                <span class="val num">−$14,824</span>
+              </div>
+              <div class="row">
+                <span class="cat">private</span>
+                <span class="val num">$4,046,462</span>
+              </div>
+              <div class="row">
+                <span class="cat">liabilities</span>
+                <span class="val num">−$174,685</span>
+              </div>
+            </div>
+
+            <div class="vc-rail-label">change</div>
+            <table class="vc-matrix">
+              <thead>
+                <tr>
+                  <th></th><th>1d</th><th>1w</th><th>1m</th><th>ytd</th><th>1y</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>liq</td>
+                  <td class="pos">+2K</td>
+                  <td class="pos">+15K</td>
+                  <td class="pos">+39K</td>
+                  <td class="pos">+72K</td>
+                  <td class="pos">+186K</td>
+                </tr>
+                <tr>
+                  <td>unc</td>
+                  <td class="zero">—</td>
+                  <td class="neg">−15K</td>
+                  <td class="neg">−15K</td>
+                  <td class="neg">−15K</td>
+                  <td class="neg">−15K</td>
+                </tr>
+                <tr>
+                  <td>priv</td>
+                  <td class="neg">−9K</td>
+                  <td class="pos">+11K</td>
+                  <td class="pos">+72K</td>
+                  <td class="pos">+402K</td>
+                  <td class="pos">+802K</td>
+                </tr>
+                <tr>
+                  <td>liab</td>
+                  <td class="zero">—</td>
+                  <td class="neg">+1K</td>
+                  <td class="neg">+6K</td>
+                  <td class="neg">+13K</td>
+                  <td class="pos">−25K</td>
+                </tr>
+                <tr class="total">
+                  <td>nw</td>
+                  <td class="neg">−6K</td>
+                  <td class="pos">+24K</td>
+                  <td class="pos">+113K</td>
+                  <td class="pos">+487K</td>
+                  <td class="pos">+1M</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em;">24 accounts · 18 private</div>
+          </aside>
+          <div style="padding: var(--space-6); border: 1px dashed var(--rule-strong); color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.08em; text-align: center;">main content (chart, allocation, ledger…)</div>
+        </div>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Lives where the current change rows are:</strong> same vertical zone in the rail; trades 5 vertical rows for a 5×5 grid that gives way more info.</li>
+            <li><strong>Compression:</strong> labels shortened (liq/unc/priv/liab/nw), $ only, K/M abbreviated, sign-only color. Lost the % entirely.</li>
+            <li><strong>Hover:</strong> a cell tooltip could show the exact $ + % when you want detail.</li>
+            <li><strong>Best fit:</strong> if you want this always visible at-a-glance and don't care about precision — every page load shows the attribution without scrolling.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Scrollspy + smooth scroll for variation nav
+    const links = document.querySelectorAll('.vnav a[data-target]');
+    const targets = Array.from(links).map((a) => document.getElementById(a.dataset.target));
+    const setActive = (id) => links.forEach((a) => a.classList.toggle('active', a.dataset.target === id));
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActive(visible.target.id);
+      },
+      { rootMargin: '-20% 0px -60% 0px', threshold: 0 },
+    );
+    targets.forEach((t) => obs.observe(t));
+    links.forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById(a.dataset.target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    setActive('A');
+  </script>
+</body>
+</html>

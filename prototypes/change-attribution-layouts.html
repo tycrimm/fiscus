@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fiscus — change attribution layouts (5 variations)</title>
+  <style>
+    /* ─── tokens copied from src/styles/global.css ─────────────────────── */
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --bg-subtle: #fafafa;
+      --fg: #0a0a0a;
+      --fg-muted: #666666;
+      --rule: #e5e5e5;
+      --rule-strong: #c8c8c8;
+      --pos: #0f7a3a;
+      --neg: #b00020;
+      --size-xs: 0.75rem;
+      --size-sm: 0.875rem;
+      --size-base: 1rem;
+      --size-lg: 1.125rem;
+      --size-xl: 1.5rem;
+      --size-2xl: 2.25rem;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-12: 3rem;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: var(--size-base);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--fg-muted); }
+    .pos { color: var(--pos); }
+    .neg { color: var(--neg); }
+    .zero { color: var(--fg-muted); }
+
+    /* ─── prototype scaffolding ────────────────────────────────────────── */
+    .vnav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--rule);
+      padding: var(--space-4) var(--space-6);
+      display: flex;
+      gap: var(--space-6);
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+    .vnav .brand {
+      font-size: var(--size-sm);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .vnav .links {
+      display: flex;
+      gap: var(--space-6);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      flex-wrap: wrap;
+    }
+    .vnav a { color: inherit; text-decoration: none; }
+    .vnav a:hover, .vnav a.active { color: var(--fg); }
+    .vnav .meta {
+      margin-left: auto;
+      font-size: var(--size-xs);
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+    }
+
+    main {
+      max-width: 80rem;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-6) var(--space-12);
+      display: grid;
+      gap: var(--space-12);
+    }
+    .variation { display: grid; gap: var(--space-4); }
+    .variation-head {
+      display: grid;
+      gap: var(--space-1);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--rule);
+    }
+    .vlabel {
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+    .variation-head h2 {
+      margin: 0;
+      font-size: var(--size-lg);
+      font-weight: 500;
+    }
+    .desc {
+      font-size: var(--size-sm);
+      color: var(--fg-muted);
+      max-width: 56rem;
+    }
+    .demo-bg {
+      padding: var(--space-6);
+      background: var(--bg-subtle);
+      border: 1px solid var(--rule);
+    }
+    .notes {
+      font-size: var(--size-sm);
+      color: var(--fg-muted);
+      max-width: 56rem;
+    }
+    .notes h3 {
+      margin: 0 0 var(--space-1);
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg);
+      font-weight: 500;
+    }
+    .notes ul { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); }
+
+    .section-head {
+      display: flex;
+      gap: var(--space-3);
+      align-items: baseline;
+      margin-bottom: var(--space-3);
+    }
+    .section-head h3 {
+      margin: 0;
+      font-size: var(--size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 500;
+    }
+    .section-head .sub {
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+
+    /* ─── A: tight matrix, single-line cells ───────────────────────────── */
+    .va-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-size: var(--size-sm);
+    }
+    .va-table thead th {
+      font-weight: 500;
+      color: var(--fg-muted);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: var(--space-1) var(--space-3);
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+    }
+    .va-table thead th:first-child { text-align: left; }
+    .va-table tbody td {
+      padding: var(--space-1) var(--space-3);
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .va-table tbody td:first-child {
+      text-align: left;
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .va-table .d { font-size: var(--size-sm); }
+    .va-table .p {
+      margin-left: var(--space-1);
+      font-size: var(--size-xs);
+      color: var(--fg-muted);
+    }
+    .va-table tbody tr.total td:first-child { color: var(--fg); font-weight: 500; }
+    .va-table tbody tr.total td {
+      border-top: 1px solid var(--rule-strong);
+      font-weight: 500;
+    }
+
+    /* ─── B: inverted (windows as rows) ────────────────────────────────── */
+    .vb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-size: var(--size-sm);
+    }
+    .vb-table thead th {
+      font-weight: 500;
+      color: var(--fg-muted);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+    }
+    .vb-table thead th:first-child { text-align: left; }
+    .vb-table thead th.total { color: var(--fg); }
+    .vb-table tbody td {
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .vb-table tbody td:first-child {
+      text-align: left;
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .vb-table tbody td.nw {
+      border-left: 1px solid var(--rule-strong);
+      font-weight: 500;
+    }
+    .vb-table .p {
+      display: block;
+      font-size: var(--size-xs);
+      color: var(--fg-muted);
+      line-height: 1.1;
+    }
+
+    /* ─── C: per-window scorecards (windows as rows of compact chips) ──── */
+    .vc-row {
+      display: grid;
+      grid-template-columns: 3rem 1fr auto;
+      gap: var(--space-4);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: center;
+    }
+    .vc-row:first-child { border-top: 1px solid var(--rule); }
+    .vc-row .win {
+      font-size: var(--size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+    }
+    .vc-row .components {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-3);
+    }
+    .vc-row .chip {
+      display: grid;
+      gap: 0;
+      line-height: 1.15;
+    }
+    .vc-row .chip .clabel {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .vc-row .chip .cval {
+      font-size: var(--size-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .vc-row .nw {
+      text-align: right;
+      padding-left: var(--space-4);
+      border-left: 1px solid var(--rule-strong);
+      display: grid;
+      gap: 0;
+      line-height: 1.15;
+    }
+    .vc-row .nw .nlabel {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .vc-row .nw .nval {
+      font-size: var(--size-sm);
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+    .vc-row.empty .components, .vc-row.empty .nw { color: var(--fg-muted); }
+
+    /* ─── D: in-rail matrix (replaces existing change rows) ────────────── */
+    .vd-frame {
+      display: grid;
+      grid-template-columns: 16rem 1fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+    .vd-rail { display: grid; gap: var(--space-4); }
+    .vd-rail-label {
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .vd-rail-value {
+      font-size: var(--size-2xl);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      margin-top: calc(-1 * var(--space-2));
+      font-variant-numeric: tabular-nums;
+    }
+    .vd-bd .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: baseline;
+      font-size: var(--size-sm);
+    }
+    .vd-bd .row:first-child { border-top: 1px solid var(--rule); }
+    .vd-bd .row .cat {
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .vd-bd .row.sub { font-size: var(--size-xs); padding-top: 0; }
+    .vd-bd .row.sub .cat, .vd-bd .row.sub .val { color: var(--fg-muted); }
+    .vd-bd .row:has(+ .sub) { border-bottom: none; padding-bottom: var(--space-1); }
+
+    .vd-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.7rem;
+    }
+    .vd-matrix thead th {
+      font-weight: 500;
+      color: var(--fg-muted);
+      font-size: 0.625rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: var(--space-1) 0;
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+    }
+    .vd-matrix thead th:first-child { text-align: left; }
+    .vd-matrix tbody td {
+      padding: var(--space-1) 0;
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .vd-matrix tbody td:first-child {
+      text-align: left;
+      font-size: 0.625rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+    .vd-matrix tbody tr.total td:first-child { color: var(--fg); font-weight: 500; }
+    .vd-matrix tbody tr.total td { border-top: 1px solid var(--rule-strong); font-weight: 500; }
+
+    /* ─── E: strip-per-component (one row per bucket, windowed deltas inline) ── */
+    .ve-strip {
+      display: grid;
+      grid-template-columns: 6rem 1fr;
+      gap: var(--space-4);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: center;
+    }
+    .ve-strip:first-child { border-top: 1px solid var(--rule); }
+    .ve-strip.total {
+      border-top: 1px solid var(--rule-strong);
+      padding-top: var(--space-3);
+    }
+    .ve-strip .label {
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .ve-strip.total .label { color: var(--fg); font-weight: 500; }
+    .ve-strip .windows {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--space-2);
+    }
+    .ve-strip .cell {
+      display: grid;
+      gap: 0;
+      line-height: 1.15;
+      text-align: right;
+      position: relative;
+      padding: 0 var(--space-2);
+    }
+    .ve-strip .cell + .cell { border-left: 1px solid var(--rule); }
+    .ve-strip .cell .wlbl {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    .ve-strip .cell .wd {
+      font-size: var(--size-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .ve-strip .cell .wp {
+      font-size: 0.625rem;
+      color: var(--fg-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .ve-strip.total .cell .wd { font-weight: 500; }
+  </style>
+</head>
+<body>
+  <nav class="vnav">
+    <span class="brand">FISCUS · change attribution layouts</span>
+    <div class="links">
+      <a href="#A" data-target="A">A · tight matrix</a>
+      <a href="#B" data-target="B">B · inverted (windows = rows)</a>
+      <a href="#C" data-target="C">C · per-window scorecards</a>
+      <a href="#D" data-target="D">D · in-rail matrix</a>
+      <a href="#E" data-target="E">E · strip per component</a>
+    </div>
+    <span class="meta">5 variations · prototype</span>
+  </nav>
+
+  <main>
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- A: tight matrix, single-line cells                               -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="A">
+      <header class="variation-head">
+        <span class="vlabel">Variation A</span>
+        <h2>Tight matrix — single-line cells, dense rows</h2>
+        <p class="desc">Same components × windows grid as currently shipped, but each cell is one line ($ then small muted %), row padding cut to a hair. Roughly 1/3 the vertical space of the current implementation. The dense format lets the data speak even when most cells say "—".</p>
+      </header>
+      <div class="demo-bg">
+        <div class="section-head">
+          <h3>Change attribution</h3>
+          <span class="sub">how each bucket moved</span>
+        </div>
+        <table class="va-table">
+          <thead>
+            <tr><th></th><th>1D</th><th>1W</th><th>1M</th><th>YTD</th><th>1Y</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>liquid</td>
+              <td><span class="d neg">−$5.7K</span><span class="p">−0.67%</span></td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+            </tr>
+            <tr>
+              <td>uncalled</td>
+              <td><span class="d zero">$0</span></td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+            </tr>
+            <tr>
+              <td>private</td>
+              <td><span class="d zero">$0</span></td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+            </tr>
+            <tr>
+              <td>liabilities</td>
+              <td><span class="d neg">−$576</span><span class="p">+0.33%</span></td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+            </tr>
+            <tr class="total">
+              <td>net worth</td>
+              <td><span class="d neg">−$6.2K</span><span class="p">−0.13%</span></td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="notes">
+        <h3>Notes</h3>
+        <ul>
+          <li><strong>~70% shorter</strong> than the deployed version (single-line cells, tight padding).</li>
+          <li>"—" cells naturally fade because they're tiny — your eye lands on the values.</li>
+          <li>Same data, same shape; just denser.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- B: inverted — windows as rows, components as columns             -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="B">
+      <header class="variation-head">
+        <span class="vlabel">Variation B</span>
+        <h2>Inverted — windows down, components across</h2>
+        <p class="desc">Same data transposed. Windows are rows (like the rail's existing 1D/1W/1M/YTD/1Y change list); components are columns with NW set apart on the right as the column-sum. Reads the way the rail already taught your eye — "what happened in 1D" is one row.</p>
+      </header>
+      <div class="demo-bg">
+        <div class="section-head">
+          <h3>Change attribution</h3>
+          <span class="sub">window × bucket</span>
+        </div>
+        <table class="vb-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>liquid</th>
+              <th>uncalled</th>
+              <th>private</th>
+              <th>liabilities</th>
+              <th class="total">net worth</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1D</td>
+              <td><span class="neg">−$5.7K</span><span class="p">−0.67%</span></td>
+              <td><span class="zero">$0</span></td>
+              <td><span class="zero">$0</span></td>
+              <td><span class="neg">−$576</span><span class="p">+0.33%</span></td>
+              <td class="nw"><span class="neg">−$6.2K</span><span class="p">−0.13%</span></td>
+            </tr>
+            <tr>
+              <td>1W</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="nw muted">—</td>
+            </tr>
+            <tr>
+              <td>1M</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="nw muted">—</td>
+            </tr>
+            <tr>
+              <td>YTD</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="nw muted">—</td>
+            </tr>
+            <tr>
+              <td>1Y</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="muted">—</td>
+              <td class="nw muted">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="notes">
+        <h3>Notes</h3>
+        <ul>
+          <li>Windows-as-rows mirrors the rail's existing change list — same eye pattern.</li>
+          <li>NW column set off with a left border + bold to read as the row-total.</li>
+          <li>Trade-off: 5 component columns can get tight if labels are long.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- C: per-window scorecards                                         -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="C">
+      <header class="variation-head">
+        <span class="vlabel">Variation C</span>
+        <h2>Per-window scorecards</h2>
+        <p class="desc">Each window is a horizontal panel. Window label on the left, four bucket "chips" inline (label + value), then the NW total set off on the right. Less table-y; reads as "for this window, here's what each bucket did and what the total was."</p>
+      </header>
+      <div class="demo-bg">
+        <div class="section-head">
+          <h3>Change attribution</h3>
+          <span class="sub">how each bucket moved</span>
+        </div>
+        <div>
+          <div class="vc-row">
+            <div class="win">1D</div>
+            <div class="components">
+              <div class="chip"><span class="clabel">liquid</span><span class="cval neg">−$5.7K</span></div>
+              <div class="chip"><span class="clabel">uncalled</span><span class="cval zero">$0</span></div>
+              <div class="chip"><span class="clabel">private</span><span class="cval zero">$0</span></div>
+              <div class="chip"><span class="clabel">liab</span><span class="cval neg">−$576</span></div>
+            </div>
+            <div class="nw"><span class="nlabel">net worth</span><span class="nval neg">−$6.2K</span></div>
+          </div>
+          <div class="vc-row empty">
+            <div class="win">1W</div>
+            <div class="components">
+              <div class="chip"><span class="clabel">liquid</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">uncalled</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">private</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">liab</span><span class="cval">—</span></div>
+            </div>
+            <div class="nw"><span class="nlabel">net worth</span><span class="nval">—</span></div>
+          </div>
+          <div class="vc-row empty">
+            <div class="win">1M</div>
+            <div class="components">
+              <div class="chip"><span class="clabel">liquid</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">uncalled</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">private</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">liab</span><span class="cval">—</span></div>
+            </div>
+            <div class="nw"><span class="nlabel">net worth</span><span class="nval">—</span></div>
+          </div>
+          <div class="vc-row empty">
+            <div class="win">YTD</div>
+            <div class="components">
+              <div class="chip"><span class="clabel">liquid</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">uncalled</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">private</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">liab</span><span class="cval">—</span></div>
+            </div>
+            <div class="nw"><span class="nlabel">net worth</span><span class="nval">—</span></div>
+          </div>
+          <div class="vc-row empty">
+            <div class="win">1Y</div>
+            <div class="components">
+              <div class="chip"><span class="clabel">liquid</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">uncalled</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">private</span><span class="cval">—</span></div>
+              <div class="chip"><span class="clabel">liab</span><span class="cval">—</span></div>
+            </div>
+            <div class="nw"><span class="nlabel">net worth</span><span class="nval">—</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>Notes</h3>
+        <ul>
+          <li>Per-window narrative — "for this window, here's the story" reads naturally.</li>
+          <li>Chips are tight; bucket labels live with their values rather than as a column header far above.</li>
+          <li>Cost: more vertical real estate than A or B; chip layout doesn't show %.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- D: in-rail compact matrix                                        -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="D">
+      <header class="variation-head">
+        <span class="vlabel">Variation D</span>
+        <h2>In-rail matrix — replaces the existing change rows</h2>
+        <p class="desc">The matrix collapses into the rail itself, replacing the current 5-row vertical change list. $-only, K/M abbreviations, sign-by-color. Always visible (sticky), never scroll-hidden. Loses %, gains attribution.</p>
+      </header>
+      <div class="demo-bg">
+        <div class="vd-frame">
+          <aside class="vd-rail">
+            <div class="vd-rail-label">net worth</div>
+            <div class="vd-rail-value num">$4,699,607</div>
+            <div class="vd-bd">
+              <div class="row"><span class="cat">liquid</span><span class="val num">$842,654</span></div>
+              <div class="row sub"><span class="cat">uncalled</span><span class="val num">−$14,824</span></div>
+              <div class="row"><span class="cat">private</span><span class="val num">$4,046,462</span></div>
+              <div class="row"><span class="cat">liabilities</span><span class="val num">−$174,685</span></div>
+            </div>
+
+            <div class="vd-rail-label">change</div>
+            <table class="vd-matrix">
+              <thead>
+                <tr><th></th><th>1d</th><th>1w</th><th>1m</th><th>ytd</th><th>1y</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>liq</td>
+                  <td class="neg">−$6K</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td>unc</td>
+                  <td class="zero">$0</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td>priv</td>
+                  <td class="zero">$0</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td>liab</td>
+                  <td class="neg">−$576</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr class="total">
+                  <td>nw</td>
+                  <td class="neg">−$6K</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em;">24 accounts · 18 private</div>
+          </aside>
+          <div style="padding: var(--space-6); border: 1px dashed var(--rule-strong); color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.08em; text-align: center;">main content (chart, allocation, top positions, ledger…)</div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>Notes</h3>
+        <ul>
+          <li>One source of truth for change — lives in the rail, no duplicate section in main.</li>
+          <li>Trades % and exact $ for at-a-glance presence.</li>
+          <li>Frees the main content for chart + allocation + positions + ledger only.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- E: strip per component                                            -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="E">
+      <header class="variation-head">
+        <span class="vlabel">Variation E</span>
+        <h2>Strip per component — bucket rows with windowed cells</h2>
+        <p class="desc">Each component (and NW total) is a row with a horizontal strip of 5 windowed cells, each with the window label, $ delta, and small %. Vertical separators between cells. Reads as a per-bucket scorecard rather than a strict matrix.</p>
+      </header>
+      <div class="demo-bg">
+        <div class="section-head">
+          <h3>Change attribution</h3>
+          <span class="sub">how each bucket moved</span>
+        </div>
+        <div>
+          <div class="ve-strip">
+            <div class="label">liquid</div>
+            <div class="windows">
+              <div class="cell"><span class="wlbl">1d</span><span class="wd neg">−$5.7K</span><span class="wp">−0.67%</span></div>
+              <div class="cell"><span class="wlbl">1w</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1m</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">ytd</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1y</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+            </div>
+          </div>
+          <div class="ve-strip">
+            <div class="label">uncalled</div>
+            <div class="windows">
+              <div class="cell"><span class="wlbl">1d</span><span class="wd zero">$0</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1w</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1m</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">ytd</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1y</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+            </div>
+          </div>
+          <div class="ve-strip">
+            <div class="label">private</div>
+            <div class="windows">
+              <div class="cell"><span class="wlbl">1d</span><span class="wd zero">$0</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1w</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1m</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">ytd</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1y</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+            </div>
+          </div>
+          <div class="ve-strip">
+            <div class="label">liabilities</div>
+            <div class="windows">
+              <div class="cell"><span class="wlbl">1d</span><span class="wd neg">−$576</span><span class="wp">+0.33%</span></div>
+              <div class="cell"><span class="wlbl">1w</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1m</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">ytd</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1y</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+            </div>
+          </div>
+          <div class="ve-strip total">
+            <div class="label">net worth</div>
+            <div class="windows">
+              <div class="cell"><span class="wlbl">1d</span><span class="wd neg">−$6.2K</span><span class="wp">−0.13%</span></div>
+              <div class="cell"><span class="wlbl">1w</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1m</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">ytd</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+              <div class="cell"><span class="wlbl">1y</span><span class="wd muted">—</span><span class="wp">&nbsp;</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>Notes</h3>
+        <ul>
+          <li>Each row is one bucket's full timeline — easy to read top-down per component.</li>
+          <li>Window label inline with the value so you don't need to hold a column-header in your head.</li>
+          <li>Vertical separators between window cells keep the strip from feeling like one blob.</li>
+          <li>Cost: a touch wider than A or B; less of a "matrix" feel.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const links = document.querySelectorAll('.vnav a[data-target]');
+    const targets = Array.from(links).map((a) => document.getElementById(a.dataset.target));
+    const setActive = (id) => links.forEach((a) => a.classList.toggle('active', a.dataset.target === id));
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActive(visible.target.id);
+      },
+      { rootMargin: '-20% 0px -60% 0px', threshold: 0 },
+    );
+    targets.forEach((t) => obs.observe(t));
+    links.forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById(a.dataset.target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    setActive('A');
+  </script>
+</body>
+</html>

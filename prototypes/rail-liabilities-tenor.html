@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fiscus — rail tenor / commitment split</title>
+  <style>
+    /* ─── tokens copied from src/styles/global.css ─────────────────────── */
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --bg-subtle: #fafafa;
+      --fg: #0a0a0a;
+      --fg-muted: #666666;
+      --rule: #e5e5e5;
+      --rule-strong: #c8c8c8;
+      --pos: #0f7a3a;
+      --neg: #b00020;
+      --size-xs: 0.75rem;
+      --size-sm: 0.875rem;
+      --size-base: 1rem;
+      --size-lg: 1.125rem;
+      --size-xl: 1.5rem;
+      --size-2xl: 2.25rem;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-12: 3rem;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: var(--size-base);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--fg-muted); }
+    .pos { color: var(--pos); }
+    .neg { color: var(--neg); }
+
+    /* ─── prototype scaffolding ────────────────────────────────────────── */
+    .vnav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--rule);
+      padding: var(--space-4) var(--space-6);
+      display: flex;
+      gap: var(--space-6);
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+    .vnav .brand {
+      font-size: var(--size-sm);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .vnav .links {
+      display: flex;
+      gap: var(--space-6);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      flex-wrap: wrap;
+    }
+    .vnav a { color: inherit; text-decoration: none; }
+    .vnav a:hover, .vnav a.active { color: var(--fg); }
+    .vnav .meta {
+      margin-left: auto;
+      font-size: var(--size-xs);
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+    }
+
+    main {
+      max-width: 80rem;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-6) var(--space-12);
+      display: grid;
+      gap: var(--space-12);
+    }
+    .variation { display: grid; gap: var(--space-4); }
+    .variation-head {
+      display: grid;
+      gap: var(--space-1);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--rule);
+    }
+    .variation-head .vlabel {
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+    .variation-head h2 {
+      margin: 0;
+      font-size: var(--size-lg);
+      font-weight: 500;
+    }
+    .variation-head .desc {
+      font-size: var(--size-sm);
+      color: var(--fg-muted);
+      max-width: 56rem;
+    }
+    .variation-body { display: grid; gap: var(--space-6); }
+    .notes {
+      font-size: var(--size-sm);
+      color: var(--fg-muted);
+      max-width: 56rem;
+    }
+    .notes h3 {
+      margin: 0 0 var(--space-1);
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg);
+      font-weight: 500;
+    }
+    .notes ul { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); }
+
+    /* ─── shared rail frame ────────────────────────────────────────────── */
+    .frame {
+      display: grid;
+      grid-template-columns: 18rem 1fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+    .stub {
+      padding: var(--space-6);
+      border: 1px dashed var(--rule-strong);
+      color: var(--fg-muted);
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-align: center;
+      min-height: 16rem;
+      display: grid;
+      place-items: center;
+    }
+    .rail { display: grid; gap: var(--space-4); }
+    .rail-label {
+      font-size: var(--size-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .rail-value {
+      font-size: var(--size-2xl);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      margin-top: calc(-1 * var(--space-2));
+      font-variant-numeric: tabular-nums;
+    }
+    .bd { display: grid; gap: 0; }
+    .bd .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: baseline;
+      font-size: var(--size-sm);
+    }
+    .bd .row:first-child { border-top: 1px solid var(--rule); }
+    .bd .row .cat {
+      font-size: var(--size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+    /* sub-row: indented, smaller, muted, no top border, tucked under parent */
+    .bd .row.sub { font-size: var(--size-xs); padding-top: 0; padding-left: var(--space-3); }
+    .bd .row.sub .cat,
+    .bd .row.sub .val { color: var(--fg-muted); }
+    .bd .row:has(+ .sub) { border-bottom: none; padding-bottom: var(--space-1); }
+    .bd .row.sub + .row:not(.sub) { /* keep border-top none after sub block */ }
+
+    /* annotation under a row (variation C) */
+    .bd .row .ann {
+      grid-column: 1 / -1;
+      font-size: 0.6875rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      margin-top: var(--space-1);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* group cluster (variation D): tight grouping + label */
+    .bd .group {
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      padding: var(--space-2) 0;
+      display: grid;
+      gap: var(--space-1);
+    }
+    .bd .group + .group,
+    .bd .row + .group,
+    .bd .group + .row { border-top: none; }
+    .bd .group-label {
+      font-size: 0.6875rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .bd .group .row {
+      border: none;
+      padding: var(--space-1) 0;
+    }
+    .bd .group .row:first-child { border-top: none; }
+
+    .rail-meta {
+      font-size: var(--size-xs);
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+  </style>
+</head>
+<body>
+  <nav class="vnav">
+    <span class="brand">FISCUS · rail tenor / commitment split</span>
+    <div class="links">
+      <a href="#A" data-target="A">A · inline split</a>
+      <a href="#B" data-target="B">B · hierarchical sub-rows</a>
+      <a href="#C" data-target="C">C · annotation</a>
+      <a href="#D" data-target="D">D · urgency grouping</a>
+    </div>
+    <span class="meta">prototype · 2026-04-24</span>
+  </nav>
+
+  <main>
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- A: inline split — LIABILITIES + UNCALLED both flatten            -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="A">
+      <header class="variation-head">
+        <span class="vlabel">Variation A</span>
+        <h2>Inline split — every category gets its own row</h2>
+        <p class="desc">UNCALLED splits into SBS (personal coinvest) and FUND (SHV / other commitments). LIABILITIES splits into DUE SOON (revolving / credit card, 0–30 days) and AMORTIZED (term debt — car loan, mortgage). No nesting — every line is a sibling. Trades visual hierarchy for direct comparability.</p>
+      </header>
+      <div class="variation-body">
+        <div class="frame">
+          <aside class="rail">
+            <div class="rail-label">net worth</div>
+            <div class="rail-value num">$4,699,607</div>
+
+            <div class="bd">
+              <div class="row">
+                <span class="cat">liquid</span>
+                <span class="val num">$827,337</span>
+              </div>
+              <div class="row">
+                <span class="cat">sbs uncalled</span>
+                <span class="val num neg">−$12,324</span>
+              </div>
+              <div class="row">
+                <span class="cat">fund uncalled</span>
+                <span class="val num neg">−$2,500</span>
+              </div>
+              <div class="row">
+                <span class="cat">private</span>
+                <span class="val num">$4,046,462</span>
+              </div>
+              <div class="row">
+                <span class="cat">due soon</span>
+                <span class="val num neg">−$3,247</span>
+              </div>
+              <div class="row">
+                <span class="cat">amortized</span>
+                <span class="val num neg">−$170,945</span>
+              </div>
+            </div>
+
+            <div class="rail-meta">24 accounts · 18 private</div>
+          </aside>
+          <div class="stub">main content (chart, allocation, ledger…)</div>
+        </div>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Pros:</strong> direct comparability — DUE SOON ($3K) sits next to AMORTIZED ($171K) with no parent-total to skip past. SBS vs fund commitments are visible at a glance.</li>
+            <li><strong>Cons:</strong> 6 rows is a lot for a glance. Loses the "liabilities total" you had before — you have to add DUE SOON + AMORTIZED in your head.</li>
+            <li><strong>When this wins:</strong> if the tenor / commitment-type split is information you want every time you look at the page.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- B: hierarchical — totals stay, sub-rows nested below             -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="B">
+      <header class="variation-head">
+        <span class="vlabel">Variation B</span>
+        <h2>Hierarchical — totals on top, sub-rows tucked beneath</h2>
+        <p class="desc">Mirrors how UNCALLED currently sits as a sub-row of LIQUID in the live rail. UNCALLED total has SBS / FUND as sub-rows; LIABILITIES total has DUE SOON / AMORTIZED as sub-rows. Glanceable from the top line, drill-readable from the indented children.</p>
+      </header>
+      <div class="variation-body">
+        <div class="frame">
+          <aside class="rail">
+            <div class="rail-label">net worth</div>
+            <div class="rail-value num">$4,699,607</div>
+
+            <div class="bd">
+              <div class="row">
+                <span class="cat">liquid</span>
+                <span class="val num">$827,337</span>
+              </div>
+              <div class="row">
+                <span class="cat">uncalled</span>
+                <span class="val num neg">−$14,824</span>
+              </div>
+              <div class="row sub">
+                <span class="cat">sbs</span>
+                <span class="val num">−$12,324</span>
+              </div>
+              <div class="row sub">
+                <span class="cat">fund</span>
+                <span class="val num">−$2,500</span>
+              </div>
+              <div class="row">
+                <span class="cat">private</span>
+                <span class="val num">$4,046,462</span>
+              </div>
+              <div class="row">
+                <span class="cat">liabilities</span>
+                <span class="val num neg">−$174,192</span>
+              </div>
+              <div class="row sub">
+                <span class="cat">due soon</span>
+                <span class="val num">−$3,247</span>
+              </div>
+              <div class="row sub">
+                <span class="cat">amortized</span>
+                <span class="val num">−$170,945</span>
+              </div>
+            </div>
+
+            <div class="rail-meta">24 accounts · 18 private</div>
+          </aside>
+          <div class="stub">main content (chart, allocation, ledger…)</div>
+        </div>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Pros:</strong> top-line totals stay legible — eye can stop after LIQUID / UNCALLED / PRIVATE / LIABILITIES if that's all you need. Detail is there if you want it.</li>
+            <li><strong>Cons:</strong> 8 rows total — taller. Some redundancy ($14,824 = $12,324 + $2,500).</li>
+            <li><strong>When this wins:</strong> if you want the detail without losing the existing 4-line summary read. Most consistent with the existing UNCALLED-as-sub pattern.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- C: annotation — single line per category, breakdown in caption  -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="C">
+      <header class="variation-head">
+        <span class="vlabel">Variation C</span>
+        <h2>Annotation — keep one row, breakdown in a caption</h2>
+        <p class="desc">UNCALLED and LIABILITIES stay as single rows showing the total. A tiny secondary line underneath spells out the split in shorthand ("$12K SBS · $3K fund", "$3K due 30d · $171K amortized"). Minimum row count, breakdown still visible.</p>
+      </header>
+      <div class="variation-body">
+        <div class="frame">
+          <aside class="rail">
+            <div class="rail-label">net worth</div>
+            <div class="rail-value num">$4,699,607</div>
+
+            <div class="bd">
+              <div class="row">
+                <span class="cat">liquid</span>
+                <span class="val num">$827,337</span>
+              </div>
+              <div class="row">
+                <span class="cat">uncalled</span>
+                <span class="val num neg">−$14,824</span>
+                <span class="ann">$12.3K sbs · $2.5K fund</span>
+              </div>
+              <div class="row">
+                <span class="cat">private</span>
+                <span class="val num">$4,046,462</span>
+              </div>
+              <div class="row">
+                <span class="cat">liabilities</span>
+                <span class="val num neg">−$174,192</span>
+                <span class="ann">$3.2K due 30d · $170.9K amortized</span>
+              </div>
+            </div>
+
+            <div class="rail-meta">24 accounts · 18 private</div>
+          </aside>
+          <div class="stub">main content (chart, allocation, ledger…)</div>
+        </div>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Pros:</strong> exact same row count as today (4). Breakdown is there but doesn't shout. Shorthand "due 30d" / "amortized" tells you the tenor concept inline.</li>
+            <li><strong>Cons:</strong> sub-totals are abbreviated and don't sum perfectly visible. Harder to compare DUE SOON to AMORTIZED side-by-side than in A/B.</li>
+            <li><strong>When this wins:</strong> if you mostly want the totals and only occasionally look at the split. Most conservative change to the live rail.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <!-- D: urgency grouping — owed-soon cluster vs amortized term debt   -->
+    <!-- ──────────────────────────────────────────────────────────────── -->
+    <section class="variation" id="D">
+      <header class="variation-head">
+        <span class="vlabel">Variation D</span>
+        <h2>Urgency grouping — re-cluster by time-to-cash</h2>
+        <p class="desc">Re-organizes around the question "what cash do I need soon?" — UNCALLED (capital calls, lumpy & unpredictable) and DUE SOON (credit cards, must pay this month) cluster together as OWED SOON. AMORTIZED (car loan, mortgage — predictable monthly bite) sits alone. Most opinionated: it stops mirroring the schema and groups by behavior.</p>
+      </header>
+      <div class="variation-body">
+        <div class="frame">
+          <aside class="rail">
+            <div class="rail-label">net worth</div>
+            <div class="rail-value num">$4,699,607</div>
+
+            <div class="bd">
+              <div class="row">
+                <span class="cat">liquid</span>
+                <span class="val num">$827,337</span>
+              </div>
+              <div class="row">
+                <span class="cat">private</span>
+                <span class="val num">$4,046,462</span>
+              </div>
+
+              <div class="group">
+                <div class="group-label">owed soon</div>
+                <div class="row">
+                  <span class="cat">sbs uncalled</span>
+                  <span class="val num neg">−$12,324</span>
+                </div>
+                <div class="row">
+                  <span class="cat">fund uncalled</span>
+                  <span class="val num neg">−$2,500</span>
+                </div>
+                <div class="row">
+                  <span class="cat">credit cards</span>
+                  <span class="val num neg">−$3,247</span>
+                </div>
+              </div>
+
+              <div class="group">
+                <div class="group-label">amortized</div>
+                <div class="row">
+                  <span class="cat">car loan + other</span>
+                  <span class="val num neg">−$170,945</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rail-meta">24 accounts · 18 private</div>
+          </aside>
+          <div class="stub">main content (chart, allocation, ledger…)</div>
+        </div>
+        <div class="notes">
+          <h3>Notes</h3>
+          <ul>
+            <li><strong>Pros:</strong> answers the cash-management question directly — OWED SOON sums to ~$18K, that's what your liquid needs to cover at any moment. AMORTIZED is just a monthly-bite tracker.</li>
+            <li><strong>Cons:</strong> conflates two structurally different things — capital calls (asset commitments, eventually become PRIVATE) and credit cards (pure debt, no offsetting asset). The grouping is behavioral, not accounting-clean.</li>
+            <li><strong>When this wins:</strong> if the rail's primary job is "do I have cash?" rather than "what's my balance sheet?". More useful for active cash management, less useful for net-worth tracking.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Scrollspy + smooth scroll for variation nav
+    const links = document.querySelectorAll('.vnav a[data-target]');
+    const targets = Array.from(links).map((a) => document.getElementById(a.dataset.target));
+    const setActive = (id) => links.forEach((a) => a.classList.toggle('active', a.dataset.target === id));
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActive(visible.target.id);
+      },
+      { rootMargin: '-20% 0px -60% 0px', threshold: 0 },
+    );
+    targets.forEach((t) => obs.observe(t));
+    links.forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById(a.dataset.target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    setActive('A');
+  </script>
+</body>
+</html>
