@@ -24,6 +24,11 @@ for (const e of events) {
   g.events.push(e);
   g.total_cents += e.delta_cents;
 }
+// Sort each day's events by |delta| desc so biggest movers surface at the top.
+// (Global sort by as_of within a day is just cron-write order — not useful.)
+for (const g of dayMap.values()) {
+  g.events.sort((a, b) => Math.abs(b.delta_cents) - Math.abs(a.delta_cents));
+}
 const days = [...dayMap.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 
 const DAY_FMT = new Intl.DateTimeFormat('en-US', {
@@ -38,8 +43,10 @@ function fmtDay(ymd: string): string {
   return DAY_FMT.format(new Date(Date.UTC(y, m - 1, dd))).toUpperCase();
 }
 
-const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
-  snapshot: 'BAL',
+// Snapshot is the default — no badge needed (it's 95%+ of rows). Only
+// surface a tag when something more notable happened (a new round, a manual
+// mark) so it actually catches the eye.
+const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   round: 'ROUND',
   mark: 'MARK',
 };
@@ -65,15 +72,19 @@ const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
           <div class="events">
             {day.events.map((e) => (
               <a class="event" href={e.href}>
-                <span class:list={['kind', e.kind]}>{KIND_LABEL[e.kind]}</span>
                 <div class="primary">
-                  <span class="name">{e.primary}</span>
+                  <span class="name">
+                    {e.primary}
+                    {KIND_BADGE[e.kind] && <span class:list={['badge', e.kind]}>{KIND_BADGE[e.kind]}</span>}
+                  </span>
                   <span class="sub">{e.secondary}</span>
                 </div>
                 <span class:list={['delta', 'num', { neg: e.delta_cents < 0, pos: e.delta_cents > 0 }]}>
                   {fmtUSDsigned(e.delta_cents)}
                 </span>
-                <span class="total num">{fmtUSD.format(e.amount_cents / 100)}</span>
+                <span class:list={['total', 'num', { neg: e.is_liability }]}>
+                  {e.is_liability ? `−${fmtUSD.format(e.amount_cents / 100)}` : fmtUSD.format(e.amount_cents / 100)}
+                </span>
               </a>
             ))}
           </div>
@@ -124,7 +135,7 @@ const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
   .events { display: grid; }
   .event {
     display: grid;
-    grid-template-columns: 3.5rem 1fr auto auto;
+    grid-template-columns: 1fr auto auto;
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--rule);
@@ -136,23 +147,29 @@ const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
   .event:hover { background: var(--bg-subtle); }
   .event:last-child { border-bottom: none; }
 
-  .kind {
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--fg-muted);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    padding-top: 0.1em;
-  }
-  .kind.round, .kind.mark { color: var(--fg); }
-
   .primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .primary .name { font-size: var(--size-sm); }
+  .primary .name {
+    font-size: var(--size-sm);
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
   .primary .sub {
     font-size: var(--size-xs);
     color: var(--fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+  }
+  /* Round / mark badge — only renders for the rare non-snapshot events,
+     so it can carry visual weight without becoming noise. */
+  .badge {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.1em 0.4em;
+    border: 1px solid var(--rule-strong);
+    color: var(--fg-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
   }
 
   .delta {
@@ -161,8 +178,8 @@ const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
     font-variant-numeric: tabular-nums;
   }
   /* Total: account balance / asset value AFTER this event. Muted so the
-     delta stays visually primary. Min width keeps the column edge stable
-     across rows. */
+     delta stays visually primary; turns red for liability rows so debt
+     totals don't read as assets. Min width keeps the column edge stable. */
   .total {
     text-align: right;
     white-space: nowrap;
@@ -170,9 +187,10 @@ const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
     color: var(--fg-muted);
     min-width: 5.5rem;
   }
+  .total.neg { color: var(--neg); }
 
   @media (max-width: 36rem) {
-    .event { grid-template-columns: 3rem 1fr auto auto; gap: var(--space-2); }
+    .event { gap: var(--space-2); }
     .total { min-width: 0; }
   }
 </style>

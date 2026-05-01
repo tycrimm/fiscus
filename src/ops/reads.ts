@@ -686,7 +686,8 @@ export type ActivityEvent = {
   primary: string;                 // account name or asset name
   secondary: string;               // institution + kind, or asset kind + label
   delta_cents: number;             // sign-adjusted: positive = NW up
-  amount_cents: number;            // new absolute value at this event
+  amount_cents: number;            // new absolute value at this event (always positive — sign is applied via is_liability at render)
+  is_liability: boolean;           // true → render the total as debt (red, leading minus)
   href: string;                    // link to detail page
 };
 
@@ -734,6 +735,7 @@ export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise
           secondary: `${String(s.institution)} · ${prettyKind(String(s.a_kind))}`,
           delta_cents: isLiab ? -balDelta : balDelta,
           amount_cents: bal,
+          is_liability: isLiab,
           href: `/accounts/${accountId}`,
         });
       }
@@ -776,6 +778,7 @@ export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise
           secondary: `${prettyKind(String(a.kind))} · ${label}`,
           delta_cents: delta,
           amount_cents: total_cents,
+          is_liability: false,
           href: `/private-investments/${assetId}`,
         });
       }
