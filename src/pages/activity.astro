@@ -58,44 +58,66 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     <section class="activity">
       <header class="page-head">
         <h1>activity</h1>
-        <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted).</p>
+        <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted). Sorted by size within each day.</p>
       </header>
-      {days.map((day) => (
-        <section class="day">
-          <header class="day-head">
-            <span class="date">{fmtDay(day.date)}</span>
-            <span class="count">{day.events.length} {day.events.length === 1 ? 'event' : 'events'}</span>
-            <span class:list={['day-total', 'num', { neg: day.total_cents < 0, pos: day.total_cents > 0 }]}>
-              {fmtUSDsigned(day.total_cents)}
-            </span>
-          </header>
-          <div class="events">
+      <table class="activity-table">
+        <colgroup>
+          <col />
+          <col class="col-num" />
+          <col class="col-num" />
+        </colgroup>
+        {days.map((day) => (
+          <tbody>
+            <tr class="day-head">
+              <td>
+                <span class="day-date">{fmtDay(day.date)}</span>
+                <span class="day-count">{day.events.length} {day.events.length === 1 ? 'event' : 'events'}</span>
+              </td>
+              <td class:list={['num-col', 'day-total', { neg: day.total_cents < 0, pos: day.total_cents > 0 }]}>
+                {fmtUSDsigned(day.total_cents)}
+              </td>
+              <td class="num-col"></td>
+            </tr>
             {day.events.map((e) => (
-              <a class="event" href={e.href}>
-                <div class="primary">
+              <tr class="event" data-href={e.href} tabindex="0">
+                <td class="cell-name">
                   <span class="name">
                     {e.primary}
                     {KIND_BADGE[e.kind] && <span class:list={['badge', e.kind]}>{KIND_BADGE[e.kind]}</span>}
                   </span>
                   <span class="sub">{e.secondary}</span>
-                </div>
-                <span class:list={['delta', 'num', { neg: e.delta_cents < 0, pos: e.delta_cents > 0 }]}>
+                </td>
+                <td class:list={['num-col', 'delta', { neg: e.delta_cents < 0, pos: e.delta_cents > 0 }]}>
                   {fmtUSDsigned(e.delta_cents)}
-                </span>
-                <span class:list={['total', 'num', { neg: e.is_liability }]}>
+                </td>
+                <td class:list={['num-col', 'total', { neg: e.is_liability }]}>
                   {e.is_liability ? `−${fmtUSD.format(e.amount_cents / 100)}` : fmtUSD.format(e.amount_cents / 100)}
-                </span>
-              </a>
+                </td>
+              </tr>
             ))}
-          </div>
-        </section>
-      ))}
+          </tbody>
+        ))}
+      </table>
     </section>
   )}
 </Shell>
 
+<script>
+  // Whole-row link target. <tr> can't wrap an <a>; using JS keeps the table
+  // semantics clean and right-click still works on the underlying browser
+  // navigation menu for the URL we redirect to.
+  document.querySelectorAll<HTMLTableRowElement>('.activity-table tr.event').forEach((tr) => {
+    const href = tr.dataset.href;
+    if (!href) return;
+    tr.addEventListener('click', () => { window.location.href = href; });
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') window.location.href = href;
+    });
+  });
+</script>
+
 <style>
-  .activity { display: grid; gap: var(--space-6); }
+  .activity { display: grid; gap: var(--space-4); }
 
   .page-head { display: grid; gap: var(--space-2); }
   .page-head .hint {
@@ -105,63 +127,68 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     max-width: 48rem;
   }
 
-  .day { border: 1px solid var(--rule); }
-  .day-head {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: var(--space-3);
-    align-items: baseline;
+  /* Single table for the whole feed so the three columns line up across
+     every day. Day separators are tbody-scoped header rows, not their own
+     boxes — keeps everything aligned to one grid. */
+  .activity-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+  }
+
+  /* `width: 1%` collapses the number columns to their content; the name
+     column absorbs the rest of the table width. */
+  .col-num { width: 1%; }
+
+  .activity-table td {
     padding: var(--space-2) var(--space-3);
-    background: var(--bg-subtle);
+    vertical-align: baseline;
     border-bottom: 1px solid var(--rule);
   }
-  .day-head .date {
+  .activity-table tbody:last-of-type tr:last-child td { border-bottom: none; }
+
+  .num-col {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    padding-left: var(--space-6);
+  }
+
+  /* Day separator row */
+  .day-head td { background: var(--bg-subtle); }
+  .day-date {
     font-size: var(--size-sm);
     text-transform: uppercase;
     letter-spacing: 0.12em;
     font-weight: 500;
   }
-  .day-head .count {
+  .day-count {
+    margin-left: var(--space-3);
     font-size: var(--size-xs);
     color: var(--fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  .day-head .day-total {
-    font-size: var(--size-sm);
-    font-weight: 500;
-  }
+  .day-total { font-weight: 500; }
 
-  .events { display: grid; }
-  .event {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--rule);
-    align-items: baseline;
-    font-size: var(--size-sm);
-    color: inherit;
-    text-decoration: none;
-  }
-  .event:hover { background: var(--bg-subtle); }
-  .event:last-child { border-bottom: none; }
+  /* Event row */
+  tr.event { cursor: pointer; }
+  tr.event:hover { background: var(--bg-subtle); }
+  tr.event:focus-visible { outline: 2px solid var(--fg); outline-offset: -2px; }
 
-  .primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .primary .name {
-    font-size: var(--size-sm);
+  .cell-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .name {
     display: inline-flex;
     align-items: baseline;
     gap: var(--space-2);
   }
-  .primary .sub {
+  .sub {
     font-size: var(--size-xs);
     color: var(--fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  /* Round / mark badge — only renders for the rare non-snapshot events,
-     so it can carry visual weight without becoming noise. */
+  /* Round / mark badge — only renders for non-snapshot events. */
   .badge {
     font-size: 0.625rem;
     text-transform: uppercase;
@@ -172,25 +199,13 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
   }
 
-  .delta {
-    text-align: right;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  /* Total: account balance / asset value AFTER this event. Muted so the
-     delta stays visually primary; turns red for liability rows so debt
-     totals don't read as assets. Min width keeps the column edge stable. */
-  .total {
-    text-align: right;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-    color: var(--fg-muted);
-    min-width: 5.5rem;
-  }
+  /* Delta gets pos/neg color. Total stays muted by default and turns red
+     only on liability rows so debt balances don't read as assets sitting
+     next to brokerage totals. */
+  .delta.pos { color: var(--pos); }
+  .delta.neg { color: var(--neg); }
+  .total { color: var(--fg-muted); }
   .total.neg { color: var(--neg); }
-
-  @media (max-width: 36rem) {
-    .event { gap: var(--space-2); }
-    .total { min-width: 0; }
-  }
+  .day-total.pos { color: var(--pos); }
+  .day-total.neg { color: var(--neg); }
 </style>
