@@ -1,0 +1,166 @@
+---
+import { env } from 'cloudflare:workers';
+import { db } from '../db';
+import { activityFeed, listAccounts, type ActivityEvent } from '../ops/reads';
+import { fmtUSDsigned } from '../lib/format';
+import Shell from '../layouts/Shell.astro';
+
+const d = db(env.DB);
+const [events, accounts] = await Promise.all([
+  activityFeed(d, { days: 90 }),
+  listAccounts(d),
+]);
+
+const lastSyncedAt = accounts.reduce<number | null>(
+  (max, a) => (a.latest_as_of && (!max || a.latest_as_of > max) ? a.latest_as_of : max),
+  null,
+);
+
+type DayGroup = { date: string; total_cents: number; events: ActivityEvent[] };
+const dayMap = new Map<string, DayGroup>();
+for (const e of events) {
+  let g = dayMap.get(e.date);
+  if (!g) { g = { date: e.date, total_cents: 0, events: [] }; dayMap.set(e.date, g); }
+  g.events.push(e);
+  g.total_cents += e.delta_cents;
+}
+const days = [...dayMap.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+const DAY_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'UTC',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+function fmtDay(ymd: string): string {
+  const [y, m, dd] = ymd.split('-').map(Number);
+  return DAY_FMT.format(new Date(Date.UTC(y, m - 1, dd))).toUpperCase();
+}
+
+const KIND_LABEL: Record<ActivityEvent['kind'], string> = {
+  snapshot: 'BAL',
+  round: 'ROUND',
+  mark: 'MARK',
+};
+---
+<Shell title="activity" lastSyncedAt={lastSyncedAt}>
+  {days.length === 0 ? (
+    <p class="empty">NO ACTIVITY IN THE LAST 90 DAYS.</p>
+  ) : (
+    <section class="activity">
+      <header class="page-head">
+        <h1>activity</h1>
+        <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted).</p>
+      </header>
+      {days.map((day) => (
+        <section class="day">
+          <header class="day-head">
+            <span class="date">{fmtDay(day.date)}</span>
+            <span class="count">{day.events.length} {day.events.length === 1 ? 'event' : 'events'}</span>
+            <span class:list={['day-total', 'num', { neg: day.total_cents < 0, pos: day.total_cents > 0 }]}>
+              {fmtUSDsigned(day.total_cents)}
+            </span>
+          </header>
+          <div class="events">
+            {day.events.map((e) => (
+              <a class="event" href={e.href}>
+                <span class:list={['kind', e.kind]}>{KIND_LABEL[e.kind]}</span>
+                <div class="primary">
+                  <span class="name">{e.primary}</span>
+                  <span class="sub">{e.secondary}</span>
+                </div>
+                <span class:list={['delta', 'num', { neg: e.delta_cents < 0, pos: e.delta_cents > 0 }]}>
+                  {fmtUSDsigned(e.delta_cents)}
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))}
+    </section>
+  )}
+</Shell>
+
+<style>
+  .activity { display: grid; gap: var(--space-6); }
+
+  .page-head { display: grid; gap: var(--space-2); }
+  .page-head .hint {
+    margin: 0;
+    color: var(--fg-muted);
+    font-size: var(--size-sm);
+    max-width: 48rem;
+  }
+
+  .day { border: 1px solid var(--rule); }
+  .day-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-3);
+    align-items: baseline;
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--rule);
+  }
+  .day-head .date {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .day-head .count {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .day-head .day-total {
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+
+  .events { display: grid; }
+  .event {
+    display: grid;
+    grid-template-columns: 3.5rem 1fr auto;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: var(--size-sm);
+    color: inherit;
+    text-decoration: none;
+  }
+  .event:hover { background: var(--bg-subtle); }
+  .event:last-child { border-bottom: none; }
+
+  .kind {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    padding-top: 0.1em;
+  }
+  .kind.round, .kind.mark { color: var(--fg); }
+
+  .primary { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .primary .name { font-size: var(--size-sm); }
+  .primary .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .delta {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 36rem) {
+    .event { grid-template-columns: 3rem 1fr auto; }
+  }
+</style>

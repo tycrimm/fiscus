@@ -1,6 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { DB } from '../db';
-import { shiftYmd } from '../lib/format';
+import { shiftYmd, prettyKind } from '../lib/format';
 
 // Drizzle returns different row shapes for raw sql`...` depending on driver:
 //   - D1 binding (Worker runtime)        → rows are OBJECTS keyed by column
@@ -663,6 +663,128 @@ export async function syncHealth(d: DB): Promise<SyncIssue[]> {
       };
     })
     .filter((r) => r.last_error || r.status !== 'active' || r.stale);
+}
+
+// === Activity feed ===================================================
+//
+// Per-event log of what moved net worth on each day. Three event kinds:
+//   - 'snapshot'  balance_snapshots row whose balance differed from the
+//                 prior snapshot for that account. Liability deltas are
+//                 sign-flipped so positive always means NW up.
+//   - 'round'     new investment tranche entry. Delta is the change in
+//                 derived asset value at that timestamp (covers both new
+//                 capital and mark-up of existing rounds at the new PPS).
+//   - 'mark'      manual valuation override at the asset level or per-round.
+//
+// Zero-delta events are filtered out — daily plaid sync would otherwise
+// flood the feed with no-ops on idle accounts.
+
+export type ActivityEvent = {
+  as_of: number;
+  date: string;                    // YYYY-MM-DD in PT
+  kind: 'snapshot' | 'round' | 'mark';
+  primary: string;                 // account name or asset name
+  secondary: string;               // institution + kind, or asset kind + label
+  delta_cents: number;             // sign-adjusted: positive = NW up
+  amount_cents: number;            // new absolute value at this event
+  href: string;                    // link to detail page
+};
+
+export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise<ActivityEvent[]> {
+  const days = opts.days ?? 90;
+  const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
+  const events: ActivityEvent[] = [];
+
+  // --- snapshots: walk per-account in time order, emit non-zero deltas ---
+  const snaps = await rows<{
+    account_id: string;
+    balance_cents: number;
+    as_of: number;
+    is_liability: number;
+    a_name: string;
+    institution: string;
+    a_kind: string;
+  }>(
+    d,
+    sql`
+      SELECT bs.account_id, bs.balance_cents, bs.as_of,
+             a.is_liability, a.name AS a_name, i.name AS institution, a.kind AS a_kind
+      FROM balance_snapshots bs
+      JOIN accounts a ON a.id = bs.account_id
+      JOIN institutions i ON i.id = a.institution_id
+      WHERE a.archived_at IS NULL
+      ORDER BY bs.account_id, bs.as_of ASC
+    `,
+    ['account_id', 'balance_cents', 'as_of', 'is_liability', 'a_name', 'institution', 'a_kind'],
+  );
+  let prev: { account_id: string; balance_cents: number } | null = null;
+  for (const s of snaps) {
+    const accountId = String(s.account_id);
+    const bal = num(s.balance_cents);
+    const asOf = num(s.as_of);
+    if (prev && prev.account_id === accountId && asOf >= cutoff) {
+      const balDelta = bal - prev.balance_cents;
+      if (balDelta !== 0) {
+        const isLiab = !!num(s.is_liability);
+        events.push({
+          as_of: asOf,
+          date: ptDateKey(asOf),
+          kind: 'snapshot',
+          primary: String(s.a_name),
+          secondary: `${String(s.institution)} · ${prettyKind(String(s.a_kind))}`,
+          delta_cents: isLiab ? -balDelta : balDelta,
+          amount_cents: bal,
+          href: `/accounts/${accountId}`,
+        });
+      }
+    }
+    prev = { account_id: accountId, balance_cents: bal };
+  }
+
+  // --- private investments: walk derived value series per asset ---
+  const assets = await rows<{ id: string; name: string; kind: string }>(
+    d,
+    sql`SELECT id, name, kind FROM private_investments WHERE archived_at IS NULL`,
+    ['id', 'name', 'kind'],
+  );
+  const { rounds: allRounds, valuations: allVals } = await fetchRoundsAndValuations(d);
+  const roundsByAsset = groupByAsset(allRounds);
+  const valsByAsset = groupByAsset(allVals);
+  for (const a of assets) {
+    const assetId = String(a.id);
+    const rs = roundsByAsset.get(assetId) ?? [];
+    const vs = valsByAsset.get(assetId) ?? [];
+    const ts = new Set<number>();
+    for (const r of rs) ts.add(r.entry_date);
+    for (const v of vs) ts.add(v.as_of);
+    const sorted = [...ts].sort((x, y) => x - y);
+    let prevValue = 0;
+    for (const t of sorted) {
+      const { total_cents } = deriveAssetValue(rs, vs, t);
+      const delta = total_cents - prevValue;
+      if (t >= cutoff && delta !== 0) {
+        const round = rs.find((r) => r.entry_date === t);
+        const eventKind: 'round' | 'mark' = round ? 'round' : 'mark';
+        const label = round
+          ? (round.round_label ?? round.security_type ?? 'Round')
+          : (vs.find((v) => v.as_of === t)?.basis ?? 'Mark');
+        events.push({
+          as_of: t,
+          date: ptDateKey(t),
+          kind: eventKind,
+          primary: String(a.name),
+          secondary: `${prettyKind(String(a.kind))} · ${label}`,
+          delta_cents: delta,
+          amount_cents: total_cents,
+          href: `/private-investments/${assetId}`,
+        });
+      }
+      prevValue = total_cents;
+    }
+  }
+
+  events.sort((x, y) => y.as_of - x.as_of || Math.abs(y.delta_cents) - Math.abs(x.delta_cents));
+  return events;
 }
 
 export async function getAccount(d: DB, accountId: string) {

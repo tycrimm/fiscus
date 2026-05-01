@@ -36,6 +36,7 @@ const syncTitle = lastSyncedAt != null
     <header class="app-header">
       <a href="/" class="brand">fiscus</a>
       <nav>
+        <a href="/activity" aria-current={active('/activity') ? 'page' : undefined}>activity</a>
         <a href="/concentration" aria-current={active('/concentration') ? 'page' : undefined}>concentration</a>
         <a href="/flows" aria-current={active('/flows') ? 'page' : undefined}>flows</a>
         <a href="/connect" aria-current={active('/connect') ? 'page' : undefined}>connect</a>
