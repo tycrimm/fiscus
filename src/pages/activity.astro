@@ -24,10 +24,12 @@ for (const e of events) {
   g.events.push(e);
   g.total_cents += e.delta_cents;
 }
-// Sort each day's events by |delta| desc so biggest movers surface at the top.
-// (Global sort by as_of within a day is just cron-write order — not useful.)
+// Sort each day's events by signed delta desc — biggest gains at top,
+// biggest losses at the bottom. Cleaner narrative than |delta| (which can
+// put a small loss above a large gain and break the top-down reading) and
+// the bottom of each day reads as "what hurt today" at a glance.
 for (const g of dayMap.values()) {
-  g.events.sort((a, b) => Math.abs(b.delta_cents) - Math.abs(a.delta_cents));
+  g.events.sort((a, b) => b.delta_cents - a.delta_cents);
 }
 const days = [...dayMap.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 
@@ -58,7 +60,7 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     <section class="activity">
       <header class="page-head">
         <h1>activity</h1>
-        <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted). Sorted by size within each day.</p>
+        <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted). Within each day, gains descend from the top and losses descend from the bottom.</p>
       </header>
       <table class="activity-table">
         <colgroup>
