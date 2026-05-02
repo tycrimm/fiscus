@@ -6,4 +6,4 @@
 //
 // Per-account history (e.g. AccountBalanceChart) is *not* clipped — that data
 // is still accurate per-account, just not summable into a meaningful NW total.
-export const CAPTURE_BASELINE_YMD = '2026-05-01';
+export const CAPTURE_BASELINE_YMD = '2026-05-02';
