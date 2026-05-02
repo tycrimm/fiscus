@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../../db';
 import { getPrivateInvestment, privateInvestmentValueSeries } from '../../ops/reads';
-import { fmtUSD, fmtDate, prettyKind, pluralize } from '../../lib/format';
+import { fmtUSD, fmtDate, prettyKind, pluralize, isDisplayZero } from '../../lib/format';
 import { irr, type Cashflow } from '../../lib/irr';
 import { bandFor, effectiveStage, applyBand, STAGE_LABEL, type Stage } from '../../lib/scenarios';
 import Shell from '../../layouts/Shell.astro';
@@ -320,7 +320,7 @@ const debugPayload = {
                   <td class="num-col">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
                   <td class="num-col">{cur == null ? '—' : fmtUSD.format(cur / 100)}</td>
                   <td class="num-col delta-col">
-                    {cur != null && delta !== 0 ? (
+                    {cur != null && !isDisplayZero(delta) ? (
                       <span class={dpos ? 'pos' : 'neg'}>{signedUSD(delta)}</span>
                     ) : (
                       <span class="muted">—</span>
@@ -365,7 +365,7 @@ const debugPayload = {
               const cumulativeHere = cumulativeByAsOf.get(v.as_of) ?? 0;
               const cumulativePrev = prevCumulative.get(v.as_of) ?? 0;
               const deltaTotal = cumulativeHere - cumulativePrev;
-              const hasDelta = cumulativePrev > 0 && deltaTotal !== 0;
+              const hasDelta = cumulativePrev > 0 && !isDisplayZero(deltaTotal);
               const deltaPct = hasDelta && cumulativePrev > 0 ? deltaTotal / cumulativePrev : 0;
               const dpos = deltaTotal >= 0;
               return (

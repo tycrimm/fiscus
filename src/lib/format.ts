@@ -20,6 +20,12 @@ export function fmtUSDsigned(cents: number): string {
   return neg ? `−${abs}` : abs;
 }
 
+// Whole-dollar formatting rounds anything under 50 cents to "$0", which a
+// signed renderer would print as red "−$0" or green "+$0". Use this to
+// short-circuit to a dash when the delta is just rounding noise (e.g. a
+// shares×PPS remainder a few cents off cost basis).
+export const isDisplayZero = (cents: number): boolean => Math.abs(cents) < 50;
+
 const TZ = 'America/Los_Angeles';
 
 export function fmtDate(sec: number | null | undefined): string {

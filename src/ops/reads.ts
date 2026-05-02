@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { DB } from '../db';
 import { shiftYmd, prettyKind } from '../lib/format';
+import { CAPTURE_BASELINE_YMD } from '../lib/baseline';
 
 // Drizzle returns different row shapes for raw sql`...` depending on driver:
 //   - D1 binding (Worker runtime)        → rows are OBJECTS keyed by column
@@ -511,9 +512,15 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     ? privateEventDays.reduce((a, b) => (a < b ? a : b))
     : null;
 
-  const start = snaps.length > 0
+  const dataStart = snaps.length > 0
     ? ptDateKey(num(snaps[0].as_of))
     : earliestPrivateDay ?? ptDateKey(Math.floor(Date.now() / 1000));
+  // Floor at the capture-baseline. Pre-baseline NW totals are missing
+  // accounts (e.g. pre-Schwab) and would read low — clipping the series here
+  // keeps the homepage chart and change-attribution honest. The pre-start
+  // acctState seed loop below still pulls the latest pre-baseline snapshot
+  // per account so baseline day starts with the right balances.
+  const start = dataStart > CAPTURE_BASELINE_YMD ? dataStart : CAPTURE_BASELINE_YMD;
   const today = ptDateKey(Math.floor(Date.now() / 1000));
 
   const acctState = new Map<string, { balance: number; liability: boolean }>();

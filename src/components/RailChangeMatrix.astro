@@ -1,7 +1,7 @@
 ---
 import type { ChangeAttribution, AttributionKey, WindowKey, AttributionCell } from '../lib/metrics';
 import { WINDOW_LABEL } from '../lib/metrics';
-import { fmtUSD } from '../lib/format';
+import { fmtUSD, isDisplayZero } from '../lib/format';
 
 interface Props {
   attribution: ChangeAttribution;
@@ -47,7 +47,7 @@ function fmtPct(pct: number | null): string {
 
 function cellClass(cell: AttributionCell): string {
   if (!cell) return 'muted';
-  if (cell.cents === 0) return 'zero';
+  if (isDisplayZero(cell.cents)) return 'zero';
   return cell.cents > 0 ? 'pos' : 'neg';
 }
 
@@ -78,10 +78,14 @@ const exactUSD = (cents: number): string => {
             return (
               <td title={title}>
                 {cell ? (
-                  <div class="stack">
-                    <span class={`d ${cls}`}>{cell.cents === 0 ? '$0' : abbrUSD(cell.cents)}</span>
-                    {cell.cents !== 0 && <span class="p">{fmtPct(cell.pct)}</span>}
-                  </div>
+                  isDisplayZero(cell.cents) ? (
+                    <span class="muted">—</span>
+                  ) : (
+                    <div class="stack">
+                      <span class={`d ${cls}`}>{abbrUSD(cell.cents)}</span>
+                      <span class="p">{fmtPct(cell.pct)}</span>
+                    </div>
+                  )
                 ) : (
                   <span class="muted">—</span>
                 )}

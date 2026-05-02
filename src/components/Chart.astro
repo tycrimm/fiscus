@@ -1,5 +1,5 @@
 ---
-import { fmtUSD } from '../lib/format';
+import { fmtUSD, isDisplayZero } from '../lib/format';
 import { CHART_W, CHART_H, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
 
 export type ChartPath = { d: string; variant?: 'solid' | 'synthetic' | 'ghost'; label?: string };
@@ -40,6 +40,9 @@ const {
 } = Astro.props;
 
 const hasData = points.length > 0;
+// Treat sub-dollar deltas as zero — whole-dollar formatting would otherwise
+// render them as red "−$0" / green "+$0" from rounding noise.
+const deltaZero = delta != null && isDisplayZero(delta.cents);
 const pos = delta ? delta.cents >= 0 : true;
 const pctDec = delta?.pctDecimals ?? 2;
 ---
@@ -47,10 +50,14 @@ const pctDec = delta?.pctDecimals ?? 2;
   <header class="chart-head">
     <span class="chart-label">{label}</span>
     {delta && (
-      <div class={`chart-delta ${pos ? 'pos' : 'neg'}`}>
-        <span class="num">{pos ? '+' : '−'}{fmtUSD.format(Math.abs(delta.cents) / 100)}</span>
-        <span class="num pct">({pos ? '+' : '−'}{(Math.abs(delta.pct) * 100).toFixed(pctDec)}%)</span>
-      </div>
+      deltaZero ? (
+        <div class="chart-delta zero"><span class="num">—</span></div>
+      ) : (
+        <div class={`chart-delta ${pos ? 'pos' : 'neg'}`}>
+          <span class="num">{pos ? '+' : '−'}{fmtUSD.format(Math.abs(delta.cents) / 100)}</span>
+          <span class="num pct">({pos ? '+' : '−'}{(Math.abs(delta.pct) * 100).toFixed(pctDec)}%)</span>
+        </div>
+      )
     )}
     <div class="chart-readout" aria-live="polite"></div>
   </header>
@@ -189,6 +196,7 @@ const pctDec = delta?.pctDecimals ?? 2;
   .chart-delta .pct { color: var(--fg-muted); font-size: var(--size-xs); }
   .chart-delta.pos { color: var(--pos); }
   .chart-delta.neg { color: var(--neg); }
+  .chart-delta.zero { color: var(--fg-muted); }
   .chart-head.hovering .chart-label,
   .chart-head.hovering .chart-delta { opacity: 0; }
 

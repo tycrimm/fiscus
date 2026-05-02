@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { activityFeed, listAccounts, type ActivityEvent } from '../ops/reads';
-import { fmtUSD, fmtUSDsigned } from '../lib/format';
+import { fmtUSD, fmtUSDsigned, isDisplayZero } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
 
 const d = db(env.DB);
@@ -75,8 +75,11 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
                 <span class="day-date">{fmtDay(day.date)}</span>
                 <span class="day-count">{day.events.length} {day.events.length === 1 ? 'event' : 'events'}</span>
               </td>
-              <td class:list={['num-col', 'day-total', { neg: day.total_cents < 0, pos: day.total_cents > 0 }]}>
-                {fmtUSDsigned(day.total_cents)}
+              <td class:list={['num-col', 'day-total', {
+                neg: day.total_cents < 0 && !isDisplayZero(day.total_cents),
+                pos: day.total_cents > 0 && !isDisplayZero(day.total_cents),
+              }]}>
+                {isDisplayZero(day.total_cents) ? '—' : fmtUSDsigned(day.total_cents)}
               </td>
               <td class="num-col"></td>
             </tr>
@@ -89,8 +92,11 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
                   </span>
                   <span class="sub">{e.secondary}</span>
                 </td>
-                <td class:list={['num-col', 'delta', { neg: e.delta_cents < 0, pos: e.delta_cents > 0 }]}>
-                  {fmtUSDsigned(e.delta_cents)}
+                <td class:list={['num-col', 'delta', {
+                  neg: e.delta_cents < 0 && !isDisplayZero(e.delta_cents),
+                  pos: e.delta_cents > 0 && !isDisplayZero(e.delta_cents),
+                }]}>
+                  {isDisplayZero(e.delta_cents) ? '—' : fmtUSDsigned(e.delta_cents)}
                 </td>
                 <td class:list={['num-col', 'total', { neg: e.is_liability }]}>
                   {e.is_liability ? `−${fmtUSD.format(e.amount_cents / 100)}` : fmtUSD.format(e.amount_cents / 100)}
