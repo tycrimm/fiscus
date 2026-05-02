@@ -2,6 +2,7 @@
 import type { NetWorthPoint } from '../ops/reads';
 import { fmtUSD, fmtTickMonthDay } from '../lib/format';
 import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
+import { CAPTURE_BASELINE_YMD } from '../lib/baseline';
 import Chart, { type ChartHoverPoint, type ChartPath, type ChartTick } from './Chart.astro';
 
 interface Props {
@@ -55,12 +56,18 @@ const ticks: ChartTick[] = Array.from({ length: tickCount }, (_, k) => {
   return { x: xAt(i), label: fmtTickMonthDay(series[i].date) };
 });
 
-// Real-data delta only — synthetic baseline shouldn't drive the headline number.
-const realFirst = series[realStart];
+// Headline delta is anchored at the capture-baseline, not the first real
+// point. Pre-baseline NW totals were missing accounts (Schwab) so a "since
+// 2024" delta would mostly reflect when imports landed, not actual change.
+// The chart line itself still spans full history — we just don't claim a
+// number that crosses the baseline.
+const baselineFirst = series.find((p) => !p.synthetic && p.date >= CAPTURE_BASELINE_YMD) ?? null;
 const realLast = series[series.length - 1];
-const change = realLast && realFirst ? realLast.total_cents - realFirst.total_cents : 0;
-const changePct = realFirst && realFirst.total_cents !== 0 ? change / realFirst.total_cents : 0;
-const realDays = series.length - realStart;
+const change = realLast && baselineFirst ? realLast.total_cents - baselineFirst.total_cents : 0;
+const changePct = baselineFirst && baselineFirst.total_cents !== 0 ? change / baselineFirst.total_cents : 0;
+const baselineDays = baselineFirst
+  ? series.filter((p) => !p.synthetic && p.date >= CAPTURE_BASELINE_YMD).length
+  : 0;
 
 const fmtReadoutDate = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -79,7 +86,7 @@ const points: ChartHoverPoint[] = series.map((p, i) => ({
   <Chart
     label={`net worth · last ${series.length} days`}
     empty="NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN."
-    delta={realDays > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null}
+    delta={baselineDays > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null}
     area={area}
     paths={paths}
     ticks={ticks}

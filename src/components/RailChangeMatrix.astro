@@ -18,12 +18,15 @@ const ROWS: { key: AttributionKey; short: string }[] = [
   { key: 'private',     short: 'priv' },
   { key: 'liabilities', short: 'liab' },
 ];
-// Only show windows where history actually reaches back that far. NW is the
-// canonical signal — every component shares the same window targets, so a
-// non-null NW cell means the column is showing real data for every row.
-// As the series ages, more columns turn on automatically.
+// Show a window column if any row has data for it. NW is no longer the
+// canonical "all rows agree" signal — it's clamped at the capture-baseline
+// while components keep using whatever history they have, so an old window
+// (1Y, 5Y) can have real `private` data but a null `nw`. The cell renderer
+// shows a muted dash for null cells.
 const ALL_WINDOWS: WindowKey[] = ['d1', 'w1', 'm1', 'ytd', 'y1', 'y5'];
-const WINDOWS: WindowKey[] = ALL_WINDOWS.filter((w) => attribution.nw[w] != null);
+const WINDOWS: WindowKey[] = ALL_WINDOWS.filter((w) =>
+  ROWS.some(({ key }) => attribution[key][w] != null),
+);
 
 // Abbreviation rules tuned for the rail's narrow column. Under $1K stays
 // exact (so "−$576" reads); $1K–$1M becomes K with one decimal under $10K and

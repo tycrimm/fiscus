@@ -1,5 +1,6 @@
 import type { NetWorthPoint } from '../ops/reads';
 import { shiftYmd } from './format';
+import { CAPTURE_BASELINE_YMD } from './baseline';
 
 // ─── change attribution (per-component deltas across windows) ──────────────
 //
@@ -96,6 +97,12 @@ export function computeChangeAttribution(series: NetWorthPoint[]): ChangeAttribu
     if (win === 'd1' && current.fresh === false) return null;
     const prior = findAtOrBefore(targets[win]);
     if (!prior || prior.date === today) return null;
+    // Top-level NW comparisons across the capture-baseline are misleading —
+    // pre-baseline totals were missing accounts (Schwab) so a 1Y NW delta
+    // mostly reflects when imports landed. Component rows can still cross
+    // the baseline — their pre-baseline values are honest for the components
+    // that weren't affected by the missing imports.
+    if (key === 'nw' && prior.date < CAPTURE_BASELINE_YMD) return null;
     const sign = navImpactSign(key);
     const cur = componentValue(current, key);
     const prev = componentValue(prior, key);
