@@ -36,12 +36,45 @@ const syncTitle = lastSyncedAt != null
     <header class="app-header">
       <a href="/" class="brand">fiscus</a>
       <nav>
-        <a href="/activity" aria-current={active('/activity') ? 'page' : undefined}>activity</a>
-        <a href="/concentration" aria-current={active('/concentration') ? 'page' : undefined}>concentration</a>
-        <a href="/flows" aria-current={active('/flows') ? 'page' : undefined}>flows</a>
-        <a href="/connect" aria-current={active('/connect') ? 'page' : undefined}>connect</a>
+        <a href="/activity" aria-current={active('/activity') ? 'page' : undefined} aria-label="activity">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <polyline points="1.5,9 4,9 5.5,4 7.5,12 9.5,7 11,9 14.5,9" />
+          </svg>
+          <span class="nav-label">activity</span>
+        </a>
+        <a href="/concentration" aria-current={active('/concentration') ? 'page' : undefined} aria-label="concentration">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.5" />
+            <path d="M8 2.5 V8 L12.7 10.7" />
+          </svg>
+          <span class="nav-label">concentration</span>
+        </a>
+        <a href="/flows" aria-current={active('/flows') ? 'page' : undefined} aria-label="flows">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2 5 H13 M10 2 L13 5 L10 8" />
+            <path d="M14 11 H3 M6 8 L3 11 L6 14" />
+          </svg>
+          <span class="nav-label">flows</span>
+        </a>
+        <a href="/connect" aria-current={active('/connect') ? 'page' : undefined} aria-label="connect">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M5.5 1.5 V4 M10.5 1.5 V4" />
+            <rect x="4" y="4" width="8" height="5" rx="0.5" />
+            <path d="M8 9 V12 a2 2 0 0 1 -2 2 H4" />
+          </svg>
+          <span class="nav-label">connect</span>
+        </a>
         {showDebug && (
-          <a href="/debug" aria-current={active('/debug') ? 'page' : undefined}>debug</a>
+          <a href="/debug" aria-current={active('/debug') ? 'page' : undefined} aria-label="debug">
+            <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <ellipse cx="8" cy="9" rx="3" ry="4" />
+              <line x1="6" y1="4" x2="8" y2="5.5" />
+              <line x1="10" y1="4" x2="8" y2="5.5" />
+              <line x1="2" y1="9" x2="5" y2="9" />
+              <line x1="11" y1="9" x2="14" y2="9" />
+            </svg>
+            <span class="nav-label">debug</span>
+          </a>
         )}
       </nav>
       {lastSyncedAt != null && (
@@ -84,21 +117,37 @@ const syncTitle = lastSyncedAt != null
         flex-shrink: 0;
       }
 
-      /* Mobile: brand + sync stay side-by-side on the top line; nav drops
-         to its own line beneath them so we don't have to choose between
-         overflow and a hamburger. flex-wrap + flex-basis:100% on the nav
-         is enough to force the second-row break. */
+      /* Nav icons are loaded for everyone but hidden on desktop in favor of
+         text labels. SVGs share a single 16x16 viewBox and inherit color via
+         currentColor + fill:none/stroke:currentColor so they pick up the
+         link's muted/active treatment automatically. */
+      .app-header nav .nav-icon {
+        display: none;
+        width: 1.05rem;
+        height: 1.05rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.25;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .app-header nav a { display: inline-flex; align-items: center; }
+
+      /* Mobile: swap text labels for icons and let the whole header sit on a
+         single line. Brand left, icons middle, sync indicator right. */
       @media (max-width: 40rem) {
-        .app-header {
-          flex-wrap: wrap;
-          column-gap: var(--space-4);
-          row-gap: var(--space-2);
-        }
+        .app-header { gap: var(--space-4); }
         .app-header nav {
-          order: 3;
-          flex-basis: 100%;
           gap: var(--space-4);
-          flex-wrap: wrap;
+        }
+        .app-header nav .nav-label { display: none; }
+        .app-header nav .nav-icon { display: inline-block; }
+        /* Active state for icons: full fg (vs muted), no underline — the
+           text underline reads weird on a glyph. */
+        .app-header nav a[aria-current="page"] {
+          text-decoration: none;
+          color: var(--fg);
         }
       }
     </style>
