@@ -94,40 +94,76 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
   ) : (
     <div class="ledger">
       <aside class="rail">
-        <div class="rail-label">net worth</div>
-        <div class="rail-value num" title={uncalledTotal > 0 ? `Net of ${fmtUSD.format(uncalledTotal / 100)} in uncalled SBS / fund commitments. Gross is ${fmtUSD.format(nw.total_usd)}.` : undefined}>
-          {fmtUSD.format((nw.total_cents - uncalledTotal) / 100)}
+        {/* Balance sheet: assets on left, liabilities on right, NW = the
+            equation's bottom line up top. Math: liquid (gross of debt, net of
+            uncalled) + private = total assets; total assets − total
+            liabilities = displayed net worth. */}
+        <div class="sheet-topline">
+          <span class="sheet-lbl">net worth</span>
+          <span class="sheet-total num" title={uncalledTotal > 0 ? `Net of ${fmtUSD.format(uncalledTotal / 100)} in uncalled SBS / fund commitments. Gross is ${fmtUSD.format(nw.total_usd)}.` : undefined}>
+            {fmtUSD.format((nw.total_cents - uncalledTotal) / 100)}
+          </span>
         </div>
 
-        <div class="rail-breakdown">
-          {/* Liquid here is gross spendable assets (cash + invest + other);
-              liabilities live on their own row. NAV math: liquid − uncalled
-              + private − liabilities = the displayed net worth. */}
-          <div class="bd-row" title="Cash, investments, and other accounts — gross of debt. Liabilities show separately below.">
-            <span class="cat">liquid</span>
-            <span class="val num">{fmtUSD.format((nw.liquid_cents + liabTotal - uncalledTotal) / 100)}</span>
-          </div>
-          {uncalledTotal > 0 && (
-            <div class="bd-row sub" title={`Committed SBS / fund allocations not yet wired (${fmtUSD.format(uncalledTotal / 100)}). Subtracted from spendable liquid because the cash is earmarked for an unscheduled capital call.`}>
-              <span class="cat">uncalled</span>
-              <span class="val num neg">−{fmtUSD.format(uncalledTotal / 100)}</span>
+        <div class="sheet">
+          <div class="sheet-col">
+            <h3>Assets</h3>
+            <div class="sheet-row" title="Cash, investments, and other accounts — gross of debt.">
+              <span class="cat">liquid</span>
+              <span class="val num">{fmtUSD.format((nw.liquid_cents + liabTotal - uncalledTotal) / 100)}</span>
             </div>
-          )}
-          <div class="bd-row"><span class="cat">private</span><span class="val num">{fmtUSD.format(nw.private_usd)}</span></div>
+            {uncalledTotal > 0 && (
+              <div class="sheet-note" title={`Committed SBS / fund allocations not yet wired (${fmtUSD.format(uncalledTotal / 100)}). Subtracted from spendable liquid because the cash is earmarked for an unscheduled capital call.`}>
+                <span>net of uncalled</span>
+                <span class="num neg">−{fmtUSD.format(uncalledTotal / 100)}</span>
+              </div>
+            )}
+            <div class="sheet-row">
+              <span class="cat">private</span>
+              <span class="val num">{fmtUSD.format(nw.private_usd)}</span>
+            </div>
+            <div class="sheet-subtotal">
+              <span class="lbl">total assets</span>
+              <span class="val num">{fmtUSD.format((nw.liquid_cents + liabTotal - uncalledTotal + nw.private_cents) / 100)}</span>
+            </div>
+            <div class="sheet-count">
+              {accounts.length - liab.length} accounts · {privateInv.length} private
+            </div>
+          </div>
+
           {liabTotal > 0 && (
-            <div class="bd-row"><span class="cat">liabilities</span><span class="val num neg">−{fmtUSD.format(liabTotal / 100)}</span></div>
-          )}
-          {liabTotal > 0 && revolvingTotal > 0 && amortizedTotal > 0 && (
-            <>
-              <div class="bd-row sub" title="Credit card balances. Cycles monthly — some portion is on the current statement (due in ~30 days) and some is post-statement charges that haven't been billed yet.">
-                <span class="cat">revolving</span>
-                <span class="val num">−{fmtUSD.format(revolvingTotal / 100)}</span>
+            <div class="sheet-col">
+              <h3>Liabilities</h3>
+              {revolvingTotal > 0 && amortizedTotal > 0 ? (
+                <>
+                  <div class="sheet-row" title="Credit card balances. Cycles monthly — some portion is on the current statement (due in ~30 days) and some is post-statement charges that haven't been billed yet.">
+                    <span class="cat">revolving</span>
+                    <span class="val num neg">−{fmtUSD.format(revolvingTotal / 100)}</span>
+                  </div>
+                  <div class="sheet-row" title="Term debt with scheduled amortization (car loans, mortgage, etc.).">
+                    <span class="cat">amortized</span>
+                    <span class="val num neg">−{fmtUSD.format(amortizedTotal / 100)}</span>
+                  </div>
+                </>
+              ) : revolvingTotal > 0 ? (
+                <div class="sheet-row">
+                  <span class="cat">revolving</span>
+                  <span class="val num neg">−{fmtUSD.format(revolvingTotal / 100)}</span>
+                </div>
+              ) : (
+                <div class="sheet-row">
+                  <span class="cat">amortized</span>
+                  <span class="val num neg">−{fmtUSD.format(amortizedTotal / 100)}</span>
+                </div>
+              )}
+              <div class="sheet-subtotal">
+                <span class="lbl">total liabilities</span>
+                <span class="val num neg">−{fmtUSD.format(liabTotal / 100)}</span>
               </div>
-              <div class="bd-row sub" title="Term debt with scheduled amortization (car loans, mortgage, etc.).">
-                <span class="cat">amortized</span>
-                <span class="val num">−{fmtUSD.format(amortizedTotal / 100)}</span>
+              <div class="sheet-count">
+                {pluralize(liab.length, 'account')}
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -137,10 +173,6 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
             <RailChangeMatrix attribution={attribution} />
           </>
         )}
-
-        <div class="rail-meta">
-          <div>{accounts.length} accounts · {privateInv.length} private</div>
-        </div>
       </aside>
 
       <div class="ledger-main">
@@ -253,7 +285,7 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
 <style>
   .ledger {
     display: grid;
-    grid-template-columns: 18rem 1fr;
+    grid-template-columns: 28rem 1fr;
     gap: var(--space-8);
     align-items: start;
   }
@@ -262,7 +294,7 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
     position: sticky;
     top: var(--header-offset);
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-6);
   }
   .rail-label {
     font-size: var(--size-xs);
@@ -271,49 +303,101 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
     color: var(--fg-muted);
     font-weight: 500;
   }
-  .rail-value {
+
+  /* Balance-sheet topline: NW label + total inline, separated from the
+     two-column body by a thicker rule (the equation's "= line"). */
+  .sheet-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1.5px solid var(--fg);
+  }
+  .sheet-lbl {
+    font-size: var(--size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+    line-height: 1;
+    padding-bottom: var(--space-2);
+  }
+  .sheet-total {
     font-size: var(--size-2xl);
     font-weight: 500;
     letter-spacing: -0.035em;
-    line-height: 1.05;
+    line-height: 1;
+  }
+
+  .sheet {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
     margin-top: calc(-1 * var(--space-2));
   }
-  .rail-breakdown { display: grid; gap: 0; }
-  .bd-row {
+  .sheet-col h3 {
+    margin: 0 0 var(--space-2);
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .sheet-row {
     display: grid;
     grid-template-columns: 1fr auto;
     padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--rule);
+    border-top: 1px solid var(--rule);
     align-items: baseline;
     font-size: var(--size-sm);
   }
-  .bd-row:first-child { border-top: 1px solid var(--rule); }
-  .bd-row .cat {
+  .sheet-row .cat {
     font-size: var(--size-xs);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--fg-muted);
+    font-weight: 500;
   }
-  /* Sub-rows: smaller, muted, visually attached to the row above (no top
-     gap; suppress that row's bottom border via :has). Both columns inherit
-     the muted styling so the label and value read as secondary together. */
-  .bd-row.sub {
-    font-size: var(--size-xs);
-    padding-top: 0;
-    padding-left: var(--space-3);
-    border-bottom: 1px solid var(--rule);
-  }
-  .bd-row.sub .cat,
-  .bd-row.sub .val { color: var(--fg-muted); }
-  .bd-row:has(+ .sub) { border-bottom: none; padding-bottom: var(--space-1); }
-  /* Negative breakdown values (uncalled, liabilities) read red. Specificity
-     here ties .sub's .val rule above; defined after so source order wins. */
-  .bd-row .val.neg { color: var(--neg); }
-  .rail-meta {
-    font-size: var(--size-xs);
+  .sheet-row .val.neg { color: var(--neg); }
+
+  /* Note: sub-row that hangs off the row above. Indented, muted, and
+     separated from its parent by a small negative margin so it visually
+     attaches without a border between them. */
+  .sheet-note {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 0 0 var(--space-2) var(--space-3);
+    margin-top: calc(-1 * var(--space-1));
+    font-size: 0.6875rem;
     color: var(--fg-muted);
+  }
+  .sheet-note .neg { color: var(--neg); }
+
+  .sheet-subtotal {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--space-2) 0 0;
+    border-top: 1px solid var(--fg);
+    align-items: baseline;
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+  .sheet-subtotal .lbl {
+    font-size: var(--size-xs);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .sheet-subtotal .val.neg { color: var(--neg); }
+  .sheet-count {
+    margin-top: var(--space-2);
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
   }
 
   .ledger-main { display: grid; gap: var(--space-4); }
@@ -353,13 +437,19 @@ const hasAny = accounts.length > 0 || privateInv.length > 0;
   .sync-alert .alert-why { color: var(--fg-muted); }
   .sync-alert .sep { color: var(--fg-muted); }
 
-  @media (max-width: 52rem) {
+  @media (max-width: 60rem) {
     .ledger { grid-template-columns: 1fr; gap: var(--space-6); }
     .rail {
       position: static;
       padding-bottom: var(--space-6);
       border-bottom: 1px solid var(--rule);
     }
-    .rail-value { font-size: var(--size-2xl); }
+  }
+  @media (max-width: 36rem) {
+    /* Single-column sheet: assets stack above liabilities, total-asset count
+       row gets bottom space so the liabilities section breathes below. */
+    .sheet { grid-template-columns: 1fr; gap: var(--space-4); }
+    .sheet-topline { flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+    .sheet-lbl { padding-bottom: 0; }
   }
 </style>
