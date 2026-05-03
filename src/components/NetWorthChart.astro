@@ -11,9 +11,14 @@ interface Props {
 
 const { series } = Astro.props;
 
-const xAt = (i: number) => (i / Math.max(series.length - 1, 1)) * CHART_W;
+// Anchor everything at the capture-baseline. Pre-baseline NW totals were
+// missing accounts (Schwab) so the line would jump when imports landed —
+// the chart and headline delta both start from this point forward.
+const points_ = series.filter((p) => !p.synthetic && p.date >= CAPTURE_BASELINE_YMD);
+
+const xAt = (i: number) => (i / Math.max(points_.length - 1, 1)) * CHART_W;
 const yAt = (() => {
-  const totals = series.map((p) => p.total_cents);
+  const totals = points_.map((p) => p.total_cents);
   const lo = totals.length ? Math.min(...totals) : 0;
   const hi = totals.length ? Math.max(...totals) : 0;
   const span = Math.max(hi - lo, 1);
@@ -23,51 +28,27 @@ const yAt = (() => {
   return (cents: number) => CHART_PAD_T + (1 - (cents - yMin) / yRange) * CHART_INNER_H;
 })();
 
-// Where real data begins (everything before is the synthetic baseline).
-const firstRealIdx = series.findIndex((p) => !p.synthetic);
-const hasSynthetic = firstRealIdx > 0;
-const realStart = hasSynthetic ? firstRealIdx : 0;
+const path = points_
+  .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(p.total_cents).toFixed(2)}`)
+  .join(' ');
 
-const buildPath = (slice: typeof series, offset: number) =>
-  slice
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(offset + i).toFixed(2)} ${yAt(p.total_cents).toFixed(2)}`)
-    .join(' ');
-
-// Synthetic line stops AT the first real point so segments visually connect.
-const syntheticSlice = hasSynthetic ? series.slice(0, firstRealIdx + 1) : [];
-const realSlice = series.slice(realStart);
-const syntheticPath = hasSynthetic ? buildPath(syntheticSlice, 0) : '';
-const realPath = buildPath(realSlice, realStart);
-
-// Area only under the real series — synthetic stays as a hairline.
 const area =
-  realSlice.length > 1
-    ? `${realPath} L ${xAt(series.length - 1).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(realStart).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
+  points_.length > 1
+    ? `${path} L ${xAt(points_.length - 1).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} L ${xAt(0).toFixed(2)} ${(CHART_PAD_T + CHART_INNER_H).toFixed(2)} Z`
     : '';
 
-const paths: ChartPath[] = [];
-if (hasSynthetic) paths.push({ d: syntheticPath, variant: 'synthetic' });
-paths.push({ d: realPath, variant: 'solid' });
+const paths: ChartPath[] = points_.length > 0 ? [{ d: path, variant: 'solid' }] : [];
 
-// Up to 6 evenly spaced date ticks.
-const tickCount = Math.min(6, series.length);
+const tickCount = Math.min(6, points_.length);
 const ticks: ChartTick[] = Array.from({ length: tickCount }, (_, k) => {
-  const i = tickCount === 1 ? 0 : Math.round((k * (series.length - 1)) / (tickCount - 1));
-  return { x: xAt(i), label: fmtTickMonthDay(series[i].date) };
+  const i = tickCount === 1 ? 0 : Math.round((k * (points_.length - 1)) / (tickCount - 1));
+  return { x: xAt(i), label: fmtTickMonthDay(points_[i].date) };
 });
 
-// Headline delta is anchored at the capture-baseline, not the first real
-// point. Pre-baseline NW totals were missing accounts (Schwab) so a "since
-// 2024" delta would mostly reflect when imports landed, not actual change.
-// The chart line itself still spans full history — we just don't claim a
-// number that crosses the baseline.
-const baselineFirst = series.find((p) => !p.synthetic && p.date >= CAPTURE_BASELINE_YMD) ?? null;
-const realLast = series[series.length - 1];
-const change = realLast && baselineFirst ? realLast.total_cents - baselineFirst.total_cents : 0;
-const changePct = baselineFirst && baselineFirst.total_cents !== 0 ? change / baselineFirst.total_cents : 0;
-const baselineDays = baselineFirst
-  ? series.filter((p) => !p.synthetic && p.date >= CAPTURE_BASELINE_YMD).length
-  : 0;
+const first = points_[0] ?? null;
+const last = points_[points_.length - 1] ?? null;
+const change = first && last ? last.total_cents - first.total_cents : 0;
+const changePct = first && first.total_cents !== 0 ? change / first.total_cents : 0;
 
 const fmtReadoutDate = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -76,21 +57,21 @@ const fmtReadoutDate = (ymd: string) => {
   });
 };
 
-const points: ChartHoverPoint[] = series.map((p, i) => ({
+const hoverPoints: ChartHoverPoint[] = points_.map((p, i) => ({
   x: xAt(i),
   y: yAt(p.total_cents),
-  readout: `${fmtReadoutDate(p.date)} · ${fmtUSD.format(p.total_cents / 100)}${p.synthetic ? ' · baseline' : ''}`,
+  readout: `${fmtReadoutDate(p.date)} · ${fmtUSD.format(p.total_cents / 100)}`,
 }));
 ---
 <div class="nw-chart">
   <Chart
-    label={`net worth · last ${series.length} days`}
+    label={`net worth · last ${points_.length} ${points_.length === 1 ? 'day' : 'days'}`}
     empty="NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN."
-    delta={baselineDays > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null}
+    delta={points_.length > 1 ? { cents: change, pct: changePct, pctDecimals: 2 } : null}
     area={area}
     paths={paths}
     ticks={ticks}
-    points={points}
+    points={hoverPoints}
   />
 </div>
 
