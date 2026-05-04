@@ -250,55 +250,70 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
      Below ~40rem the three-column desktop grid runs out of horizontal
      room. Reflow each row into a 2×2 block:
         [ name             ]  [ delta ]
-        [ INSTITUTION · K  ]  [ total ]
-     Numbers stay right-aligned and stacked, name + sub stay left,
-     everything keeps its semantic <td>. */
+        [ INSTITUTION · K  ]  [ balance ]
+     Selectors are scoped under `.activity-table` to win specificity over
+     the `display: block` reset on tr, so the per-row grid actually
+     applies. The previous version lost that race and rendered as inline
+     flow — date+total smashed together, delta+balance on the same line. */
   @media (max-width: 40rem) {
     .activity-table,
     .activity-table tbody,
     .activity-table tr { display: block; }
-    .activity-table colgroup { display: none; }
-    /* The reflowed mobile rows already encode delta vs balance via
-       position; the desktop column headers don't apply, so hide them. */
+    .activity-table colgroup,
     .activity-table thead { display: none; }
 
-    /* Day header: date + count on the left, day total on the right. The
-       trailing empty <td> is hidden — it only existed to align with the
-       desktop "total" column. */
-    tr.day-head {
+    /* Visible breathing room between day groups — each tbody is one day. */
+    .activity-table tbody + tbody { margin-top: var(--space-4); }
+    .activity-table tbody:last-of-type tr:last-child { border-bottom: none; }
+
+    /* Day header: date stacks above count on the left, day total flush
+       right. The trailing empty <td> is hidden — it only existed to align
+       with the desktop balance column. */
+    .activity-table tr.day-head {
       display: grid;
       grid-template-columns: 1fr auto;
-      column-gap: var(--space-3);
-      align-items: baseline;
+      column-gap: var(--space-4);
+      align-items: center;
       background: var(--bg-subtle);
-      padding: var(--space-2) var(--space-3);
+      padding: var(--space-3) var(--space-4);
     }
-    tr.day-head > td {
+    .activity-table tr.day-head > td {
       padding: 0;
       border: none;
       background: transparent;
     }
-    tr.day-head > td:last-child { display: none; }
-    .day-count { display: block; margin: 2px 0 0; }
+    .activity-table tr.day-head > td:last-child { display: none; }
+    .activity-table tr.day-head .day-count {
+      display: block;
+      margin: 2px 0 0;
+    }
+    .activity-table tr.day-head .day-total { font-size: var(--size-base); }
 
-    /* Event row: 2-col grid, name spans both rows on the left, delta/total
-       stack on the right. */
-    tr.event {
+    /* Event row: name+sub on the left spanning both rows, delta top-right,
+       balance bottom-right (smaller, muted). Generous vertical padding so
+       each row breathes; row-gap separates the two right-side numbers so
+       they never read as one mashed string. */
+    .activity-table tr.event {
       display: grid;
       grid-template-columns: 1fr auto;
-      column-gap: var(--space-3);
-      row-gap: 2px;
+      column-gap: var(--space-4);
+      row-gap: var(--space-1);
       align-items: baseline;
-      padding: var(--space-2) var(--space-3);
+      padding: var(--space-4) var(--space-4);
       border-bottom: 1px solid var(--rule);
     }
-    tr.event > td {
+    .activity-table tr.event > td {
       padding: 0;
       border: none;
     }
-    tr.event > .cell-name { grid-column: 1; grid-row: 1 / span 2; }
-    tr.event > .delta { grid-column: 2; grid-row: 1; align-self: start; }
-    tr.event > .total {
+    .activity-table tr.event > .cell-name { grid-column: 1; grid-row: 1 / span 2; }
+    .activity-table tr.event > .delta {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: start;
+      font-weight: 500;
+    }
+    .activity-table tr.event > .total {
       grid-column: 2;
       grid-row: 2;
       align-self: end;
@@ -306,7 +321,6 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     }
 
     .num-col { padding-left: 0; }
-    .activity-table tbody:last-of-type tr:last-child { border-bottom: none; }
 
     /* Hint copy gets long on phones — let it relax instead of dominating. */
     .page-head .hint { font-size: var(--size-xs); }
