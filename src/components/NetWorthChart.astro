@@ -83,11 +83,26 @@ const LIAB_LAYERS = [
 const assetTotals = points_.map((p) => ASSET_LAYERS.reduce((s, l) => s + l.get(p), 0));
 const liabTotals = points_.map((p) => LIAB_LAYERS.reduce((s, l) => s + l.get(p), 0));
 
-const yMaxBreak = (assetTotals.length ? Math.max(...assetTotals) : 0) * 1.08;
-const yMinBreak = -(liabTotals.length ? Math.max(...liabTotals) : 0) * 1.08;
-const yRangeBreak = Math.max(yMaxBreak - yMinBreak, 1);
-const breakY = (cents: number) =>
-  CHART_PAD_T + (1 - (cents - yMinBreak) / yRangeBreak) * CHART_INNER_H;
+// Split-y axis: at proportional scale, liabilities (~1-2% of NW) would be
+// a sub-pixel red strip. Give the bottom region a fixed share of the
+// chart so its bands stay legible at their own scale. The trade-off:
+// pixel distance between asset-top and NW line no longer equals the
+// liability band height — the legend carries the exact numbers.
+const BOT_FRAC = 0.30;
+const maxAssets = assetTotals.length ? Math.max(...assetTotals) : 0;
+const maxLiabs = liabTotals.length ? Math.max(...liabTotals) : 0;
+const assetScale = maxAssets * 1.08;
+const liabScale = maxLiabs * 1.08;
+// No debt → give the whole chart to assets (no awkward empty negative band).
+const effectiveBotFrac = maxLiabs > 0 ? BOT_FRAC : 0;
+const assetHeight = (1 - effectiveBotFrac) * CHART_INNER_H;
+const liabHeight = effectiveBotFrac * CHART_INNER_H;
+const zeroY = CHART_PAD_T + assetHeight;
+
+const breakY = (cents: number) => {
+  if (cents >= 0) return zeroY - (cents / Math.max(assetScale, 1)) * assetHeight;
+  return zeroY - (cents / Math.max(liabScale, 1)) * liabHeight;
+};
 
 function bandPath(lower: number[], upper: number[]): string {
   if (lower.length < 2) return '';
@@ -129,8 +144,6 @@ const breakHoverPoints = points_.map((p, i) => ({
   y: breakY(p.total_cents),
   readout: `${fmtReadoutDate(p.date)} · NW ${fmtUSD.format(p.total_cents / 100)} · A ${fmtUSD.format((p.cash_cents + p.invest_cents + p.other_cents + p.private_cents) / 100)} · L ${fmtUSD.format((p.revolving_cents + p.amortized_cents) / 100)}`,
 }));
-
-const zeroY = breakY(0);
 
 // Latest values for legend — hide layers that are zero so the legend
 // only shows what's actually present in the underlying data.
