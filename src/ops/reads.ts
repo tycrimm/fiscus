@@ -432,11 +432,24 @@ export type NetWorthPoint = {
   uncalled_cents: number;        // sum of pending tranche cost basis active this day
   private_cents: number;
   total_cents: number;
+  // Per-bucket breakdown of the asset/liability sides. Mirrors the bucket
+  // split used on the home page (cash/invest/other, revolving/amortized).
+  // Drives the stacked-area breakdown view; sums back to liquid via:
+  //   cash + invest + other − revolving − amortized = liquid_cents
+  cash_cents: number;
+  invest_cents: number;
+  other_cents: number;
+  revolving_cents: number;
+  amortized_cents: number;
   synthetic?: boolean;     // true = backfilled baseline before first real snapshot
   fresh?: boolean;         // true = this day had at least one real snapshot/event;
                            // false = values are carry-forward from prior day (e.g.
                            // pre-sync window after midnight PT before the 3am cron)
 };
+
+// Account-kind buckets for the breakdown view. Mirrors src/pages/index.astro.
+const CASH_KINDS = new Set(['checking', 'savings']);
+const INVEST_KINDS = new Set(['brokerage', 'retirement', 'education', 'crypto']);
 
 const PT_DATE_FMT = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Los_Angeles',
@@ -449,16 +462,16 @@ const nextYmd = (ymd: string): string => shiftYmd(ymd, 1);
 
 export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Promise<NetWorthPoint[]> {
   const minDays = opts.minDays ?? 30;
-  const snaps = await rows<{ account_id: string; balance_cents: number; is_liability: number; as_of: number }>(
+  const snaps = await rows<{ account_id: string; balance_cents: number; is_liability: number; kind: string; as_of: number }>(
     d,
     sql`
-      SELECT bs.account_id, bs.balance_cents, a.is_liability, bs.as_of
+      SELECT bs.account_id, bs.balance_cents, a.is_liability, a.kind, bs.as_of
       FROM balance_snapshots bs
       JOIN accounts a ON a.id = bs.account_id
       WHERE a.archived_at IS NULL
       ORDER BY bs.as_of ASC
     `,
-    ['account_id', 'balance_cents', 'is_liability', 'as_of'],
+    ['account_id', 'balance_cents', 'is_liability', 'kind', 'as_of'],
   );
   const { rounds: allRounds, valuations: allVals } = await fetchRoundsAndValuations(d);
 
@@ -475,12 +488,12 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
 
   if (snaps.length === 0 && allRounds.length === 0 && allVals.length === 0) return [];
 
-  const acctByDate = new Map<string, Map<string, { balance: number; liability: boolean }>>();
+  const acctByDate = new Map<string, Map<string, { balance: number; liability: boolean; kind: string }>>();
   for (const s of snaps) {
     const day = ptDateKey(num(s.as_of));
     let m = acctByDate.get(day);
     if (!m) { m = new Map(); acctByDate.set(day, m); }
-    m.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability) });
+    m.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability), kind: String(s.kind) });
   }
 
   const roundsByAsset = groupByAsset(allRounds);
@@ -516,10 +529,10 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     : earliestPrivateDay ?? ptDateKey(Math.floor(Date.now() / 1000));
   const today = ptDateKey(Math.floor(Date.now() / 1000));
 
-  const acctState = new Map<string, { balance: number; liability: boolean }>();
+  const acctState = new Map<string, { balance: number; liability: boolean; kind: string }>();
   for (const s of snaps) {
     if (ptDateKey(num(s.as_of)) < start) {
-      acctState.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability) });
+      acctState.set(s.account_id, { balance: num(s.balance_cents), liability: !!num(s.is_liability), kind: String(s.kind) });
     }
   }
 
@@ -530,12 +543,21 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
     const au = acctByDate.get(day);
     if (au) for (const [k, v] of au) acctState.set(k, v);
 
-    let positives = 0;
-    let liabilities = 0;
+    let cash = 0, invest = 0, other = 0, revolving = 0, amortized = 0;
     for (const v of acctState.values()) {
-      if (v.liability) liabilities += v.balance;
-      else positives += v.balance;
+      if (v.liability) {
+        if (v.kind === 'credit_card') revolving += v.balance;
+        else amortized += v.balance;
+      } else if (CASH_KINDS.has(v.kind)) {
+        cash += v.balance;
+      } else if (INVEST_KINDS.has(v.kind)) {
+        invest += v.balance;
+      } else {
+        other += v.balance;
+      }
     }
+    const positives = cash + invest + other;
+    const liabilities = revolving + amortized;
     const liquid = positives - liabilities;
 
     const endSec = endOfDaySec(day);
@@ -563,6 +585,11 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
       uncalled_cents: uncalled,
       private_cents: priv,
       total_cents: liquid + priv,
+      cash_cents: cash,
+      invest_cents: invest,
+      other_cents: other,
+      revolving_cents: revolving,
+      amortized_cents: amortized,
       fresh: freshDays.has(day),
     });
     day = nextYmd(day);
@@ -584,6 +611,11 @@ export async function netWorthSeries(d: DB, opts: { minDays?: number } = {}): Pr
         uncalled_cents: anchor.uncalled_cents,
         private_cents: anchor.private_cents,
         total_cents: anchor.total_cents,
+        cash_cents: anchor.cash_cents,
+        invest_cents: anchor.invest_cents,
+        other_cents: anchor.other_cents,
+        revolving_cents: anchor.revolving_cents,
+        amortized_cents: anchor.amortized_cents,
         synthetic: true,
       });
     }

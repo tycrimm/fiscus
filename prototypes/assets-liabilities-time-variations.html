@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fiscus — Assets & Liabilities Over Time</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --bg-tint: #f4f4f2;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --fg-soft: #9a9a9a;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-subtle);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body { padding-top: 3.25rem; }
+
+  .num { font-variant-numeric: tabular-nums; }
+  .neg { color: var(--neg); }
+  .pos { color: var(--pos); }
+
+  /* sticky variation nav */
+  .vnav {
+    position: fixed;
+    inset: 0 0 auto 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+    z-index: 100;
+    padding: 0.625rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .vnav .brand { font-weight: 500; color: var(--fg-muted); }
+  .vnav nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+  .vnav a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    transition: color 120ms ease;
+    padding: 0.125rem 0;
+    border-bottom: 1px solid transparent;
+  }
+  .vnav a:hover { color: var(--fg); }
+  .vnav a.active { color: var(--fg); border-bottom-color: var(--fg); }
+
+  .stage {
+    border-top: 1px solid var(--rule);
+    padding: 3rem 1.5rem 5rem;
+  }
+  .stage:first-of-type { border-top: 0; }
+  .stage-head {
+    max-width: 64rem;
+    margin: 0 auto 2.25rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .stage-head h2 {
+    margin: 0;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 500;
+  }
+  .stage-head .desc {
+    color: var(--fg-muted);
+    font-size: 0.8125rem;
+    max-width: 38rem;
+  }
+
+  .canvas {
+    max-width: 64rem;
+    margin: 0 auto;
+    background: var(--bg);
+    padding: 2.5rem 2.5rem 2rem;
+    border: 1px solid var(--rule);
+  }
+
+  /* ───────── shared chart bits ───────── */
+  .chart-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    position: relative;
+  }
+  .chart-label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    transition: opacity 80ms linear;
+  }
+  .chart-delta {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    transition: opacity 80ms linear;
+  }
+  .chart-delta .pct { color: var(--fg-muted); font-size: 0.75rem; }
+  .chart-delta.pos { color: var(--pos); }
+  .chart-delta.neg { color: var(--neg); }
+
+  .chart-readout {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 80ms linear;
+    pointer-events: none;
+  }
+  .chart-head.hovering .chart-label,
+  .chart-head.hovering .chart-delta { opacity: 0; }
+  .chart-head.hovering .chart-readout { opacity: 1; }
+
+  .chart-wrap { position: relative; touch-action: none; margin-top: 0.5rem; }
+  .chart-svg { width: 100%; display: block; overflow: visible; }
+  .chart-area { fill: var(--fg); fill-opacity: 0.06; stroke: none; }
+  .chart-area-neg { fill: var(--neg); fill-opacity: 0.07; stroke: none; }
+  .chart-line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
+  .chart-line.thin { stroke-width: 1; }
+  .chart-line.muted { stroke: var(--fg-soft); stroke-width: 1; }
+  .chart-line.neg { stroke: var(--neg); stroke-width: 1.25; }
+  .chart-line.dash { stroke-dasharray: 3 3; }
+  .chart-zeroline { stroke: var(--rule-strong); stroke-width: 1; }
+  .chart-cross { stroke: var(--fg-muted); stroke-width: 1; stroke-dasharray: 2 3; pointer-events: none; }
+  .chart-dot { fill: var(--bg); stroke: var(--fg); stroke-width: 1.25; pointer-events: none; }
+  .chart-dot.neg { stroke: var(--neg); }
+  .chart-dot.muted { stroke: var(--fg-soft); }
+
+  .chart-axis {
+    position: relative;
+    height: 1em;
+    margin-top: var(--space-2);
+    font-size: 0.6875rem;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .chart-tick { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .chart-tick:first-child { transform: translateX(0); }
+  .chart-tick:last-child { transform: translateX(-100%); }
+
+  /* ───────── range selector ───────── */
+  .ranges {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--rule);
+    align-self: center;
+  }
+  .ranges button {
+    background: var(--bg);
+    border: 0;
+    border-right: 1px solid var(--rule);
+    padding: 0.375rem 0.625rem;
+    font: inherit;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    cursor: pointer;
+  }
+  .ranges button:last-child { border-right: 0; }
+  .ranges button.active { background: var(--fg); color: var(--bg); }
+
+  /* ───────── A: stacked panels ───────── */
+  .a-stack { display: grid; gap: var(--space-6); }
+  .a-panel {
+    display: grid;
+    gap: 0.25rem;
+  }
+  .a-panel.primary { padding-bottom: var(--space-6); border-bottom: 1px solid var(--rule); }
+  .a-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+  }
+  .a-toolbar .title {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+
+  /* ───────── B: combined sublines ───────── */
+  .b-legend {
+    display: flex;
+    gap: var(--space-6);
+    padding-top: var(--space-4);
+    margin-top: var(--space-4);
+    border-top: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .b-legend .item {
+    display: grid;
+    gap: 0.125rem;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .b-legend .item .label {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .b-legend .item .swatch {
+    width: 1rem; height: 0;
+    border-top: 1.25px solid var(--fg);
+  }
+  .b-legend .item.assets .swatch { border-top-style: solid; border-top-color: var(--fg-soft); border-top-width: 1px; }
+  .b-legend .item.nw .swatch { border-top-color: var(--fg); }
+  .b-legend .item.liab .swatch { border-top-color: var(--neg); border-top-width: 1.25px; }
+  .b-legend .item .v { font-size: 1rem; }
+  .b-legend .item .d { font-size: 0.75rem; color: var(--fg-muted); }
+
+  /* ───────── C: breakdown / stacked area ───────── */
+  .c-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .c-toolbar .title {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .c-toggle {
+    display: flex;
+    border: 1px solid var(--rule);
+  }
+  .c-toggle button {
+    background: var(--bg);
+    border: 0;
+    border-right: 1px solid var(--rule);
+    padding: 0.375rem 0.875rem;
+    font: inherit;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    cursor: pointer;
+  }
+  .c-toggle button:last-child { border-right: 0; }
+  .c-toggle button.active { background: var(--fg); color: var(--bg); }
+
+  .c-legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-top: var(--space-6);
+    border-top: 1px solid var(--rule);
+  }
+  .c-legend .col { padding: var(--space-4) 0; }
+  .c-legend .col:first-child { border-right: 1px solid var(--rule); padding-right: var(--space-6); }
+  .c-legend .col:last-child { padding-left: var(--space-6); }
+  .c-legend .col-label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .c-legend .col-total { color: var(--fg); font-variant-numeric: tabular-nums; font-size: 0.875rem; letter-spacing: 0; }
+  .c-legend .col-total.neg { color: var(--neg); }
+  .c-legend .layers { display: grid; gap: 0.375rem; }
+  .c-legend .layer {
+    display: grid;
+    grid-template-columns: 0.75rem 1fr auto;
+    gap: 0.625rem;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .c-legend .layer .sw {
+    width: 0.75rem; height: 0.75rem;
+    background: var(--fg);
+  }
+  .c-legend .layer .name {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.6875rem;
+    color: var(--fg-muted);
+  }
+  .c-legend .layer .amt { font-variant-numeric: tabular-nums; }
+  .c-legend .layer.neg .amt { color: var(--neg); }
+
+  /* stacked-area fills using opacity steps of fg / neg */
+  .c-area-1 { fill: var(--fg); fill-opacity: 0.18; }
+  .c-area-2 { fill: var(--fg); fill-opacity: 0.12; }
+  .c-area-3 { fill: var(--fg); fill-opacity: 0.07; }
+  .c-area-4 { fill: var(--fg); fill-opacity: 0.04; }
+  .c-area-l1 { fill: var(--neg); fill-opacity: 0.18; }
+  .c-area-l2 { fill: var(--neg); fill-opacity: 0.10; }
+  .c-area-l3 { fill: var(--neg); fill-opacity: 0.05; }
+
+  @media (max-width: 48rem) {
+    .canvas { padding: 1.5rem 1rem; }
+    .c-legend { grid-template-columns: 1fr; }
+    .c-legend .col:first-child { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--rule); }
+    .c-legend .col:last-child { padding-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="vnav">
+  <span class="brand">Fiscus · Assets &amp; Liabilities Over Time</span>
+  <nav>
+    <a href="#a" class="active" data-target="a">A · Stacked panels</a>
+    <a href="#b" data-target="b">B · Combined sublines</a>
+    <a href="#c" data-target="c">C · Breakdown / stacked area</a>
+  </nav>
+</div>
+
+<!-- ============================================================ -->
+<!-- VARIATION A — three independent panels (NW, Assets, Liab)    -->
+<!-- ============================================================ -->
+<section class="stage" id="a">
+  <div class="stage-head">
+    <h2>A · Stacked panels</h2>
+    <p class="desc">Net worth keeps its primary, larger chart. Assets and Liabilities sit beneath as smaller sibling charts — same x-axis, independent y-scales. Each has its own delta. Liabilities renders in red so its trend reads correctly at a glance (line going up = bad).</p>
+  </div>
+
+  <div class="canvas">
+    <div class="a-toolbar">
+      <span class="title">Last 12 months</span>
+      <div class="ranges" data-stage="a">
+        <button data-r="1m">1M</button>
+        <button data-r="3m">3M</button>
+        <button data-r="1y" class="active">1Y</button>
+        <button data-r="all">All</button>
+      </div>
+    </div>
+
+    <div class="a-stack">
+      <!-- NET WORTH -->
+      <div class="a-panel primary">
+        <div class="chart-head">
+          <span class="chart-label">net worth</span>
+          <div class="chart-delta pos"><span class="num">+$355,200</span><span class="num pct">(+15.7%)</span></div>
+          <div class="chart-readout"></div>
+        </div>
+        <div class="chart-wrap" data-chart="a-nw"></div>
+        <div class="chart-axis" data-axis="shared"></div>
+      </div>
+
+      <!-- ASSETS -->
+      <div class="a-panel">
+        <div class="chart-head">
+          <span class="chart-label">assets</span>
+          <div class="chart-delta pos"><span class="num">+$335,000</span><span class="num pct">(+13.3%)</span></div>
+          <div class="chart-readout"></div>
+        </div>
+        <div class="chart-wrap" data-chart="a-assets" data-h="120"></div>
+      </div>
+
+      <!-- LIABILITIES -->
+      <div class="a-panel">
+        <div class="chart-head">
+          <span class="chart-label">liabilities</span>
+          <div class="chart-delta pos"><span class="num">−$20,200</span><span class="num pct">(−9.3%)</span></div>
+          <div class="chart-readout"></div>
+        </div>
+        <div class="chart-wrap" data-chart="a-liab" data-h="120"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- VARIATION B — single chart with three lines (sublines)       -->
+<!-- ============================================================ -->
+<section class="stage" id="b">
+  <div class="stage-head">
+    <h2>B · Combined sublines</h2>
+    <p class="desc">One chart, three lines. The dark NW line stays primary; assets is a thinner gray line above; liabilities a thinner red line near the floor. The visual gap between assets and liabilities <em>is</em> net worth. Hover surfaces all three values for that day.</p>
+  </div>
+
+  <div class="canvas">
+    <div class="a-toolbar">
+      <span class="title">Last 12 months</span>
+      <div class="ranges" data-stage="b">
+        <button data-r="1m">1M</button>
+        <button data-r="3m">3M</button>
+        <button data-r="1y" class="active">1Y</button>
+        <button data-r="all">All</button>
+      </div>
+    </div>
+
+    <div class="chart-head">
+      <span class="chart-label">net worth · assets · liabilities</span>
+      <div class="chart-delta pos"><span class="num">+$355,200</span><span class="num pct">(+15.7%)</span></div>
+      <div class="chart-readout"></div>
+    </div>
+    <div class="chart-wrap" data-chart="b-combined" data-h="280"></div>
+    <div class="chart-axis" data-axis="b-axis"></div>
+
+    <div class="b-legend">
+      <div class="item assets">
+        <span class="label"><span class="swatch"></span>Assets</span>
+        <span class="v num">$2,855,000</span>
+        <span class="d num">+$335k · +13.3%</span>
+      </div>
+      <div class="item nw">
+        <span class="label"><span class="swatch"></span>Net worth</span>
+        <span class="v num">$2,617,000</span>
+        <span class="d num pos">+$355k · +15.7%</span>
+      </div>
+      <div class="item liab">
+        <span class="label"><span class="swatch"></span>Liabilities</span>
+        <span class="v num">$198,000</span>
+        <span class="d num pos">−$20k · −9.3%</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- VARIATION C — breakdown / stacked area                       -->
+<!-- ============================================================ -->
+<section class="stage" id="c">
+  <div class="stage-head">
+    <h2>C · Breakdown / stacked area</h2>
+    <p class="desc">Same NW chart by default. Toggle <em>Breakdown</em> and the chart morphs into a stacked area: cash, investments, private, other above zero; mortgage, auto, revolving below. The dark line traces net worth — you see what makes up NW over time, not just the total.</p>
+  </div>
+
+  <div class="canvas">
+    <div class="c-toolbar">
+      <span class="title">Last 12 months</span>
+      <div class="c-toggle" data-stage="c">
+        <button data-mode="line">Line</button>
+        <button data-mode="breakdown" class="active">Breakdown</button>
+      </div>
+    </div>
+
+    <div class="chart-head">
+      <span class="chart-label">net worth · breakdown</span>
+      <div class="chart-delta pos"><span class="num">+$355,200</span><span class="num pct">(+15.7%)</span></div>
+      <div class="chart-readout"></div>
+    </div>
+    <div class="chart-wrap" data-chart="c-breakdown" data-h="320"></div>
+    <div class="chart-axis" data-axis="c-axis"></div>
+
+    <div class="c-legend">
+      <div class="col">
+        <div class="col-label"><span>Assets</span><span class="col-total num">$2,855,000</span></div>
+        <div class="layers">
+          <div class="layer"><span class="sw" style="opacity:0.18"></span><span class="name">Investments</span><span class="amt">$1,665,000</span></div>
+          <div class="layer"><span class="sw" style="opacity:0.12"></span><span class="name">Other (real estate)</span><span class="amt">$700,000</span></div>
+          <div class="layer"><span class="sw" style="opacity:0.07"></span><span class="name">Private</span><span class="amt">$430,000</span></div>
+          <div class="layer"><span class="sw" style="opacity:0.04"></span><span class="name">Cash</span><span class="amt">$60,000</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="col-label"><span>Liabilities</span><span class="col-total num neg">−$198,000</span></div>
+        <div class="layers">
+          <div class="layer neg"><span class="sw" style="background:var(--neg);opacity:0.18"></span><span class="name">Mortgage</span><span class="amt">−$172,000</span></div>
+          <div class="layer neg"><span class="sw" style="background:var(--neg);opacity:0.10"></span><span class="name">Auto</span><span class="amt">−$22,000</span></div>
+          <div class="layer neg"><span class="sw" style="background:var(--neg);opacity:0.05"></span><span class="name">Revolving</span><span class="amt">−$4,000</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ─────────────────────── data ─────────────────────── */
+// 13 monthly points, May 2025 → May 2026. Money in dollars (we'll format).
+const months = [
+  '2025-05', '2025-06', '2025-07', '2025-08', '2025-09', '2025-10',
+  '2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05'
+];
+
+// Asset components, in $k
+const cash    = [55, 58, 60, 52, 56, 58, 62, 65, 60, 58, 62, 64, 60];
+const invest  = [1410, 1432, 1448, 1495, 1518, 1545, 1558, 1582, 1598, 1620, 1640, 1655, 1665];
+const priv    = [395, 398, 405, 410, 414, 418, 420, 425, 425, 428, 430, 430, 430];
+const other   = [660, 662, 665, 668, 672, 675, 680, 684, 688, 690, 695, 700, 700];
+
+// Liability components, in $k
+const mortg   = [185, 184, 183, 182, 181, 180, 179, 178, 177, 175, 174, 173, 172];
+const auto    = [28, 27, 26, 26, 25, 24, 24, 23, 23, 22, 22, 22, 22];
+const revolv  = [5, 4, 4, 3, 2, 1, 17, 16, 14, 13, 10, 7, 4];
+
+const assets = months.map((_, i) => cash[i] + invest[i] + priv[i] + other[i]);
+const liab   = months.map((_, i) => mortg[i] + auto[i] + revolv[i]);
+const nw     = months.map((_, i) => assets[i] - liab[i]);
+
+// $ formatter
+const fmt = (k, decimals = 0) => {
+  const v = k * 1000;
+  if (Math.abs(v) >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
+  return '$' + Math.round(v / 1000).toLocaleString() + 'k';
+};
+const fmtFull = (k) => '$' + Math.round(k * 1000).toLocaleString();
+const monthLabel = (ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+};
+
+/* ─────────────────────── chart helpers ─────────────────────── */
+const VB_W = 600;
+const PAD_T = 6, PAD_B = 6;
+
+function makeAxis(el, labels, count = 6) {
+  if (!el) return;
+  el.innerHTML = '';
+  const step = labels.length === 1 ? 0 : (labels.length - 1) / (count - 1);
+  for (let i = 0; i < count; i++) {
+    const idx = Math.round(i * step);
+    const x = (idx / (labels.length - 1)) * 100;
+    const tick = document.createElement('span');
+    tick.className = 'chart-tick';
+    tick.style.left = x + '%';
+    tick.textContent = monthLabel(labels[idx]);
+    el.appendChild(tick);
+  }
+}
+
+function buildLineChart(wrap, series, opts = {}) {
+  const h = Number(wrap.dataset.h) || 200;
+  const ih = h - PAD_T - PAD_B;
+  const lo = Math.min(...series.flatMap(s => s.data));
+  const hi = Math.max(...series.flatMap(s => s.data));
+  const span = Math.max(hi - lo, 1);
+  const yMin = lo - span * 0.08;
+  const yMax = hi + span * 0.08;
+  const N = series[0].data.length;
+
+  const xAt = (i) => (i / Math.max(N - 1, 1)) * VB_W;
+  const yAt = (v) => PAD_T + (1 - (v - yMin) / (yMax - yMin)) * ih;
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${VB_W} ${h}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('chart-svg');
+  svg.style.height = h + 'px';
+
+  // optional area for the primary
+  if (opts.area) {
+    const path = series[0].data
+      .map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`)
+      .join(' ');
+    const closed = `${path} L ${xAt(N - 1).toFixed(2)} ${(PAD_T + ih).toFixed(2)} L ${xAt(0).toFixed(2)} ${(PAD_T + ih).toFixed(2)} Z`;
+    const area = document.createElementNS(svgNS, 'path');
+    area.setAttribute('d', closed);
+    area.classList.add(opts.areaClass || 'chart-area');
+    svg.appendChild(area);
+  }
+
+  for (const s of series) {
+    const d = s.data
+      .map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`)
+      .join(' ');
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('vector-effect', 'non-scaling-stroke');
+    path.classList.add('chart-line');
+    if (s.cls) path.classList.add(...s.cls.split(' '));
+    svg.appendChild(path);
+  }
+
+  // hover overlay (drawn for primary series)
+  const cross = document.createElementNS(svgNS, 'line');
+  cross.classList.add('chart-cross');
+  cross.setAttribute('y1', PAD_T);
+  cross.setAttribute('y2', PAD_T + ih);
+  cross.setAttribute('vector-effect', 'non-scaling-stroke');
+  cross.style.display = 'none';
+  svg.appendChild(cross);
+
+  const dots = series.map((s) => {
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('r', s.dotR ?? 3);
+    dot.classList.add('chart-dot');
+    if (s.dotCls) dot.classList.add(s.dotCls);
+    dot.style.display = 'none';
+    svg.appendChild(dot);
+    return dot;
+  });
+
+  wrap.innerHTML = '';
+  wrap.appendChild(svg);
+
+  // hover wiring
+  const head = wrap.parentElement.querySelector('.chart-head');
+  const readout = head ? head.querySelector('.chart-readout') : null;
+
+  function onMove(e) {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const xView = ((e.clientX - rect.left) / rect.width) * VB_W;
+    let bestI = 0, bestD = Infinity;
+    for (let i = 0; i < N; i++) {
+      const dx = Math.abs(xView - xAt(i));
+      if (dx < bestD) { bestD = dx; bestI = i; }
+    }
+    cross.setAttribute('x1', xAt(bestI));
+    cross.setAttribute('x2', xAt(bestI));
+    cross.style.display = '';
+    series.forEach((s, j) => {
+      dots[j].setAttribute('cx', xAt(bestI));
+      dots[j].setAttribute('cy', yAt(s.data[bestI]));
+      dots[j].style.display = '';
+    });
+    if (readout) {
+      const ymd = months[bestI];
+      const [y, m] = ymd.split('-');
+      const d = new Date(Date.UTC(+y, +m - 1, 1)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+      const parts = series.map((s) => `${s.label} ${fmtFull(s.data[bestI])}`);
+      readout.textContent = `${d} · ${parts.join('  ·  ')}`;
+      head.classList.add('hovering');
+    }
+  }
+  function onLeave() {
+    cross.style.display = 'none';
+    dots.forEach(d => d.style.display = 'none');
+    if (head) head.classList.remove('hovering');
+  }
+  wrap.addEventListener('pointermove', onMove);
+  wrap.addEventListener('pointerleave', onLeave);
+}
+
+function buildStackedAreaChart(wrap) {
+  const h = Number(wrap.dataset.h) || 320;
+  const ih = h - PAD_T - PAD_B;
+  const N = months.length;
+
+  // assets stacked positive (largest at bottom for visual stability):
+  // Investments (largest) → Other → Private → Cash (smallest)
+  const stackPos = [invest, other, priv, cash];
+  const posClasses = ['c-area-1', 'c-area-2', 'c-area-3', 'c-area-4'];
+
+  // liabilities stacked negative (largest at bottom of negative region):
+  // Mortgage → Auto → Revolving
+  const stackNeg = [mortg, auto, revolv];
+  const negClasses = ['c-area-l1', 'c-area-l2', 'c-area-l3'];
+
+  // y range: we want 0 in the chart, max = max assets total, min = -max liab total
+  const totalPos = months.map((_, i) => stackPos.reduce((a, s) => a + s[i], 0));
+  const totalNeg = months.map((_, i) => stackNeg.reduce((a, s) => a + s[i], 0));
+  const yMax = Math.max(...totalPos) * 1.04;
+  const yMin = -Math.max(...totalNeg) * 1.4; // liab block visually smaller; give it some room
+  const yRange = yMax - yMin;
+
+  const xAt = (i) => (i / Math.max(N - 1, 1)) * VB_W;
+  const yAt = (v) => PAD_T + (1 - (v - yMin) / yRange) * ih;
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${VB_W} ${h}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('chart-svg');
+  svg.style.height = h + 'px';
+
+  // build positive stack (cumulative from bottom up)
+  const baselinePos = new Array(N).fill(0);
+  for (let li = stackPos.length - 1; li >= 0; li--) {
+    // we want layer at index 0 (Investments) to be the bottom layer (closest to zero).
+    // build cumulative starting from index 0 upwards:
+  }
+
+  // simpler: build cumulative starting from the bottom (index 0 of stackPos is bottom layer)
+  let cum = new Array(N).fill(0);
+  for (let li = 0; li < stackPos.length; li++) {
+    const next = cum.map((c, i) => c + stackPos[li][i]);
+    // area between cum (lower) and next (upper)
+    const top = next.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`).join(' ');
+    const bot = cum.slice().reverse().map((v, j) => {
+      const i = N - 1 - j;
+      return `L ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`;
+    }).join(' ');
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', `${top} ${bot} Z`);
+    path.classList.add(posClasses[li]);
+    svg.appendChild(path);
+    cum = next;
+  }
+
+  // build negative stack (cumulative going down from zero)
+  let cumN = new Array(N).fill(0);
+  for (let li = 0; li < stackNeg.length; li++) {
+    const next = cumN.map((c, i) => c - stackNeg[li][i]);
+    const top = cumN.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`).join(' ');
+    const bot = next.slice().reverse().map((v, j) => {
+      const i = N - 1 - j;
+      return `L ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`;
+    }).join(' ');
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', `${top} ${bot} Z`);
+    path.classList.add(negClasses[li]);
+    svg.appendChild(path);
+    cumN = next;
+  }
+
+  // zero line
+  const zero = document.createElementNS(svgNS, 'line');
+  zero.setAttribute('x1', 0);
+  zero.setAttribute('x2', VB_W);
+  zero.setAttribute('y1', yAt(0));
+  zero.setAttribute('y2', yAt(0));
+  zero.classList.add('chart-zeroline');
+  zero.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.appendChild(zero);
+
+  // NW line (drawn on top, traces top-of-positive minus liabilities)
+  const nwPath = nw.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`).join(' ');
+  const nwEl = document.createElementNS(svgNS, 'path');
+  nwEl.setAttribute('d', nwPath);
+  nwEl.setAttribute('vector-effect', 'non-scaling-stroke');
+  nwEl.classList.add('chart-line');
+  svg.appendChild(nwEl);
+
+  // hover
+  const cross = document.createElementNS(svgNS, 'line');
+  cross.classList.add('chart-cross');
+  cross.setAttribute('y1', PAD_T);
+  cross.setAttribute('y2', PAD_T + ih);
+  cross.setAttribute('vector-effect', 'non-scaling-stroke');
+  cross.style.display = 'none';
+  svg.appendChild(cross);
+
+  const dot = document.createElementNS(svgNS, 'circle');
+  dot.setAttribute('r', 3);
+  dot.classList.add('chart-dot');
+  dot.style.display = 'none';
+  svg.appendChild(dot);
+
+  wrap.innerHTML = '';
+  wrap.appendChild(svg);
+
+  const head = wrap.parentElement.querySelector('.chart-head');
+  const readout = head ? head.querySelector('.chart-readout') : null;
+
+  wrap.addEventListener('pointermove', (e) => {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const xView = ((e.clientX - rect.left) / rect.width) * VB_W;
+    let bestI = 0, bestD = Infinity;
+    for (let i = 0; i < N; i++) {
+      const dx = Math.abs(xView - xAt(i));
+      if (dx < bestD) { bestD = dx; bestI = i; }
+    }
+    cross.setAttribute('x1', xAt(bestI));
+    cross.setAttribute('x2', xAt(bestI));
+    cross.style.display = '';
+    dot.setAttribute('cx', xAt(bestI));
+    dot.setAttribute('cy', yAt(nw[bestI]));
+    dot.style.display = '';
+    if (readout) {
+      const ymd = months[bestI];
+      const [y, m] = ymd.split('-');
+      const d = new Date(Date.UTC(+y, +m - 1, 1)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+      readout.textContent = `${d} · NW ${fmtFull(nw[bestI])} · A ${fmtFull(assets[bestI])} · L ${fmtFull(liab[bestI])}`;
+      head.classList.add('hovering');
+    }
+  });
+  wrap.addEventListener('pointerleave', () => {
+    cross.style.display = 'none';
+    dot.style.display = 'none';
+    if (head) head.classList.remove('hovering');
+  });
+}
+
+/* ─────────────────────── render ─────────────────────── */
+
+// shared axis (used by A and as default elsewhere)
+makeAxis(document.querySelector('[data-axis="shared"]'), months);
+makeAxis(document.querySelector('[data-axis="b-axis"]'), months);
+makeAxis(document.querySelector('[data-axis="c-axis"]'), months);
+
+// A: three independent line charts
+const aNw = document.querySelector('[data-chart="a-nw"]');
+aNw.dataset.h = '220';
+buildLineChart(aNw, [{ label: 'NW', data: nw, dotR: 3 }], { area: true });
+
+const aAssets = document.querySelector('[data-chart="a-assets"]');
+buildLineChart(aAssets, [{ label: 'Assets', data: assets }], { area: true });
+
+const aLiab = document.querySelector('[data-chart="a-liab"]');
+buildLineChart(aLiab, [{ label: 'Liab', data: liab, cls: 'neg', dotCls: 'neg' }], { area: true, areaClass: 'chart-area-neg' });
+
+// B: combined three-line chart
+const bWrap = document.querySelector('[data-chart="b-combined"]');
+buildLineChart(bWrap, [
+  { label: 'Assets', data: assets, cls: 'thin muted', dotCls: 'muted' },
+  { label: 'NW',     data: nw,     dotR: 3 },
+  { label: 'Liab',   data: liab,   cls: 'thin neg', dotCls: 'neg' },
+]);
+
+// C: stacked area breakdown (default mode)
+const cWrap = document.querySelector('[data-chart="c-breakdown"]');
+buildStackedAreaChart(cWrap);
+
+// C: line/breakdown toggle
+document.querySelectorAll('[data-stage="c"] button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-stage="c"] button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    const wrap = document.querySelector('[data-chart="c-breakdown"]');
+    wrap.dataset.h = '320';
+    if (mode === 'line') {
+      buildLineChart(wrap, [{ label: 'NW', data: nw }], { area: true });
+    } else {
+      buildStackedAreaChart(wrap);
+    }
+  });
+});
+
+// range selector — visual only (clicking just toggles active state for now)
+document.querySelectorAll('.ranges').forEach((box) => {
+  box.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      box.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+
+/* ─────────────────────── sticky nav highlighting ─────────────────────── */
+const links = document.querySelectorAll('.vnav a[data-target]');
+const sections = ['a', 'b', 'c'].map(id => document.getElementById(id));
+function onScroll() {
+  let active = sections[0].id;
+  const offset = 120;
+  for (const s of sections) {
+    if (s.getBoundingClientRect().top - offset <= 0) active = s.id;
+  }
+  links.forEach(l => l.classList.toggle('active', l.dataset.target === active));
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+</script>
+</body>
+</html>
