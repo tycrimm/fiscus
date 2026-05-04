@@ -68,6 +68,13 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
           <col class="col-num" />
           <col class="col-num" />
         </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Account</th>
+            <th scope="col" class="num-col">Change</th>
+            <th scope="col" class="num-col">Balance after</th>
+          </tr>
+        </thead>
         {days.map((day) => (
           <tbody>
             <tr class="day-head">
@@ -142,12 +149,17 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     width: 100%;
     border-collapse: collapse;
     font-size: var(--size-sm);
+    /* Apply tabular-nums table-wide so day totals, deltas, and balances
+       all share the same digit advance — alignment doesn't depend on
+       which cells happen to have `.num-col`. */
+    font-variant-numeric: tabular-nums;
   }
 
   /* `width: 1%` collapses the number columns to their content; the name
      column absorbs the rest of the table width. */
   .col-num { width: 1%; }
 
+  .activity-table th,
   .activity-table td {
     padding: var(--space-2) var(--space-3);
     vertical-align: baseline;
@@ -158,9 +170,26 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   .num-col {
     text-align: right;
     white-space: nowrap;
-    font-variant-numeric: tabular-nums;
     padding-left: var(--space-6);
   }
+
+  /* Column headers — sticky under the app header so the labels stay put
+     while the feed scrolls. Padding matches tbody td exactly so the
+     header text sits flush over the column it labels. */
+  .activity-table thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: left;
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--bg);
+    position: sticky;
+    top: var(--header-offset);
+    z-index: 4;
+  }
+  .activity-table thead th.num-col { text-align: right; }
 
   /* Day separator row */
   .day-head td { background: var(--bg-subtle); }
@@ -229,6 +258,9 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     .activity-table tbody,
     .activity-table tr { display: block; }
     .activity-table colgroup { display: none; }
+    /* The reflowed mobile rows already encode delta vs balance via
+       position; the desktop column headers don't apply, so hide them. */
+    .activity-table thead { display: none; }
 
     /* Day header: date + count on the left, day total on the right. The
        trailing empty <td> is hidden — it only existed to align with the

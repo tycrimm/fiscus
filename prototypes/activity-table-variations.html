@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fiscus — activity table variations</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --bg-sub2: #f4f4f4;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --fg-faint: #a0a0a0;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --pos-bar: #cfe6d8;
+    --neg: #b00020;
+    --neg-bar: #ecc9cf;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.5rem;
+    --size-2xl: 2.25rem;
+    --size-3xl: 3rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--size-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  h1 { font-size: var(--size-lg); letter-spacing: 0.04em; }
+  h2 { font-size: var(--size-base); letter-spacing: 0.06em; }
+  h3 { font-size: var(--size-sm); letter-spacing: 0.08em; }
+
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--fg-muted); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+
+  /* ─── prototype chrome ──────────────────────────────────────────── */
+
+  .proto-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule-strong);
+    padding: var(--space-3) var(--space-6);
+    display: flex;
+    gap: var(--space-6);
+    align-items: baseline;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .proto-nav .brand { font-weight: 500; letter-spacing: 0.12em; }
+  .proto-nav .spacer { flex: 1; }
+  .proto-nav a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid transparent;
+  }
+  .proto-nav a:hover,
+  .proto-nav a.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+
+  .proto-section {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: var(--space-12) var(--space-6) var(--space-16);
+    border-bottom: 1px dashed var(--rule);
+  }
+  .proto-section:last-of-type { border-bottom: none; }
+  .proto-head {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-8);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .proto-label {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .proto-title {
+    font-size: var(--size-2xl);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    text-transform: none;
+  }
+  .proto-desc {
+    color: var(--fg-muted);
+    font-size: var(--size-sm);
+    max-width: 48rem;
+  }
+
+  /* ─── shared activity-page chrome ──────────────────────────────── */
+
+  .page-head { display: grid; gap: var(--space-2); margin-bottom: var(--space-6); }
+  .page-head h2 { font-size: var(--size-lg); letter-spacing: 0.04em; }
+  .page-head .hint {
+    margin: 0;
+    color: var(--fg-muted);
+    font-size: var(--size-sm);
+    max-width: 48rem;
+  }
+
+  table.activity {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.activity td,
+  table.activity th {
+    padding: var(--space-2) var(--space-3);
+    vertical-align: baseline;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .col-num { width: 1%; }
+  .num-cell {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .day-row td { background: var(--bg-subtle); }
+  .day-date {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .day-count {
+    margin-left: var(--space-3);
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .day-total { font-weight: 500; }
+  .day-total.pos { color: var(--pos); }
+  .day-total.neg { color: var(--neg); }
+
+  tr.event { cursor: pointer; }
+  tr.event:hover { background: var(--bg-subtle); }
+
+  .name-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .name { display: inline-flex; align-items: baseline; gap: var(--space-2); }
+  .sub {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .delta.pos { color: var(--pos); }
+  .delta.neg { color: var(--neg); }
+  .balance { color: var(--fg-muted); }
+  .balance.neg { color: var(--neg); }
+
+  /* ─── A: sticky-headers variation ──────────────────────────────── */
+
+  .v-a thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--bg);
+    position: sticky;
+    top: 2.6rem; /* clears the proto-nav */
+    z-index: 5;
+  }
+  .v-a thead th.num-cell { text-align: right; }
+
+  /* gentle vertical rule between change and balance column */
+  .v-a td.delta,
+  .v-a th.delta-h { padding-right: var(--space-6); }
+  .v-a td.balance,
+  .v-a th.balance-h {
+    border-left: 1px solid var(--rule);
+    padding-left: var(--space-4);
+  }
+
+  /* ─── B: magnitude-bar variation ───────────────────────────────── */
+
+  .v-b table.activity { font-size: var(--size-sm); }
+  .v-b thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--bg);
+    position: sticky;
+    top: 2.6rem;
+    z-index: 5;
+  }
+  .v-b thead th.num-cell { text-align: right; }
+
+  /* the change column reserves a fixed-width track for the bar so the
+     numbers across all rows align flush right */
+  .v-b .change-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    white-space: nowrap;
+  }
+  .v-b .bar-track {
+    width: 7rem;
+    height: 8px;
+    position: relative;
+  }
+  .v-b .bar-track::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--rule-strong);
+  }
+  .v-b .bar {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+  }
+  .v-b .bar.pos {
+    left: 50%;
+    background: var(--pos-bar);
+    border-left: 1px solid var(--pos);
+  }
+  .v-b .bar.neg {
+    right: 50%;
+    background: var(--neg-bar);
+    border-right: 1px solid var(--neg);
+  }
+  .v-b .delta-num { min-width: 5.5rem; text-align: right; }
+
+  .v-b td.balance {
+    border-left: 1px solid var(--rule);
+    padding-left: var(--space-4);
+  }
+  .v-b th.balance-h {
+    border-left: 1px solid var(--rule);
+    padding-left: var(--space-4);
+  }
+
+  /* ─── C: split gain/loss columns ───────────────────────────────── */
+
+  .v-c thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--bg);
+    position: sticky;
+    top: 2.6rem;
+    z-index: 5;
+  }
+  .v-c thead th.num-cell { text-align: right; }
+  .v-c .col-loss-h, .v-c .col-gain-h {
+    color: var(--fg-faint);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.16em;
+  }
+  .v-c td.loss { color: var(--neg); text-align: right; }
+  .v-c td.gain { color: var(--pos); text-align: right; }
+
+  /* tighten the gap between the loss/gain pair so they read as a unit */
+  .v-c td.loss,
+  .v-c th.col-loss-h { padding-right: var(--space-2); }
+  .v-c td.gain,
+  .v-c th.col-gain-h {
+    padding-left: var(--space-2);
+    border-right: 1px solid var(--rule);
+    padding-right: var(--space-6);
+  }
+  .v-c td.balance,
+  .v-c th.balance-h { padding-left: var(--space-4); }
+
+  /* day-row spans gain+loss with a single total */
+  .v-c tr.day-row .day-total-cell {
+    text-align: right;
+    font-weight: 500;
+  }
+
+  .v-c .empty-side { color: var(--rule-strong); }
+
+  /* ─── responsive: keep variations usable on phones ─────────────── */
+  @media (max-width: 48rem) {
+    .v-b .bar-track { width: 4rem; }
+    .v-b .delta-num { min-width: 4rem; }
+    .proto-section { padding: var(--space-8) var(--space-4) var(--space-12); }
+  }
+  @media (max-width: 36rem) {
+    .v-b .bar-track { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="proto-nav">
+  <span class="brand">FISCUS · ACTIVITY</span>
+  <a href="#a" class="active">A — HEADERS</a>
+  <a href="#b">B — MAGNITUDE BARS</a>
+  <a href="#c">C — SPLIT GAIN/LOSS</a>
+  <span class="spacer"></span>
+  <span class="muted">3 variations</span>
+</nav>
+
+<!-- ─────────────────────────────────────────────────────────────────
+     VARIATION A — Sticky column headers
+     The conventional fix: add a real <thead>. ACCOUNT / CHANGE /
+     BALANCE AFTER. Header sticks at the top while scrolling so the
+     reader never loses the context of what each number means.
+     A faint vertical rule between change and balance reinforces the
+     boundary between "what just happened" and "where we are now".
+     ───────────────────────────────────────────────────────────────── -->
+<section id="a" class="proto-section v-a">
+  <header class="proto-head">
+    <span class="proto-label">Variation A</span>
+    <h1 class="proto-title">Sticky column headers</h1>
+    <p class="proto-desc">A real <code>&lt;thead&gt;</code>. Headers stay visible while you scroll the feed. The lightest-touch answer to "what is this column?" — purely additive, ships in five lines.</p>
+  </header>
+
+  <div class="page-head">
+    <h2>activity</h2>
+    <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted). Within each day, gains descend from the top and losses descend from the bottom.</p>
+  </div>
+
+  <table class="activity">
+    <colgroup>
+      <col />
+      <col class="col-num" />
+      <col class="col-num" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th class="num-cell delta-h">Change</th>
+        <th class="num-cell balance-h">Balance after</th>
+      </tr>
+    </thead>
+
+    <!-- DAY: SUN, MAY 3 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">SUN, MAY 3, 2026</span><span class="day-count">6 events</span></td>
+        <td class="num-cell day-total pos">+$2,355</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">CREDIT CARD</span><span class="sub">CHASE · CREDIT CARD</span></span></td>
+        <td class="num-cell delta pos">+$2,792</td>
+        <td class="num-cell balance neg">−$1,390</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood individual</span><span class="sub">ROBINHOOD · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">+$102</td>
+        <td class="num-cell balance">$30,919</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Mercury Personal Savings</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta pos">+$70</td>
+        <td class="num-cell balance">$106,348</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood Credit Card</span><span class="sub">ROBINHOOD · CREDIT CARD</span></span></td>
+        <td class="num-cell delta neg">−$52</td>
+        <td class="num-cell balance neg">−$1,014</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tax Payments</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta neg">−$70</td>
+        <td class="num-cell balance">$0</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">CREDIT CARD</span><span class="sub">CHASE · CREDIT CARD</span></span></td>
+        <td class="num-cell delta neg">−$488</td>
+        <td class="num-cell balance neg">−$14,710</td>
+      </tr>
+    </tbody>
+
+    <!-- DAY: SAT, MAY 2 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">SAT, MAY 2, 2026</span><span class="day-count">15 events</span></td>
+        <td class="num-cell day-total pos">+$18,977</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tyler Crimm</span><span class="sub">INTERACTIVE BROKERS — US · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">+$16,837</td>
+        <td class="num-cell balance">$652,850</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">LLAC</span><span class="sub">WEALTHFRONT · 529</span></span></td>
+        <td class="num-cell delta pos">+$1,031</td>
+        <td class="num-cell balance">$69,505</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood individual</span><span class="sub">ROBINHOOD · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">+$751</td>
+        <td class="num-cell balance">$30,817</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">C2</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta pos">+$746</td>
+        <td class="num-cell balance">$802</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Joint Brokerage</span><span class="sub">FIDELITY · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">+$412</td>
+        <td class="num-cell balance">$184,260</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Roth IRA</span><span class="sub">VANGUARD · BROKERAGE</span></span></td>
+        <td class="num-cell delta neg">−$208</td>
+        <td class="num-cell balance">$92,144</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Amex Platinum</span><span class="sub">AMEX · CREDIT CARD</span></span></td>
+        <td class="num-cell delta neg">−$612</td>
+        <td class="num-cell balance neg">−$3,408</td>
+      </tr>
+    </tbody>
+
+    <!-- DAY: FRI, MAY 1 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">FRI, MAY 1, 2026</span><span class="day-count">9 events</span></td>
+        <td class="num-cell day-total neg">−$4,210</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Mercury Personal Savings</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta pos">+$1,840</td>
+        <td class="num-cell balance">$106,278</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Joint Brokerage</span><span class="sub">FIDELITY · BROKERAGE</span></span></td>
+        <td class="num-cell delta neg">−$2,150</td>
+        <td class="num-cell balance">$183,848</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tyler Crimm</span><span class="sub">INTERACTIVE BROKERS — US · BROKERAGE</span></span></td>
+        <td class="num-cell delta neg">−$3,900</td>
+        <td class="num-cell balance">$636,013</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     VARIATION B — Magnitude bars
+     Headers + a small horizontal bar inline with each delta, scaled
+     to the largest move within that day. Lets you scan the *shape* of
+     a day's activity in one glance — without parsing numbers. The
+     bar's center axis doubles as the zero line: gains push right,
+     losses push left.
+     ───────────────────────────────────────────────────────────────── -->
+<section id="b" class="proto-section v-b">
+  <header class="proto-head">
+    <span class="proto-label">Variation B</span>
+    <h1 class="proto-title">Headers + magnitude bars</h1>
+    <p class="proto-desc">A small horizontal bar lives next to each delta, scaled to the day's biggest move. The shape of a day becomes legible at a glance — and the sign is now physical (left vs right of zero) before it's textual.</p>
+  </header>
+
+  <div class="page-head">
+    <h2>activity</h2>
+    <p class="hint">Per-event changes that moved net worth, last 90 days. Bars are scaled within each day — so the largest move always reaches the edge.</p>
+  </div>
+
+  <table class="activity">
+    <colgroup>
+      <col />
+      <col class="col-num" />
+      <col class="col-num" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th class="num-cell">Change</th>
+        <th class="num-cell balance-h">Balance after</th>
+      </tr>
+    </thead>
+
+    <!-- DAY: SUN, MAY 3 — max abs = 2792 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">SUN, MAY 3, 2026</span><span class="day-count">6 events</span></td>
+        <td class="num-cell day-total pos">+$2,355</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">CREDIT CARD</span><span class="sub">CHASE · CREDIT CARD</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:50%"></span></span>
+            <span class="delta-num">+$2,792</span>
+          </span>
+        </td>
+        <td class="num-cell balance neg">−$1,390</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood individual</span><span class="sub">ROBINHOOD · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:1.8%"></span></span>
+            <span class="delta-num">+$102</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$30,919</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Mercury Personal Savings</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:1.3%"></span></span>
+            <span class="delta-num">+$70</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$106,348</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood Credit Card</span><span class="sub">ROBINHOOD · CREDIT CARD</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:0.9%"></span></span>
+            <span class="delta-num">−$52</span>
+          </span>
+        </td>
+        <td class="num-cell balance neg">−$1,014</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tax Payments</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:1.3%"></span></span>
+            <span class="delta-num">−$70</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$0</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">CREDIT CARD</span><span class="sub">CHASE · CREDIT CARD</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:8.7%"></span></span>
+            <span class="delta-num">−$488</span>
+          </span>
+        </td>
+        <td class="num-cell balance neg">−$14,710</td>
+      </tr>
+    </tbody>
+
+    <!-- DAY: SAT, MAY 2 — max abs = 16837 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">SAT, MAY 2, 2026</span><span class="day-count">15 events</span></td>
+        <td class="num-cell day-total pos">+$18,977</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tyler Crimm</span><span class="sub">INTERACTIVE BROKERS — US · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:50%"></span></span>
+            <span class="delta-num">+$16,837</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$652,850</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">LLAC</span><span class="sub">WEALTHFRONT · 529</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:3%"></span></span>
+            <span class="delta-num">+$1,031</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$69,505</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood individual</span><span class="sub">ROBINHOOD · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:2.2%"></span></span>
+            <span class="delta-num">+$751</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$30,817</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">C2</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:2.2%"></span></span>
+            <span class="delta-num">+$746</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$802</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Joint Brokerage</span><span class="sub">FIDELITY · BROKERAGE</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:1.2%"></span></span>
+            <span class="delta-num">+$412</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$184,260</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Roth IRA</span><span class="sub">VANGUARD · BROKERAGE</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:0.6%"></span></span>
+            <span class="delta-num">−$208</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$92,144</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Amex Platinum</span><span class="sub">AMEX · CREDIT CARD</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:1.8%"></span></span>
+            <span class="delta-num">−$612</span>
+          </span>
+        </td>
+        <td class="num-cell balance neg">−$3,408</td>
+      </tr>
+    </tbody>
+
+    <!-- DAY: FRI, MAY 1 — max abs = 3900 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">FRI, MAY 1, 2026</span><span class="day-count">9 events</span></td>
+        <td class="num-cell day-total neg">−$4,210</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Mercury Personal Savings</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="num-cell delta pos">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar pos" style="width:23.6%"></span></span>
+            <span class="delta-num">+$1,840</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$106,278</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Joint Brokerage</span><span class="sub">FIDELITY · BROKERAGE</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:27.6%"></span></span>
+            <span class="delta-num">−$2,150</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$183,848</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tyler Crimm</span><span class="sub">INTERACTIVE BROKERS — US · BROKERAGE</span></span></td>
+        <td class="num-cell delta neg">
+          <span class="change-cell">
+            <span class="bar-track"><span class="bar neg" style="width:50%"></span></span>
+            <span class="delta-num">−$3,900</span>
+          </span>
+        </td>
+        <td class="num-cell balance">$636,013</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     VARIATION C — Split gain/loss columns
+     Structural reframe. Instead of one signed column, the change is
+     split into two: −LOSS on the left, GAIN+ on the right. Each row
+     fills exactly one. Combined with the existing narrative sort
+     (gains descend from top, losses descend from bottom), the page
+     physically folds itself: gains form a column on the right, losses
+     a column on the left. Sign is conveyed by *position* before color
+     — the data shape becomes the diagram.
+     ───────────────────────────────────────────────────────────────── -->
+<section id="c" class="proto-section v-c">
+  <header class="proto-head">
+    <span class="proto-label">Variation C</span>
+    <h1 class="proto-title">Split gain/loss columns</h1>
+    <p class="proto-desc">No sign to parse. Losses live in their own column on the left; gains live in their own column on the right. The narrative sort means each day is shaped like a wedge — gains descend from the top of the right column, losses ascend up the left.</p>
+  </header>
+
+  <div class="page-head">
+    <h2>activity</h2>
+    <p class="hint">Per-event changes that moved net worth, last 90 days. Each row fills one of two columns — the side it lands on tells you what kind of move it was.</p>
+  </div>
+
+  <table class="activity">
+    <colgroup>
+      <col />
+      <col class="col-num" />
+      <col class="col-num" />
+      <col class="col-num" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th class="num-cell col-loss-h">−&nbsp;Loss</th>
+        <th class="num-cell col-gain-h">Gain&nbsp;+</th>
+        <th class="num-cell balance-h">Balance after</th>
+      </tr>
+    </thead>
+
+    <!-- DAY: SUN, MAY 3 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">SUN, MAY 3, 2026</span><span class="day-count">6 events</span></td>
+        <td colspan="2" class="day-total-cell day-total pos">+$2,355</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">CREDIT CARD</span><span class="sub">CHASE · CREDIT CARD</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$2,792</td>
+        <td class="num-cell balance neg">−$1,390</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood individual</span><span class="sub">ROBINHOOD · BROKERAGE</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$102</td>
+        <td class="num-cell balance">$30,919</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Mercury Personal Savings</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$70</td>
+        <td class="num-cell balance">$106,348</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood Credit Card</span><span class="sub">ROBINHOOD · CREDIT CARD</span></span></td>
+        <td class="loss">$52</td>
+        <td class="gain"></td>
+        <td class="num-cell balance neg">−$1,014</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tax Payments</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="loss">$70</td>
+        <td class="gain"></td>
+        <td class="num-cell balance">$0</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">CREDIT CARD</span><span class="sub">CHASE · CREDIT CARD</span></span></td>
+        <td class="loss">$488</td>
+        <td class="gain"></td>
+        <td class="num-cell balance neg">−$14,710</td>
+      </tr>
+    </tbody>
+
+    <!-- DAY: SAT, MAY 2 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">SAT, MAY 2, 2026</span><span class="day-count">15 events</span></td>
+        <td colspan="2" class="day-total-cell day-total pos">+$18,977</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tyler Crimm</span><span class="sub">INTERACTIVE BROKERS — US · BROKERAGE</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$16,837</td>
+        <td class="num-cell balance">$652,850</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">LLAC</span><span class="sub">WEALTHFRONT · 529</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$1,031</td>
+        <td class="num-cell balance">$69,505</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Robinhood individual</span><span class="sub">ROBINHOOD · BROKERAGE</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$751</td>
+        <td class="num-cell balance">$30,817</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">C2</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$746</td>
+        <td class="num-cell balance">$802</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Joint Brokerage</span><span class="sub">FIDELITY · BROKERAGE</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$412</td>
+        <td class="num-cell balance">$184,260</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Roth IRA</span><span class="sub">VANGUARD · BROKERAGE</span></span></td>
+        <td class="loss">$208</td>
+        <td class="gain"></td>
+        <td class="num-cell balance">$92,144</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Amex Platinum</span><span class="sub">AMEX · CREDIT CARD</span></span></td>
+        <td class="loss">$612</td>
+        <td class="gain"></td>
+        <td class="num-cell balance neg">−$3,408</td>
+      </tr>
+    </tbody>
+
+    <!-- DAY: FRI, MAY 1 -->
+    <tbody>
+      <tr class="day-row">
+        <td><span class="day-date">FRI, MAY 1, 2026</span><span class="day-count">9 events</span></td>
+        <td colspan="2" class="day-total-cell day-total neg">−$4,210</td>
+        <td class="num-cell"></td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Mercury Personal Savings</span><span class="sub">MERCURY · SAVINGS</span></span></td>
+        <td class="loss"></td>
+        <td class="gain">$1,840</td>
+        <td class="num-cell balance">$106,278</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Joint Brokerage</span><span class="sub">FIDELITY · BROKERAGE</span></span></td>
+        <td class="loss">$2,150</td>
+        <td class="gain"></td>
+        <td class="num-cell balance">$183,848</td>
+      </tr>
+      <tr class="event">
+        <td><span class="name-cell"><span class="name">Tyler Crimm</span><span class="sub">INTERACTIVE BROKERS — US · BROKERAGE</span></span></td>
+        <td class="loss">$3,900</td>
+        <td class="gain"></td>
+        <td class="num-cell balance">$636,013</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+
+<script>
+  // sticky-nav active highlight
+  const sections = ['a', 'b', 'c'].map((id) => document.getElementById(id));
+  const links = Array.from(document.querySelectorAll('.proto-nav a[href^="#"]'));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const id = e.target.id;
+      links.forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+  sections.forEach((s) => s && obs.observe(s));
+</script>
+
+</body>
+</html>
