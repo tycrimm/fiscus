@@ -145,17 +145,6 @@ const breakHoverPoints = points_.map((p, i) => ({
   readout: `${fmtReadoutDate(p.date)} · NW ${fmtUSD.format(p.total_cents / 100)} · A ${fmtUSD.format((p.cash_cents + p.invest_cents + p.other_cents + p.private_cents) / 100)} · L ${fmtUSD.format((p.revolving_cents + p.amortized_cents) / 100)}`,
 }));
 
-// Latest values for legend — hide layers that are zero so the legend
-// only shows what's actually present in the underlying data.
-const assetLegend = last
-  ? ASSET_LAYERS.map((l) => ({ label: l.label, cls: l.cls, cents: l.get(last) })).filter((r) => r.cents > 0)
-  : [];
-const liabLegend = last
-  ? LIAB_LAYERS.map((l) => ({ label: l.label, cls: l.cls, cents: l.get(last) })).filter((r) => r.cents > 0)
-  : [];
-const assetLegendTotal = assetLegend.reduce((s, r) => s + r.cents, 0);
-const liabLegendTotal = liabLegend.reduce((s, r) => s + r.cents, 0);
-
 const deltaZero = isDisplayZero(change);
 const pos = change >= 0;
 
@@ -226,36 +215,6 @@ const breakdownHasShape = points_.length > 1;
       </div>
     )}
 
-    {(assetLegend.length > 0 || liabLegend.length > 0) && (
-      <div class="break-legend">
-        <div class="legcol">
-          <div class="legcol-head">
-            <span>Assets</span>
-            <span class="num">{fmtUSD.format(assetLegendTotal / 100)}</span>
-          </div>
-          {assetLegend.map((r) => (
-            <div class="legrow">
-              <span class={`legsw ${r.cls}`}></span>
-              <span class="legname">{r.label}</span>
-              <span class="num">{fmtUSD.format(r.cents / 100)}</span>
-            </div>
-          ))}
-        </div>
-        <div class="legcol">
-          <div class="legcol-head">
-            <span>Liabilities</span>
-            <span class="num neg">−{fmtUSD.format(liabLegendTotal / 100)}</span>
-          </div>
-          {liabLegend.map((r) => (
-            <div class="legrow neg">
-              <span class={`legsw ${r.cls}`}></span>
-              <span class="legname">{r.label}</span>
-              <span class="num neg">−{fmtUSD.format(r.cents / 100)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
   </div>
 </div>
 
@@ -467,55 +426,4 @@ const breakdownHasShape = points_.length > 1;
     font-size: var(--size-sm);
   }
 
-  /* legend */
-  .break-legend {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    margin-top: var(--space-6);
-    border-top: 1px solid var(--rule);
-  }
-  .legcol { padding: var(--space-4) 0; }
-  .legcol:first-child { border-right: 1px solid var(--rule); padding-right: var(--space-6); }
-  .legcol:last-child { padding-left: var(--space-6); }
-  .legcol-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--fg-muted);
-    margin-bottom: var(--space-3);
-  }
-  .legcol-head .num { font-variant-numeric: tabular-nums; font-size: var(--size-sm); letter-spacing: 0; color: var(--fg); }
-  .legcol-head .num.neg { color: var(--neg); }
-  .legrow {
-    display: grid;
-    grid-template-columns: 0.75rem 1fr auto;
-    gap: 0.625rem;
-    align-items: center;
-    padding: 0.25rem 0;
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-  }
-  .legsw { width: 0.75rem; height: 0.75rem; }
-  .legsw.band-a-1 { background: var(--fg); opacity: 0.18; }
-  .legsw.band-a-2 { background: var(--fg); opacity: 0.12; }
-  .legsw.band-a-3 { background: var(--fg); opacity: 0.07; }
-  .legsw.band-a-4 { background: var(--fg); opacity: 0.04; }
-  .legsw.band-l-1 { background: var(--neg); opacity: 0.18; }
-  .legsw.band-l-2 { background: var(--neg); opacity: 0.10; }
-  .legname {
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--fg-muted);
-  }
-
-  @media (max-width: 48rem) {
-    .break-legend { grid-template-columns: 1fr; }
-    .legcol:first-child { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--rule); }
-    .legcol:last-child { padding-left: 0; }
-  }
 </style>
