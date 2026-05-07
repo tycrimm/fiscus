@@ -699,28 +699,33 @@ export async function syncHealth(d: DB): Promise<SyncIssue[]> {
 
 // === Activity feed ===================================================
 //
-// Per-event log of what moved net worth on each day. Three event kinds:
-//   - 'snapshot'  balance_snapshots row whose balance differed from the
-//                 prior snapshot for that account. Liability deltas are
-//                 sign-flipped so positive always means NW up.
-//   - 'round'     new investment tranche entry. Delta is the change in
-//                 derived asset value at that timestamp (covers both new
-//                 capital and mark-up of existing rounds at the new PPS).
-//   - 'mark'      manual valuation override at the asset level or per-round.
+// Per-day log of what moved net worth, rolled up to one row per
+// institution (or one row per private investment). Three row kinds:
+//   - 'institution'  sum of every account-level snapshot delta at that
+//                    institution that day. A same-day Mercury checking →
+//                    savings transfer nets to zero and disappears; that's
+//                    intentional — it's a noop for net worth.
+//   - 'round'        new investment tranche entry. Delta is the change in
+//                    derived asset value at that timestamp (covers both new
+//                    capital and mark-up of existing rounds at the new PPS).
+//   - 'mark'         manual valuation override at the asset level or per-round.
 //
-// Zero-delta events are filtered out — daily plaid sync would otherwise
-// flood the feed with no-ops on idle accounts.
+// Each row carries asset_delta_cents and liability_delta_cents separately
+// so the day header can show ΔAssets / ΔLiabilities without re-aggregating.
+// Rows where the net NW impact rounds to zero are filtered out.
 
 export type ActivityEvent = {
   as_of: number;
   date: string;                    // YYYY-MM-DD in PT
-  kind: 'snapshot' | 'round' | 'mark';
-  primary: string;                 // account name or asset name
-  secondary: string;               // institution + kind, or asset kind + label
-  delta_cents: number;             // sign-adjusted: positive = NW up
-  amount_cents: number;            // new absolute value at this event (always positive — sign is applied via is_liability at render)
-  is_liability: boolean;           // true → render the total as debt (red, leading minus)
-  href: string;                    // link to detail page
+  kind: 'institution' | 'round' | 'mark';
+  primary: string;                 // institution name or asset name
+  secondary: string;               // accounts that moved, or asset kind + label
+  asset_delta_cents: number;       // signed; sums non-liability balance changes
+  liability_delta_cents: number;   // signed (NOT flipped); positive = debt grew
+  delta_cents: number;             // NW impact = asset_delta - liability_delta
+  amount_cents: number;            // end-of-day total (institutions: signed net; assets: positive)
+  is_liability: boolean;           // true → render amount with leading minus + red
+  href: string | null;             // null when the row has no single detail target
 };
 
 export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise<ActivityEvent[]> {
@@ -728,51 +733,123 @@ export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise
   const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
   const events: ActivityEvent[] = [];
 
-  // --- snapshots: walk per-account in time order, emit non-zero deltas ---
+  // --- snapshots: walk in time order, group per-account deltas by
+  // (date, institution). An account's "signed contribution" is its balance
+  // negated for liabilities; the institution's running net is the sum of
+  // its accounts' contributions. We update the running totals on every
+  // snapshot, so a bucket's amount_cents converges to the institution's
+  // end-of-day net (last snapshot within the day wins).
   const snaps = await rows<{
     account_id: string;
     balance_cents: number;
     as_of: number;
     is_liability: number;
     a_name: string;
+    institution_id: string;
     institution: string;
     a_kind: string;
   }>(
     d,
     sql`
       SELECT bs.account_id, bs.balance_cents, bs.as_of,
-             a.is_liability, a.name AS a_name, i.name AS institution, a.kind AS a_kind
+             a.is_liability, a.name AS a_name,
+             a.institution_id, i.name AS institution, a.kind AS a_kind
       FROM balance_snapshots bs
       JOIN accounts a ON a.id = bs.account_id
       JOIN institutions i ON i.id = a.institution_id
       WHERE a.archived_at IS NULL
-      ORDER BY bs.account_id, bs.as_of ASC
+      ORDER BY bs.as_of ASC, bs.account_id ASC
     `,
-    ['account_id', 'balance_cents', 'as_of', 'is_liability', 'a_name', 'institution', 'a_kind'],
+    ['account_id', 'balance_cents', 'as_of', 'is_liability', 'a_name', 'institution_id', 'institution', 'a_kind'],
   );
-  let prev: { account_id: string; balance_cents: number } | null = null;
+
+  type Bucket = {
+    institution_id: string;
+    institution_name: string;
+    date: string;
+    as_of_max: number;
+    asset_delta: number;
+    liability_delta: number;
+    amount_cents: number;             // institution net at last in-day snapshot
+    accounts_moved: { id: string; name: string }[];
+  };
+  const buckets = new Map<string, Bucket>();
+  const acctContribution = new Map<string, number>();   // signed: +balance for assets, -balance for liabilities
+  const acctSeen = new Set<string>();                   // first snapshot is baseline, not a delta
+  const instNet = new Map<string, number>();            // institution net signed contribution
+
   for (const s of snaps) {
-    const accountId = String(s.account_id);
-    const bal = num(s.balance_cents);
+    const id = String(s.account_id);
     const asOf = num(s.as_of);
-    if (prev && prev.account_id === accountId && asOf >= cutoff) {
-      const balDelta = bal - prev.balance_cents;
-      if (balDelta !== 0) {
-        const isLiab = !!num(s.is_liability);
-        events.push({
-          as_of: asOf,
-          date: ptDateKey(asOf),
-          kind: 'snapshot',
-          primary: String(s.a_name),
-          secondary: `${String(s.institution)} · ${prettyKind(String(s.a_kind))}`,
-          delta_cents: isLiab ? -balDelta : balDelta,
-          amount_cents: bal,
-          is_liability: isLiab,
-          href: `/accounts/${accountId}`,
-        });
-      }
+    const date = ptDateKey(asOf);
+    const balance = num(s.balance_cents);
+    const isLiab = !!num(s.is_liability);
+    const instId = String(s.institution_id);
+    const instName = String(s.institution);
+    const newContribution = isLiab ? -balance : balance;
+    const priorContribution = acctContribution.get(id) ?? 0;
+
+    const newInstNet = (instNet.get(instId) ?? 0) - priorContribution + newContribution;
+    instNet.set(instId, newInstNet);
+    acctContribution.set(id, newContribution);
+
+    const wasFirst = !acctSeen.has(id);
+    acctSeen.add(id);
+    if (wasFirst || asOf < cutoff) continue;
+
+    // Raw balance delta for this account (unflipped). Liabilities use
+    // |priorContribution| as the prior balance.
+    const priorBalance = isLiab ? -priorContribution : priorContribution;
+    const balDelta = balance - priorBalance;
+    if (balDelta === 0) continue;
+
+    const key = `${date}|${instId}`;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = {
+        institution_id: instId,
+        institution_name: instName,
+        date,
+        as_of_max: asOf,
+        asset_delta: 0,
+        liability_delta: 0,
+        amount_cents: newInstNet,
+        accounts_moved: [],
+      };
+      buckets.set(key, bucket);
     }
-    prev = { account_id: accountId, balance_cents: bal };
+    if (isLiab) bucket.liability_delta += balDelta;
+    else bucket.asset_delta += balDelta;
+    bucket.amount_cents = newInstNet;
+    bucket.as_of_max = Math.max(bucket.as_of_max, asOf);
+    if (!bucket.accounts_moved.some((a) => a.id === id)) {
+      bucket.accounts_moved.push({ id, name: String(s.a_name) });
+    }
+  }
+
+  for (const b of buckets.values()) {
+    const delta = b.asset_delta - b.liability_delta;
+    if (delta === 0) continue;
+    const moved = b.accounts_moved;
+    const secondary =
+      moved.length === 1
+        ? moved[0].name
+        : moved.length === 2
+          ? `${moved[0].name} · ${moved[1].name}`
+          : `${moved.length} accounts`;
+    events.push({
+      as_of: b.as_of_max,
+      date: b.date,
+      kind: 'institution',
+      primary: b.institution_name,
+      secondary,
+      asset_delta_cents: b.asset_delta,
+      liability_delta_cents: b.liability_delta,
+      delta_cents: delta,
+      amount_cents: Math.abs(b.amount_cents),
+      is_liability: b.amount_cents < 0,
+      href: moved.length === 1 ? `/accounts/${moved[0].id}` : null,
+    });
   }
 
   // --- private investments: walk derived value series per asset ---
@@ -808,6 +885,8 @@ export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise
           kind: eventKind,
           primary: String(a.name),
           secondary: `${prettyKind(String(a.kind))} · ${label}`,
+          asset_delta_cents: delta,
+          liability_delta_cents: 0,
           delta_cents: delta,
           amount_cents: total_cents,
           is_liability: false,

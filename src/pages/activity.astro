@@ -16,12 +16,23 @@ const lastSyncedAt = accounts.reduce<number | null>(
   null,
 );
 
-type DayGroup = { date: string; total_cents: number; events: ActivityEvent[] };
+type DayGroup = {
+  date: string;
+  asset_delta_cents: number;       // Δ assets across all rows
+  liability_delta_cents: number;   // Δ liabilities (signed; positive = debt grew)
+  total_cents: number;             // net NW change
+  events: ActivityEvent[];
+};
 const dayMap = new Map<string, DayGroup>();
 for (const e of events) {
   let g = dayMap.get(e.date);
-  if (!g) { g = { date: e.date, total_cents: 0, events: [] }; dayMap.set(e.date, g); }
+  if (!g) {
+    g = { date: e.date, asset_delta_cents: 0, liability_delta_cents: 0, total_cents: 0, events: [] };
+    dayMap.set(e.date, g);
+  }
   g.events.push(e);
+  g.asset_delta_cents += e.asset_delta_cents;
+  g.liability_delta_cents += e.liability_delta_cents;
   g.total_cents += e.delta_cents;
 }
 // Sort each day's events by signed delta desc — biggest gains at top,
@@ -45,13 +56,27 @@ function fmtDay(ymd: string): string {
   return DAY_FMT.format(new Date(Date.UTC(y, m - 1, dd))).toUpperCase();
 }
 
-// Snapshot is the default — no badge needed (it's 95%+ of rows). Only
-// surface a tag when something more notable happened (a new round, a manual
-// mark) so it actually catches the eye.
+// Institution rollup is the default — no badge needed. Only surface a tag
+// when something more notable happened (a new round, a manual mark) so it
+// actually catches the eye.
 const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   round: 'ROUND',
   mark: 'MARK',
 };
+
+// Compose the day's asset/liability subtitle. Liabilities flip sign for
+// display so the user sees NW-impact direction (debt down = positive).
+function daySubtitle(g: DayGroup): string {
+  const parts: string[] = [];
+  if (!isDisplayZero(g.asset_delta_cents)) {
+    parts.push(`ASSETS ${fmtUSDsigned(g.asset_delta_cents)}`);
+  }
+  if (!isDisplayZero(g.liability_delta_cents)) {
+    parts.push(`LIABILITIES ${fmtUSDsigned(-g.liability_delta_cents)}`);
+  }
+  if (parts.length === 0) parts.push(`${g.events.length} ${g.events.length === 1 ? 'event' : 'events'}`);
+  return parts.join(' · ');
+}
 ---
 <Shell title="activity" lastSyncedAt={lastSyncedAt}>
   {days.length === 0 ? (
@@ -60,7 +85,7 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     <section class="activity">
       <header class="page-head">
         <h1>activity</h1>
-        <p class="hint">Per-event changes that moved net worth, last 90 days. Sign reflects net-worth impact (liability deltas inverted). Within each day, gains descend from the top and losses descend from the bottom.</p>
+        <p class="hint">Daily roll-up of what moved net worth, last 90 days. One row per institution per day — same-day cancellations (e.g. checking → savings transfers) net to zero and don't appear. Sign reflects NW impact; gains descend from the top, losses from the bottom of each day.</p>
       </header>
       <table class="activity-table">
         <colgroup>
@@ -80,7 +105,7 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
             <tr class="day-head">
               <td>
                 <span class="day-date">{fmtDay(day.date)}</span>
-                <span class="day-count">{day.events.length} {day.events.length === 1 ? 'event' : 'events'}</span>
+                <span class="day-meta">{daySubtitle(day)}</span>
               </td>
               <td class:list={['num-col', 'day-total', {
                 neg: day.total_cents < 0 && !isDisplayZero(day.total_cents),
@@ -91,7 +116,7 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
               <td class="num-col"></td>
             </tr>
             {day.events.map((e) => (
-              <tr class="event" data-href={e.href} tabindex="0">
+              <tr class:list={['event', { 'no-link': !e.href }]} data-href={e.href ?? ''} tabindex={e.href ? 0 : -1}>
                 <td class="cell-name">
                   <span class="name">
                     {e.primary}
@@ -123,7 +148,7 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   // navigation menu for the URL we redirect to.
   document.querySelectorAll<HTMLTableRowElement>('.activity-table tr.event').forEach((tr) => {
     const href = tr.dataset.href;
-    if (!href) return;
+    if (!href) return;  // institution rollup spanning multiple accounts has no single target
     tr.addEventListener('click', () => { window.location.href = href; });
     tr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') window.location.href = href;
@@ -191,26 +216,31 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   }
   .activity-table thead th.num-col { text-align: right; }
 
-  /* Day separator row */
+  /* Day separator row. Extra top padding on every day after the first
+     gives visible breathing room between day groups without resorting to
+     spacer rows (which would break the column grid). */
   .day-head td { background: var(--bg-subtle); }
+  .activity-table tbody + tbody .day-head td { padding-top: var(--space-6); }
   .day-date {
     font-size: var(--size-sm);
     text-transform: uppercase;
     letter-spacing: 0.12em;
     font-weight: 500;
   }
-  .day-count {
+  .day-meta {
     margin-left: var(--space-3);
     font-size: var(--size-xs);
     color: var(--fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
   }
   .day-total { font-weight: 500; }
 
   /* Event row */
   tr.event { cursor: pointer; }
-  tr.event:hover { background: var(--bg-subtle); }
+  tr.event.no-link { cursor: default; }
+  tr.event:not(.no-link):hover { background: var(--bg-subtle); }
   tr.event:focus-visible { outline: 2px solid var(--fg); outline-offset: -2px; }
 
   .cell-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -283,7 +313,7 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
       background: transparent;
     }
     .activity-table tr.day-head > td:last-child { display: none; }
-    .activity-table tr.day-head .day-count {
+    .activity-table tr.day-head .day-meta {
       display: block;
       margin: 2px 0 0;
     }
