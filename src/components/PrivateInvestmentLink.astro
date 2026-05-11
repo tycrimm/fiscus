@@ -1,0 +1,13 @@
+---
+interface Props {
+  id: string;
+  name: string;
+}
+const { id, name } = Astro.props;
+---
+<a href={`/private-investments/${id}`}>{name}</a>
+
+<style>
+  a { text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>

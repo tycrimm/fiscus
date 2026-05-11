@@ -6,6 +6,8 @@ import { forecastFlows, listExpectedFlows } from '../ops/flows';
 import type { Direction, Cadence, Owner } from '../ops/flows';
 import { fmtUSD, fmtDate } from '../lib/format';
 import Shell from '../layouts/Shell.astro';
+import AccountLink from '../components/AccountLink.astro';
+import PrivateInvestmentLink from '../components/PrivateInvestmentLink.astro';
 
 const d = db(env.DB);
 const [accounts, flows, projected] = await Promise.all([
@@ -329,7 +331,13 @@ const fmtSigned = (cents: number, dir: Direction) =>
                 return (
                   <li>
                     <span class="oo-date muted nowrap">{fmtDate(p.date)}</span>
-                    <span class="oo-label">{p.label}</span>
+                    <span class="oo-label">
+                      {p.privateInvestmentId
+                        ? <PrivateInvestmentLink id={p.privateInvestmentId} name={p.label} />
+                        : p.accountId
+                          ? <AccountLink id={p.accountId} name={p.label} />
+                          : p.label}
+                    </span>
                     <span class={`oo-amount num nowrap ${cls}`}>
                       {hasRange ? (
                         <>
