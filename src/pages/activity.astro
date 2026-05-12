@@ -19,9 +19,9 @@ const lastSyncedAt = accounts.reduce<number | null>(
 
 type DayGroup = {
   date: string;
-  asset_delta_cents: number;       // Δ assets across all rows
-  liability_delta_cents: number;   // Δ liabilities (signed; positive = debt grew)
-  total_cents: number;             // net NW change
+  asset_delta_cents: number;
+  liability_delta_cents: number;
+  total_cents: number;
   events: ActivityEvent[];
 };
 const dayMap = new Map<string, DayGroup>();
@@ -36,38 +36,29 @@ for (const e of events) {
   g.liability_delta_cents += e.liability_delta_cents;
   g.total_cents += e.delta_cents;
 }
-// Sort each day's events by signed delta desc — biggest gains at top,
-// biggest losses at the bottom. The bottom of each day reads as "what hurt
-// today" at a glance.
+// Gains descend from the top of each day; losses from the bottom. Bottom of
+// each day reads as "what hurt today" at a glance.
 for (const g of dayMap.values()) {
   g.events.sort((a, b) => b.delta_cents - a.delta_cents);
 }
 const days = [...dayMap.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 
-// Running NW + sequential line number, walking from the top (most recent)
-// down. Top row's nwAfter is current NW; each row below it shows NW as it
-// stood immediately after that row's transaction posted (i.e. before the
-// transactions above it). Line numbers descend from the top so the most
-// recent entry has the highest sequence — classic ledger numbering.
-const totalLines = events.length;
-const rowMeta = new Map<ActivityEvent, { nw_after_cents: number; line_no: number }>();
+// Running NW, walking from the top (most recent) down. Top row's nwAfter is
+// current NW; each row below it shows NW as it stood immediately after that
+// row's transaction posted (i.e. before the rows above it).
+const rowNwAfter = new Map<ActivityEvent, number>();
 let nwCursor = nw.total_cents;
-let lineCursor = totalLines;
 for (const day of days) {
   for (const e of day.events) {
-    rowMeta.set(e, { nw_after_cents: nwCursor, line_no: lineCursor });
+    rowNwAfter.set(e, nwCursor);
     nwCursor -= e.delta_cents;
-    lineCursor -= 1;
   }
 }
-const openingNwCents = nwCursor; // NW just before the oldest event in the window
-// Day-end NW = nwAfter of the first event in display order (the most recent
-// within that day). Pre-compute so the day header can show it without
-// re-finding the topmost row.
+// Day-end NW = nwAfter of the topmost (most recent) event in the day.
 const dayEndNw = new Map<string, number>();
 for (const day of days) {
   const topEvent = day.events[0];
-  if (topEvent) dayEndNw.set(day.date, rowMeta.get(topEvent)!.nw_after_cents);
+  if (topEvent) dayEndNw.set(day.date, rowNwAfter.get(topEvent)!);
 }
 
 const DAY_FMT = new Intl.DateTimeFormat('en-US', {
@@ -81,28 +72,6 @@ function fmtDay(ymd: string): string {
   const [y, m, dd] = ymd.split('-').map(Number);
   return DAY_FMT.format(new Date(Date.UTC(y, m - 1, dd))).toUpperCase();
 }
-const SHORT_DATE_FMT = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'UTC',
-  month: '2-digit',
-  day: '2-digit',
-});
-function fmtShortDate(ymd: string): string {
-  const [y, m, dd] = ymd.split('-').map(Number);
-  return SHORT_DATE_FMT.format(new Date(Date.UTC(y, m - 1, dd)));
-}
-
-const PERIOD_FMT = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'UTC',
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-});
-function fmtPeriod(ymd: string): string {
-  const [y, m, dd] = ymd.split('-').map(Number);
-  return PERIOD_FMT.format(new Date(Date.UTC(y, m - 1, dd)));
-}
-const periodStart = days.length > 0 ? days[days.length - 1].date : null;
-const periodEnd = days.length > 0 ? days[0].date : null;
 
 const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   round: 'ROUND',
@@ -116,24 +85,11 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     <section class="activity">
       <header class="page-head">
         <h1>activity</h1>
-        <p class="hint">Net-worth ledger, last 90 days. One line per institution per day — same-day cancellations (e.g. checking → savings) net to zero and don't appear. Out debits NW; In credits NW. Balance is the institution's net at day end; NW is the running net-worth balance through the row.</p>
+        <p class="hint">Daily net-worth ledger, last 90 days. One row per institution per day; same-day cancellations net to zero. Out hurt NW; In helped. Balance is the institution's net at day end; NW is the running net-worth total.</p>
       </header>
-
-      <div class="toolbar">
-        <span class="period">
-          Period · {periodStart ? fmtPeriod(periodStart) : ''} – {periodEnd ? fmtPeriod(periodEnd) : ''}
-        </span>
-        <span class="opening">
-          Opening NW <span class="mono">{fmtUSDsigned(openingNwCents)}</span>
-        </span>
-        <span class="spacer"></span>
-        <span class="counts">{days.length} days · {totalLines} lines</span>
-      </div>
 
       <table class="register">
         <colgroup>
-          <col class="col-line" />
-          <col class="col-date" />
           <col />
           <col class="col-num" />
           <col class="col-num" />
@@ -142,13 +98,11 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
         </colgroup>
         <thead>
           <tr>
-            <th scope="col" class="line-col">#</th>
-            <th scope="col" class="date-col">Date</th>
             <th scope="col">Account</th>
             <th scope="col" class="num-col">Out</th>
             <th scope="col" class="num-col">In</th>
             <th scope="col" class="num-col">Balance</th>
-            <th scope="col" class="num-col">Net Worth</th>
+            <th scope="col" class="num-col nw">Net Worth</th>
           </tr>
         </thead>
         {days.map((day) => {
@@ -156,33 +110,26 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
           const subtitle: string[] = [];
           if (!isDisplayZero(day.asset_delta_cents)) subtitle.push(`ASSETS ${fmtUSDsigned(day.asset_delta_cents)}`);
           if (!isDisplayZero(day.liability_delta_cents)) subtitle.push(`LIABILITIES ${fmtUSDsigned(-day.liability_delta_cents)}`);
-          subtitle.push(`${day.events.length} ${day.events.length === 1 ? 'line' : 'lines'}`);
           return (
             <tbody>
               <tr class="day-head">
-                <td colspan={7}>
+                <td colspan={4}>
                   <span class="day-date">{fmtDay(day.date)}</span>
-                  <span class="day-meta">{subtitle.join(' · ')}</span>
-                  <span class="day-totals">
-                    <span class:list={['mono', 'day-net', {
-                      neg: day.total_cents < 0 && !isDisplayZero(day.total_cents),
-                      pos: day.total_cents > 0 && !isDisplayZero(day.total_cents),
-                    }]}>
-                      {isDisplayZero(day.total_cents) ? '—' : fmtUSDsigned(day.total_cents)}
-                    </span>
-                    <span class="sep">·</span>
-                    <span class="mono">NW {fmtUSDsigned(dayNw)}</span>
+                  {subtitle.length > 0 && <span class="day-meta">{subtitle.join(' · ')}</span>}
+                  <span class:list={['day-net', {
+                    neg: day.total_cents < 0 && !isDisplayZero(day.total_cents),
+                    pos: day.total_cents > 0 && !isDisplayZero(day.total_cents),
+                  }]}>
+                    {isDisplayZero(day.total_cents) ? '—' : fmtUSDsigned(day.total_cents)}
                   </span>
                 </td>
+                <td class="num-col nw day-nw">{fmtUSDsigned(dayNw)}</td>
               </tr>
               {day.events.map((e) => {
-                const meta = rowMeta.get(e)!;
                 const out = e.delta_cents < 0 ? -e.delta_cents : 0;
                 const inn = e.delta_cents > 0 ? e.delta_cents : 0;
                 return (
                   <tr class:list={['event', { 'no-link': !e.href }]} data-href={e.href ?? ''} tabindex={e.href ? 0 : -1}>
-                    <td class="line-col mono">{meta.line_no}</td>
-                    <td class="date-col mono">{fmtShortDate(e.date)}</td>
                     <td class="cell-name">
                       <span class="name">
                         {e.primary}
@@ -190,16 +137,16 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
                       </span>
                       <span class="sub">{e.secondary}</span>
                     </td>
-                    <td class="num-col mono out">
+                    <td class="num-col out">
                       {out > 0 && !isDisplayZero(out) ? fmtUSD.format(out / 100) : ''}
                     </td>
-                    <td class="num-col mono in">
+                    <td class="num-col in">
                       {inn > 0 && !isDisplayZero(inn) ? fmtUSD.format(inn / 100) : ''}
                     </td>
-                    <td class:list={['num-col', 'mono', 'balance', { neg: e.is_liability }]}>
+                    <td class:list={['num-col', 'balance', { neg: e.is_liability }]}>
                       {e.is_liability ? `−${fmtUSD.format(e.amount_cents / 100)}` : fmtUSD.format(e.amount_cents / 100)}
                     </td>
-                    <td class="num-col mono nw">{fmtUSDsigned(meta.nw_after_cents)}</td>
+                    <td class="num-col nw">{fmtUSDsigned(rowNwAfter.get(e)!)}</td>
                   </tr>
                 );
               })}
@@ -233,28 +180,13 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     max-width: 56rem;
   }
 
-  /* Period / opening-NW strip sits just above the table. Same typography as
-     the column headers so it reads as ledger chrome, not body copy. */
-  .toolbar {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-6);
-    border-bottom: 1px solid var(--rule-strong);
-    padding: var(--space-3) var(--space-3) var(--space-2);
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--fg-muted);
-  }
-  .toolbar .opening { color: var(--fg); }
-  .toolbar .spacer { flex: 1; }
-
   .register {
     width: 100%;
     border-collapse: collapse;
     font-size: var(--size-sm);
     font-variant-numeric: tabular-nums;
   }
+  /* Number columns hug their content so the Account column absorbs the rest. */
   .col-num { width: 1%; }
 
   .register th,
@@ -265,12 +197,19 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   }
   .register tbody:last-of-type tr:last-child td { border-bottom: none; }
 
-  .num-col {
+  /* Vertical gridlines between numeric columns reinforce the ledger feel
+     without dominating. Each numeric column gets a left rule; the NW column
+     gets a stronger rule because it's the running-total anchor. */
+  .register .num-col {
     text-align: right;
     white-space: nowrap;
     padding-left: var(--space-6);
+    border-left: 1px solid var(--rule);
   }
+  .register .nw { border-left: 1px solid var(--rule-strong); }
 
+  /* Column headers stay sticky under the app header. Padding matches body
+     cells so labels sit flush over their columns. */
   .register thead th {
     font-weight: 500;
     color: var(--fg-muted);
@@ -286,31 +225,14 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
   }
   .register thead th.num-col { text-align: right; }
 
-  /* Line numbers stay quiet — they're a reference index, not data. */
-  .line-col {
-    width: 1%;
-    text-align: right;
-    color: var(--fg-muted);
-    font-size: var(--size-xs);
-    padding-right: var(--space-2);
-    padding-left: var(--space-2);
+  /* Day separator. Single inline row: date on the left, day-net Δ + closing
+     NW on the right. The NW total lives in its own cell so it lines up
+     directly under the Net Worth column. */
+  .day-head td {
+    background: var(--bg-subtle);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
   }
-  .register thead th.line-col { text-align: right; }
-
-  /* Per-row date repeated in MM/DD form for scan-ability — the day header
-     carries the full date; the date column is a quick anchor on long days. */
-  .date-col {
-    width: 1%;
-    color: var(--fg-muted);
-    white-space: nowrap;
-    padding-right: var(--space-3);
-  }
-  .register thead th.date-col { color: var(--fg-muted); }
-
-  /* Day separator. Re-used from the prior layout; totals get a mono pair on
-     the right showing day-net Δ and end-of-day NW. */
-  .day-head td { background: var(--bg-subtle); padding-top: var(--space-3); padding-bottom: var(--space-3); }
-  .activity-table tbody + tbody .day-head td,
   .register tbody + tbody .day-head td { padding-top: var(--space-6); }
   .day-date {
     font-size: var(--size-sm);
@@ -325,15 +247,15 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  .day-totals {
+  .day-net {
     float: right;
-    font-size: var(--size-xs);
-    color: var(--fg-muted);
+    font-size: var(--size-sm);
+    font-weight: 500;
+    color: var(--fg);
   }
-  .day-totals .day-net { color: var(--fg); }
-  .day-totals .day-net.pos { color: var(--pos); }
-  .day-totals .day-net.neg { color: var(--neg); }
-  .day-totals .sep { margin: 0 var(--space-2); color: var(--rule-strong); }
+  .day-net.pos { color: var(--pos); }
+  .day-net.neg { color: var(--neg); }
+  .day-nw { font-weight: 500; }
 
   /* Event row */
   tr.event { cursor: pointer; }
@@ -363,24 +285,19 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
   }
 
-  /* Color the Out and In columns by direction. Empty cells stay blank
-     (rendered as ''), so the visual cue is the column itself plus the
-     value's color. */
+  /* Column colors. Empty Out/In cells render blank — column position + sign
+     color carry the meaning. */
   .out { color: var(--neg); }
   .in  { color: var(--pos); }
   .balance { color: var(--fg-muted); }
   .balance.neg { color: var(--neg); }
-  .nw { color: var(--fg); }
+  td.nw { color: var(--fg); }
 
-  /* ─── Mobile ──────────────────────────────────────────────────────────
-     Collapse the seven-column register into a 2×2 block per row, like the
-     previous layout. Line number, date, and the running NW column drop off
-     — the day header still carries date + day-end NW, which is enough at
-     phone widths. Keeps the row glanceable instead of nine cramped cells. */
+  /* ─── Mobile ─────────────────────────────────────────────────────────
+     Collapse the five-column register into a 2×2 block per row. The Out
+     and In columns merge — only one ever has content per row. NW drops
+     off; the day header still carries date + day-end NW. */
   @media (max-width: 40rem) {
-    .toolbar { flex-direction: column; gap: var(--space-1); align-items: flex-start; }
-    .toolbar .spacer { display: none; }
-
     .register,
     .register tbody,
     .register tr { display: block; }
@@ -392,9 +309,10 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
 
     .register tr.day-head {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr auto;
+      column-gap: var(--space-4);
       row-gap: var(--space-1);
-      align-items: center;
+      align-items: baseline;
       background: var(--bg-subtle);
       padding: var(--space-3) var(--space-4);
     }
@@ -403,14 +321,11 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
       border: none;
       background: transparent;
     }
-    .register .day-totals {
-      float: none;
-      display: block;
-      margin-top: var(--space-1);
-    }
+    .register tr.day-head > td:first-child { grid-column: 1; }
+    .register tr.day-head > td.day-nw { grid-column: 2; text-align: right; }
+    .day-net { float: none; display: inline-block; margin-left: var(--space-3); }
+    .day-meta { display: block; margin: 2px 0 0; }
 
-    /* Event rows reflow to: [name] [Δ] / [INST · K] [balance]. Out/In merge
-       into a single delta cell; line # / date / NW hide. */
     .register tr.event {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -424,14 +339,9 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
       padding: 0;
       border: none;
     }
-    .register tr.event > .line-col,
-    .register tr.event > .date-col,
     .register tr.event > .nw { display: none; }
     .register tr.event > .cell-name { grid-column: 1; grid-row: 1 / span 2; }
 
-    /* Out cell shows the loss when present, else hidden — same slot as In so
-       only one ever renders. Both styled and right-aligned so the row reads
-       as one "Δ" line. */
     .register tr.event > .out,
     .register tr.event > .in {
       grid-column: 2;
