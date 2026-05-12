@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Activity — Ledger Prototypes</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --bg-sunk: #f3f3f1;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+    --paper: #fbfaf6;
+    --paper-rule: #e9e3cf;
+    --paper-ink: #1a1a1a;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+    --size-xl: 1.5rem;
+    --size-2xl: 2.25rem;
+    --size-3xl: 3rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--size-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-6) var(--space-16);
+  }
+
+  h1, h2, h3, h4 {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  h1 { font-size: var(--size-lg); letter-spacing: 0.04em; }
+  h2 { font-size: var(--size-base); letter-spacing: 0.06em; }
+  h3 { font-size: var(--size-sm); letter-spacing: 0.08em; }
+
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--fg-muted); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* ---------- prototype frame (not part of the design) ---------- */
+  .proto-nav {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: var(--space-6);
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-8);
+    padding: var(--space-3) var(--space-6);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .proto-nav .brand { font-weight: 500; }
+  .proto-nav .links { display: flex; gap: var(--space-6); margin-left: var(--space-6); }
+  .proto-nav a { color: var(--fg-muted); text-decoration: none; }
+  .proto-nav a:hover { color: var(--fg); }
+  .proto-nav a.active { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
+  .proto-nav .spacer { flex: 1; }
+  .proto-nav .meta { color: var(--fg-muted); }
+
+  .variation {
+    padding-top: var(--space-8);
+    border-top: 1px dashed var(--rule);
+    margin-top: var(--space-12);
+  }
+  .variation:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+  .variation > header {
+    margin-bottom: var(--space-8);
+    display: flex; align-items: baseline; gap: var(--space-4);
+  }
+  .variation > header .tag {
+    font-size: var(--size-xs); letter-spacing: 0.16em;
+    color: var(--fg-muted);
+  }
+  .variation > header .name {
+    font-size: var(--size-xl); letter-spacing: -0.01em;
+    text-transform: none; font-weight: 500;
+  }
+  .variation > header .blurb { color: var(--fg-muted); font-size: var(--size-sm); }
+
+  /* mimic the real app header inside each variation ----------- */
+  .app-header {
+    display: flex; align-items: center; gap: var(--space-6);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+  .app-header .brand { font-weight: 500; letter-spacing: 0.08em; font-size: var(--size-sm); text-transform: uppercase; }
+  .app-header nav { display: flex; gap: var(--space-6); font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .app-header nav a { color: inherit; text-decoration: none; }
+  .app-header nav a.current { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
+  .app-header .spacer { flex: 1; }
+  .app-header .ago { font-size: var(--size-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .page-title { display: flex; align-items: baseline; gap: var(--space-4); margin-bottom: var(--space-2); }
+  .page-title h1 { font-size: var(--size-lg); }
+  .page-blurb { color: var(--fg-muted); font-size: var(--size-sm); max-width: 56rem; margin-bottom: var(--space-8); }
+
+  /* ============================================================ */
+  /* VARIATION A — Bank Register                                  */
+  /* ============================================================ */
+  .reg-toolbar {
+    display: flex; align-items: baseline; gap: var(--space-6);
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-2);
+    font-size: var(--size-xs);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .reg-toolbar .opening { color: var(--fg); }
+  .reg-toolbar .opening .num { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0; }
+  .reg-toolbar .spacer { flex: 1; }
+
+  table.register {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.register thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-2) var(--space-2);
+    border-bottom: 1px solid var(--rule-strong);
+    text-align: left;
+    white-space: nowrap;
+  }
+  table.register td {
+    padding: var(--space-2) var(--space-2);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: baseline;
+  }
+  table.register tbody tr:hover td { background: var(--bg-subtle); }
+  table.register .col-line { width: 2.5rem; color: var(--fg-muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--size-xs); text-align: right; }
+  table.register .col-date { width: 5.5rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  table.register .col-inst { width: 11rem; }
+  table.register .col-acct { color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+  table.register .col-out, table.register .col-in, table.register .col-bal, table.register .col-nw {
+    text-align: right; white-space: nowrap;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0;
+  }
+  table.register .col-out { width: 6.5rem; color: var(--neg); }
+  table.register .col-in  { width: 6.5rem; color: var(--pos); }
+  table.register .col-bal { width: 7.5rem; }
+  table.register .col-nw  { width: 9rem; color: var(--fg); }
+  table.register thead .col-out, table.register thead .col-in,
+  table.register thead .col-bal, table.register thead .col-nw { text-align: right; color: var(--fg-muted); }
+  table.register tr.day-break td {
+    background: var(--bg-subtle);
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: var(--space-2) var(--space-2);
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  table.register tr.day-break .day-totals {
+    float: right;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  table.register tr.day-break .day-totals .pos { color: var(--pos); }
+  table.register tr.day-break .day-totals .neg { color: var(--neg); }
+  table.register tr.day-break .day-totals .sep { color: var(--rule-strong); margin: 0 var(--space-2); }
+
+  /* ============================================================ */
+  /* VARIATION B — Double-Entry Journal                            */
+  /* ============================================================ */
+  .journal { display: grid; gap: var(--space-8); }
+  .entry {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--rule-strong);
+  }
+  .entry .gutter {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    line-height: 1.6;
+  }
+  .entry .gutter .date {
+    color: var(--fg);
+    font-size: var(--size-sm);
+    display: block;
+    margin-bottom: var(--space-2);
+  }
+  .entry .gutter .page-no {
+    margin-top: var(--space-4);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .entry .gutter .net {
+    margin-top: var(--space-4);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--fg);
+  }
+  .entry .gutter .net .lbl {
+    display: block;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+  }
+
+  .te {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg);
+  }
+  .te .col {
+    padding: var(--space-3) var(--space-4);
+  }
+  .te .col + .col { border-left: 1px solid var(--rule-strong); }
+  .te .col-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: var(--space-2);
+  }
+  .te .col-head .badge { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0; }
+  .te ul { list-style: none; margin: 0; padding: 0; }
+  .te li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    font-size: var(--size-sm);
+  }
+  .te li .lbl { display: flex; flex-direction: column; }
+  .te li .lbl .inst { color: var(--fg); }
+  .te li .lbl .acct { color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+  .te li .amt {
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0;
+  }
+  .te .col.dr li .amt { color: var(--pos); }
+  .te .col.cr li .amt { color: var(--neg); }
+  .te .col-foot {
+    display: flex; justify-content: space-between;
+    border-top: 1px solid var(--rule);
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .te .col-foot .amt { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0; color: var(--fg); }
+  .te .col.dr .col-foot .amt { color: var(--pos); }
+  .te .col.cr .col-foot .amt { color: var(--neg); }
+
+  /* ============================================================ */
+  /* VARIATION C — Roll-Forward by Account                         */
+  /* ============================================================ */
+  .rollf-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-6);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule-strong);
+    margin-bottom: var(--space-6);
+  }
+  .rollf-summary .stat .lbl {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    display: block;
+    margin-bottom: var(--space-1);
+  }
+  .rollf-summary .stat .val {
+    font-size: var(--size-xl);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .rollf-summary .stat .sub {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    margin-top: var(--space-1);
+  }
+
+  table.rollf {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  table.rollf thead th {
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--rule-strong);
+    text-align: right;
+    white-space: nowrap;
+  }
+  table.rollf thead th:first-child,
+  table.rollf thead th.left { text-align: left; }
+  table.rollf td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+    text-align: right;
+    white-space: nowrap;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0;
+  }
+  table.rollf td.left {
+    text-align: left;
+    font-family: inherit;
+  }
+  table.rollf td .inst { color: var(--fg); }
+  table.rollf td .acct { color: var(--fg-muted); font-size: var(--size-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+  table.rollf tr.subhead td {
+    background: var(--bg-subtle);
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: inherit;
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule);
+  }
+  table.rollf tr.subhead td .right { float: right; font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0; text-transform: none; color: var(--fg); }
+  table.rollf tr.total td {
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--bg-subtle);
+    color: var(--fg);
+  }
+  table.rollf tr:hover:not(.subhead):not(.total) td { background: var(--bg-subtle); }
+
+  /* sparkline cell */
+  .spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 1.5rem; }
+  .spark span {
+    display: block;
+    width: 5px;
+    background: var(--rule-strong);
+  }
+  .spark span.pos { background: var(--pos); }
+  .spark span.neg { background: var(--neg); }
+
+  @media (max-width: 760px) {
+    .rollf-summary { grid-template-columns: 1fr 1fr; }
+    .entry { grid-template-columns: 1fr; gap: var(--space-3); }
+    .te { grid-template-columns: 1fr; }
+    .te .col + .col { border-left: 0; border-top: 1px solid var(--rule-strong); }
+    table.register .col-acct, table.register .col-line { display: none; }
+    table.rollf .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="proto-nav">
+  <span class="brand">Fiscus · Activity Ledger</span>
+  <div class="links">
+    <a href="#A" class="active" data-link="A">A · Register</a>
+    <a href="#B" data-link="B">B · Double-Entry</a>
+    <a href="#C" data-link="C">C · Roll-Forward</a>
+  </div>
+  <div class="spacer"></div>
+  <span class="meta">prototypes / activity-ledger.html</span>
+</div>
+
+<!-- ============================================================ -->
+<!-- VARIATION A — Bank Register                                  -->
+<!-- ============================================================ -->
+<section class="variation" id="A">
+  <header>
+    <span class="tag">Variation A</span>
+    <span class="name">Register</span>
+    <span class="blurb">Flat chronological log — one row per institution change. Running net-worth balance on the right.</span>
+  </header>
+
+  <div class="app-header">
+    <span class="brand">Fiscus</span>
+    <nav>
+      <a>Activity</a>
+      <a>Concentration</a>
+      <a>Flows</a>
+      <a>Connect</a>
+      <a>Debug</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="ago">⏱ 20H AGO</span>
+  </div>
+
+  <div class="page-title"><h1>Activity</h1></div>
+  <p class="page-blurb">Net-worth ledger, last 90 days. Each line is one institution-day. Outflows debit; inflows credit. The Balance After column tracks the account; NW is the running net-worth balance after the line posts.</p>
+
+  <div class="reg-toolbar">
+    <span>Period · Feb 10 – May 11, 2026</span>
+    <span class="opening">Opening NW <span class="num">$1,378,420</span></span>
+    <span class="spacer"></span>
+    <span>90 days · 142 lines</span>
+  </div>
+
+  <table class="register">
+    <thead>
+      <tr>
+        <th class="col-line">#</th>
+        <th class="col-date">Date</th>
+        <th class="col-inst">Institution</th>
+        <th class="col-acct">Account</th>
+        <th class="col-out">Out</th>
+        <th class="col-in">In</th>
+        <th class="col-bal">Balance</th>
+        <th class="col-nw">Net Worth</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="day-break"><td colspan="8">
+        Mon May 11, 2026 · 2 lines
+        <span class="day-totals">
+          <span class="neg">−$544.00</span>
+          <span class="sep">·</span>
+          <span>NW $1,675,212</span>
+        </span>
+      </td></tr>
+      <tr>
+        <td class="col-line">142</td>
+        <td class="col-date">05/11</td>
+        <td class="col-inst">Chase</td>
+        <td class="col-acct">Credit Card · Credit Card</td>
+        <td class="col-out">449.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">−10,797.00</td>
+        <td class="col-nw">1,675,212.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">141</td>
+        <td class="col-date">05/11</td>
+        <td class="col-inst">American Express</td>
+        <td class="col-acct">Platinum Card®</td>
+        <td class="col-out">95.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">−3,430.00</td>
+        <td class="col-nw">1,675,661.00</td>
+      </tr>
+
+      <tr class="day-break"><td colspan="8">
+        Sun May 10, 2026 · 2 lines
+        <span class="day-totals">
+          <span class="neg">−$208.00</span>
+          <span class="sep">·</span>
+          <span>NW $1,675,756</span>
+        </span>
+      </td></tr>
+      <tr>
+        <td class="col-line">140</td>
+        <td class="col-date">05/10</td>
+        <td class="col-inst">Chase</td>
+        <td class="col-acct">Credit Card</td>
+        <td class="col-out">183.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">−10,348.00</td>
+        <td class="col-nw">1,675,756.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">139</td>
+        <td class="col-date">05/10</td>
+        <td class="col-inst">Robinhood</td>
+        <td class="col-acct">Robinhood Credit Card</td>
+        <td class="col-out">25.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">30,121.00</td>
+        <td class="col-nw">1,675,939.00</td>
+      </tr>
+
+      <tr class="day-break"><td colspan="8">
+        Sat May 9, 2026 · 7 lines
+        <span class="day-totals">
+          <span class="pos">+$13,325.00</span>
+          <span class="sep">·</span>
+          <span>NW $1,675,964</span>
+        </span>
+      </td></tr>
+      <tr>
+        <td class="col-line">138</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">Charles Schwab</td>
+        <td class="col-acct">5 Accounts</td>
+        <td class="col-out">741.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">552,221.00</td>
+        <td class="col-nw">1,675,964.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">137</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">Mercury</td>
+        <td class="col-acct">3 Accounts</td>
+        <td class="col-out">325.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">117,172.00</td>
+        <td class="col-nw">1,676,705.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">136</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">USAA</td>
+        <td class="col-acct">USAA Classic Checking</td>
+        <td class="col-out"></td>
+        <td class="col-in">28.00</td>
+        <td class="col-bal">14,398.00</td>
+        <td class="col-nw">1,677,030.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">135</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">Robinhood</td>
+        <td class="col-acct">Robinhood Individual</td>
+        <td class="col-out"></td>
+        <td class="col-in">51.00</td>
+        <td class="col-bal">30,146.00</td>
+        <td class="col-nw">1,677,002.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">134</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">Chase</td>
+        <td class="col-acct">Chase College · Credit Card</td>
+        <td class="col-out"></td>
+        <td class="col-in">456.00</td>
+        <td class="col-bal">−10,165.00</td>
+        <td class="col-nw">1,676,951.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">133</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">Wealthfront</td>
+        <td class="col-acct">LLAC</td>
+        <td class="col-out"></td>
+        <td class="col-in">504.00</td>
+        <td class="col-bal">70,966.00</td>
+        <td class="col-nw">1,676,495.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">132</td>
+        <td class="col-date">05/09</td>
+        <td class="col-inst">Interactive Brokers — US</td>
+        <td class="col-acct">Tyler Crimm</td>
+        <td class="col-out"></td>
+        <td class="col-in">13,351.00</td>
+        <td class="col-bal">680,272.00</td>
+        <td class="col-nw">1,675,991.00</td>
+      </tr>
+
+      <tr class="day-break"><td colspan="8">
+        Fri May 8, 2026 · 5 lines
+        <span class="day-totals">
+          <span class="neg">−$17,093.00</span>
+          <span class="sep">·</span>
+          <span>NW $1,662,639</span>
+        </span>
+      </td></tr>
+      <tr>
+        <td class="col-line">131</td>
+        <td class="col-date">05/08</td>
+        <td class="col-inst">Interactive Brokers — US</td>
+        <td class="col-acct">Tyler Crimm</td>
+        <td class="col-out">17,042.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">666,921.00</td>
+        <td class="col-nw">1,662,639.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">130</td>
+        <td class="col-date">05/08</td>
+        <td class="col-inst">Robinhood</td>
+        <td class="col-acct">Robinhood Individual · Credit Card</td>
+        <td class="col-out">864.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">30,096.00</td>
+        <td class="col-nw">1,679,681.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">129</td>
+        <td class="col-date">05/08</td>
+        <td class="col-inst">Wealthfront</td>
+        <td class="col-acct">LLAC</td>
+        <td class="col-out">625.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">70,463.00</td>
+        <td class="col-nw">1,680,545.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">128</td>
+        <td class="col-date">05/08</td>
+        <td class="col-inst">Chase</td>
+        <td class="col-acct">4 Accounts</td>
+        <td class="col-out">336.00</td>
+        <td class="col-in"></td>
+        <td class="col-bal">−10,622.00</td>
+        <td class="col-nw">1,681,170.00</td>
+      </tr>
+      <tr>
+        <td class="col-line">127</td>
+        <td class="col-date">05/08</td>
+        <td class="col-inst">Charles Schwab</td>
+        <td class="col-acct">5 Accounts</td>
+        <td class="col-out"></td>
+        <td class="col-in">1,774.00</td>
+        <td class="col-bal">552,962.00</td>
+        <td class="col-nw">1,681,506.00</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ============================================================ -->
+<!-- VARIATION B — Double-Entry Journal                            -->
+<!-- ============================================================ -->
+<section class="variation" id="B">
+  <header>
+    <span class="tag">Variation B</span>
+    <span class="name">Double-Entry Journal</span>
+    <span class="blurb">Each day is a journal entry. Debits (NW-positive moves) on the left, credits (NW-negative) on the right, with footed totals that must balance against the day's net change.</span>
+  </header>
+
+  <div class="app-header">
+    <span class="brand">Fiscus</span>
+    <nav>
+      <a>Activity</a>
+      <a>Concentration</a>
+      <a>Flows</a>
+      <a>Connect</a>
+      <a>Debug</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="ago">⏱ 20H AGO</span>
+  </div>
+
+  <div class="page-title"><h1>Activity</h1></div>
+  <p class="page-blurb">Daily journal entries, last 90 days. Debits = balance moves in your favor (assets up, liabilities down). Credits = the opposite. Footed totals net to the day's net-worth change.</p>
+
+  <div class="journal">
+
+    <article class="entry">
+      <div class="gutter">
+        <span class="date">Mon May 11</span>
+        <span>2026</span>
+        <div class="page-no">№ 087</div>
+        <div class="net">
+          <span class="lbl">Net Δ NW</span>
+          <span class="neg">−$544.00</span>
+        </div>
+      </div>
+      <div class="te">
+        <div class="col dr">
+          <div class="col-head"><span>Debit · NW Up</span><span class="badge">0 entries</span></div>
+          <ul></ul>
+          <div class="col-foot"><span>Σ Debit</span><span class="amt">$0.00</span></div>
+        </div>
+        <div class="col cr">
+          <div class="col-head"><span>Credit · NW Down</span><span class="badge">2 entries</span></div>
+          <ul>
+            <li><span class="lbl"><span class="inst">Chase</span><span class="acct">Credit Card · Credit Card</span></span><span class="amt">−449.00</span></li>
+            <li><span class="lbl"><span class="inst">American Express</span><span class="acct">Platinum Card®</span></span><span class="amt">−95.00</span></li>
+          </ul>
+          <div class="col-foot"><span>Σ Credit</span><span class="amt">−$544.00</span></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="gutter">
+        <span class="date">Sun May 10</span>
+        <span>2026</span>
+        <div class="page-no">№ 086</div>
+        <div class="net">
+          <span class="lbl">Net Δ NW</span>
+          <span class="neg">−$208.00</span>
+        </div>
+      </div>
+      <div class="te">
+        <div class="col dr">
+          <div class="col-head"><span>Debit · NW Up</span><span class="badge">0 entries</span></div>
+          <ul></ul>
+          <div class="col-foot"><span>Σ Debit</span><span class="amt">$0.00</span></div>
+        </div>
+        <div class="col cr">
+          <div class="col-head"><span>Credit · NW Down</span><span class="badge">2 entries</span></div>
+          <ul>
+            <li><span class="lbl"><span class="inst">Chase</span><span class="acct">Credit Card</span></span><span class="amt">−183.00</span></li>
+            <li><span class="lbl"><span class="inst">Robinhood</span><span class="acct">Robinhood Credit Card</span></span><span class="amt">−25.00</span></li>
+          </ul>
+          <div class="col-foot"><span>Σ Credit</span><span class="amt">−$208.00</span></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="gutter">
+        <span class="date">Sat May 9</span>
+        <span>2026</span>
+        <div class="page-no">№ 085</div>
+        <div class="net">
+          <span class="lbl">Net Δ NW</span>
+          <span class="pos">+$13,325.00</span>
+        </div>
+      </div>
+      <div class="te">
+        <div class="col dr">
+          <div class="col-head"><span>Debit · NW Up</span><span class="badge">5 entries</span></div>
+          <ul>
+            <li><span class="lbl"><span class="inst">Interactive Brokers — US</span><span class="acct">Tyler Crimm</span></span><span class="amt">+13,351.00</span></li>
+            <li><span class="lbl"><span class="inst">Wealthfront</span><span class="acct">LLAC</span></span><span class="amt">+504.00</span></li>
+            <li><span class="lbl"><span class="inst">Chase</span><span class="acct">Chase College · Credit Card</span></span><span class="amt">+456.00</span></li>
+            <li><span class="lbl"><span class="inst">Robinhood</span><span class="acct">Robinhood Individual</span></span><span class="amt">+51.00</span></li>
+            <li><span class="lbl"><span class="inst">USAA</span><span class="acct">USAA Classic Checking</span></span><span class="amt">+28.00</span></li>
+          </ul>
+          <div class="col-foot"><span>Σ Debit</span><span class="amt">+$14,390.00</span></div>
+        </div>
+        <div class="col cr">
+          <div class="col-head"><span>Credit · NW Down</span><span class="badge">2 entries</span></div>
+          <ul>
+            <li><span class="lbl"><span class="inst">Charles Schwab</span><span class="acct">5 Accounts</span></span><span class="amt">−741.00</span></li>
+            <li><span class="lbl"><span class="inst">Mercury</span><span class="acct">3 Accounts</span></span><span class="amt">−325.00</span></li>
+          </ul>
+          <div class="col-foot"><span>Σ Credit</span><span class="amt">−$1,066.00</span></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="gutter">
+        <span class="date">Fri May 8</span>
+        <span>2026</span>
+        <div class="page-no">№ 084</div>
+        <div class="net">
+          <span class="lbl">Net Δ NW</span>
+          <span class="neg">−$17,093.00</span>
+        </div>
+      </div>
+      <div class="te">
+        <div class="col dr">
+          <div class="col-head"><span>Debit · NW Up</span><span class="badge">1 entry</span></div>
+          <ul>
+            <li><span class="lbl"><span class="inst">Charles Schwab</span><span class="acct">5 Accounts</span></span><span class="amt">+1,774.00</span></li>
+          </ul>
+          <div class="col-foot"><span>Σ Debit</span><span class="amt">+$1,774.00</span></div>
+        </div>
+        <div class="col cr">
+          <div class="col-head"><span>Credit · NW Down</span><span class="badge">4 entries</span></div>
+          <ul>
+            <li><span class="lbl"><span class="inst">Interactive Brokers — US</span><span class="acct">Tyler Crimm</span></span><span class="amt">−17,042.00</span></li>
+            <li><span class="lbl"><span class="inst">Robinhood</span><span class="acct">Robinhood Individual · Credit Card</span></span><span class="amt">−864.00</span></li>
+            <li><span class="lbl"><span class="inst">Wealthfront</span><span class="acct">LLAC</span></span><span class="amt">−625.00</span></li>
+            <li><span class="lbl"><span class="inst">Chase</span><span class="acct">4 Accounts</span></span><span class="amt">−336.00</span></li>
+          </ul>
+          <div class="col-foot"><span>Σ Credit</span><span class="amt">−$18,867.00</span></div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+
+<!-- ============================================================ -->
+<!-- VARIATION C — Roll-Forward by Account                         -->
+<!-- ============================================================ -->
+<section class="variation" id="C">
+  <header>
+    <span class="tag">Variation C</span>
+    <span class="name">Roll-Forward by Account</span>
+    <span class="blurb">Account-grouped trial balance over the period. Opening → period Δ → closing, with a daily sparkline. Pivots the data away from "what happened today" and toward "where did the value come from".</span>
+  </header>
+
+  <div class="app-header">
+    <span class="brand">Fiscus</span>
+    <nav>
+      <a>Activity</a>
+      <a>Concentration</a>
+      <a>Flows</a>
+      <a>Connect</a>
+      <a>Debug</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="ago">⏱ 20H AGO</span>
+  </div>
+
+  <div class="page-title"><h1>Activity</h1></div>
+  <p class="page-blurb">Account roll-forward, last 90 days. Each row reconciles its opening balance to its closing balance through gross gains and gross losses. Bars show daily Δ over the period.</p>
+
+  <div class="rollf-summary">
+    <div class="stat">
+      <span class="lbl">Opening NW</span>
+      <span class="val">$1,378,420</span>
+      <span class="sub">Feb 10, 2026</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">Gross gains</span>
+      <span class="val pos">+$412,604</span>
+      <span class="sub">Σ debits across 90 days</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">Gross losses</span>
+      <span class="val neg">−$115,812</span>
+      <span class="sub">Σ credits across 90 days</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">Closing NW</span>
+      <span class="val">$1,675,212</span>
+      <span class="sub">May 11, 2026</span>
+    </div>
+  </div>
+
+  <table class="rollf">
+    <thead>
+      <tr>
+        <th class="left">Account</th>
+        <th class="hide-sm">Daily Δ</th>
+        <th>Opening</th>
+        <th>Gains</th>
+        <th>Losses</th>
+        <th>Period Δ</th>
+        <th>Closing</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="subhead"><td colspan="7">Assets <span class="right pos">+$294,201</span></td></tr>
+
+      <tr>
+        <td class="left"><div class="inst">Interactive Brokers — US</div><div class="acct">Tyler Crimm</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:80%"></span><span class="neg" style="height:95%"></span><span class="pos" style="height:60%"></span><span class="pos" style="height:75%"></span><span class="neg" style="height:50%"></span><span class="pos" style="height:90%"></span><span class="neg" style="height:40%"></span><span class="pos" style="height:70%"></span><span class="pos" style="height:55%"></span><span class="pos" style="height:65%"></span><span class="neg" style="height:30%"></span><span class="pos" style="height:85%"></span></span></td>
+        <td>551,180.00</td>
+        <td class="pos">+182,440.00</td>
+        <td class="neg">−53,348.00</td>
+        <td class="pos">+129,092.00</td>
+        <td>680,272.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">Charles Schwab</div><div class="acct">5 Accounts</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:60%"></span><span class="pos" style="height:40%"></span><span class="neg" style="height:55%"></span><span class="pos" style="height:70%"></span><span class="pos" style="height:50%"></span><span class="neg" style="height:30%"></span><span class="pos" style="height:80%"></span><span class="pos" style="height:65%"></span><span class="neg" style="height:45%"></span><span class="pos" style="height:55%"></span><span class="pos" style="height:60%"></span><span class="neg" style="height:35%"></span></span></td>
+        <td>456,710.00</td>
+        <td class="pos">+118,210.00</td>
+        <td class="neg">−22,699.00</td>
+        <td class="pos">+95,511.00</td>
+        <td>552,221.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">Mercury</div><div class="acct">3 Accounts</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:30%"></span><span class="neg" style="height:50%"></span><span class="pos" style="height:40%"></span><span class="neg" style="height:65%"></span><span class="pos" style="height:35%"></span><span class="neg" style="height:55%"></span><span class="pos" style="height:45%"></span><span class="neg" style="height:60%"></span><span class="pos" style="height:25%"></span><span class="neg" style="height:70%"></span><span class="pos" style="height:30%"></span><span class="neg" style="height:50%"></span></span></td>
+        <td>134,002.00</td>
+        <td class="pos">+18,440.00</td>
+        <td class="neg">−35,270.00</td>
+        <td class="neg">−16,830.00</td>
+        <td>117,172.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">Wealthfront</div><div class="acct">LLAC</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:50%"></span><span class="pos" style="height:55%"></span><span class="neg" style="height:40%"></span><span class="pos" style="height:60%"></span><span class="pos" style="height:45%"></span><span class="neg" style="height:35%"></span><span class="pos" style="height:65%"></span><span class="pos" style="height:50%"></span><span class="neg" style="height:30%"></span><span class="pos" style="height:55%"></span><span class="pos" style="height:60%"></span><span class="neg" style="height:25%"></span></span></td>
+        <td>67,140.00</td>
+        <td class="pos">+8,420.00</td>
+        <td class="neg">−4,594.00</td>
+        <td class="pos">+3,826.00</td>
+        <td>70,966.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">Robinhood</div><div class="acct">Robinhood Individual</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:55%"></span><span class="neg" style="height:65%"></span><span class="pos" style="height:50%"></span><span class="pos" style="height:40%"></span><span class="neg" style="height:55%"></span><span class="pos" style="height:60%"></span><span class="neg" style="height:45%"></span><span class="pos" style="height:35%"></span><span class="pos" style="height:50%"></span><span class="neg" style="height:60%"></span><span class="pos" style="height:55%"></span><span class="pos" style="height:45%"></span></span></td>
+        <td>29,801.00</td>
+        <td class="pos">+5,902.00</td>
+        <td class="neg">−5,557.00</td>
+        <td class="pos">+345.00</td>
+        <td>30,146.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">USAA</div><div class="acct">USAA Classic Checking</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:30%"></span><span class="pos" style="height:25%"></span><span class="neg" style="height:40%"></span><span class="pos" style="height:35%"></span><span class="pos" style="height:30%"></span><span class="neg" style="height:45%"></span><span class="pos" style="height:25%"></span><span class="pos" style="height:30%"></span><span class="neg" style="height:35%"></span><span class="pos" style="height:25%"></span><span class="pos" style="height:30%"></span><span class="pos" style="height:35%"></span></span></td>
+        <td>13,200.00</td>
+        <td class="pos">+5,820.00</td>
+        <td class="neg">−4,622.00</td>
+        <td class="pos">+1,198.00</td>
+        <td>14,398.00</td>
+      </tr>
+
+      <tr class="subhead"><td colspan="7">Liabilities <span class="right neg">−$2,591</span></td></tr>
+
+      <tr>
+        <td class="left"><div class="inst">Chase</div><div class="acct">4 Credit Cards</div></td>
+        <td class="hide-sm"><span class="spark"><span class="neg" style="height:55%"></span><span class="neg" style="height:65%"></span><span class="pos" style="height:40%"></span><span class="neg" style="height:75%"></span><span class="neg" style="height:60%"></span><span class="pos" style="height:30%"></span><span class="neg" style="height:50%"></span><span class="neg" style="height:70%"></span><span class="pos" style="height:35%"></span><span class="neg" style="height:80%"></span><span class="neg" style="height:55%"></span><span class="neg" style="height:65%"></span></span></td>
+        <td>−7,820.00</td>
+        <td class="pos">+3,402.00</td>
+        <td class="neg">−6,379.00</td>
+        <td class="neg">−2,977.00</td>
+        <td>−10,797.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">American Express</div><div class="acct">Platinum Card®</div></td>
+        <td class="hide-sm"><span class="spark"><span class="neg" style="height:40%"></span><span class="neg" style="height:55%"></span><span class="pos" style="height:35%"></span><span class="neg" style="height:50%"></span><span class="neg" style="height:45%"></span><span class="pos" style="height:25%"></span><span class="neg" style="height:60%"></span><span class="neg" style="height:50%"></span><span class="pos" style="height:30%"></span><span class="neg" style="height:55%"></span><span class="neg" style="height:45%"></span><span class="neg" style="height:50%"></span></span></td>
+        <td>−2,540.00</td>
+        <td class="pos">+1,820.00</td>
+        <td class="neg">−2,710.00</td>
+        <td class="neg">−890.00</td>
+        <td>−3,430.00</td>
+      </tr>
+      <tr>
+        <td class="left"><div class="inst">Robinhood</div><div class="acct">Robinhood Credit Card</div></td>
+        <td class="hide-sm"><span class="spark"><span class="pos" style="height:50%"></span><span class="neg" style="height:35%"></span><span class="neg" style="height:45%"></span><span class="pos" style="height:40%"></span><span class="neg" style="height:55%"></span><span class="neg" style="height:30%"></span><span class="pos" style="height:35%"></span><span class="neg" style="height:50%"></span><span class="neg" style="height:40%"></span><span class="pos" style="height:30%"></span><span class="neg" style="height:45%"></span><span class="neg" style="height:35%"></span></span></td>
+        <td>30,397.00</td>
+        <td class="pos">+820.00</td>
+        <td class="neg">−1,096.00</td>
+        <td class="neg">−276.00</td>
+        <td>30,121.00</td>
+      </tr>
+
+      <tr class="total">
+        <td class="left">Net Worth</td>
+        <td class="hide-sm"></td>
+        <td>1,378,420.00</td>
+        <td class="pos">+412,604.00</td>
+        <td class="neg">−115,812.00</td>
+        <td class="pos">+296,792.00</td>
+        <td>1,675,212.00</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<script>
+  // sticky nav active state on scroll
+  const links = document.querySelectorAll('.proto-nav a[data-link]');
+  const sections = ['A', 'B', 'C'].map(id => document.getElementById(id));
+  function setActive() {
+    const y = window.scrollY + 120;
+    let cur = sections[0];
+    for (const s of sections) if (s.offsetTop <= y) cur = s;
+    links.forEach(a => a.classList.toggle('active', a.dataset.link === cur.id));
+  }
+  window.addEventListener('scroll', setActive, { passive: true });
+  setActive();
+</script>
+
+</body>
+</html>
