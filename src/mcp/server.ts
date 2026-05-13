@@ -99,6 +99,19 @@ server.registerTool(
 );
 
 server.registerTool(
+  'set_account_name',
+  {
+    description:
+      'Rename an account (e.g. give a Plaid-synced "AUTO LOAN ...3358" a friendlier label like "Civic Loan"). For Plaid-synced accounts, the override sticks across resyncs — Plaid no longer overwrites the name after initial link.',
+    inputSchema: {
+      accountId: z.string().uuid(),
+      name: z.string().min(1).max(200),
+    },
+  },
+  async ({ accountId, name }) => json(await accounts.setAccountName(db, accountId, name)),
+);
+
+server.registerTool(
   'set_account_note',
   {
     description:

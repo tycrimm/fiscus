@@ -64,6 +64,18 @@ export async function setAccountOwner(
   return acct;
 }
 
+export async function setAccountName(d: DB, accountId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Account name cannot be empty');
+  const [acct] = await d
+    .update(accounts)
+    .set({ name: trimmed })
+    .where(eq(accounts.id, accountId))
+    .returning();
+  if (!acct) throw new Error(`Account ${accountId} not found`);
+  return acct;
+}
+
 export async function setAccountNote(d: DB, accountId: string, note: string | null) {
   const trimmed = note?.trim();
   const [acct] = await d

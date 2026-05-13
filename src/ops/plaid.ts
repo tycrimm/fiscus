@@ -340,12 +340,12 @@ async function upsertAccount(
     .where(eq(accounts.plaidAccountId, args.plaidAccountId))
     .limit(1);
   if (existing[0]) {
-    // Preserve archived_at AND owner — owner may have been manually adjusted
-    // after link. Plaid item's owner only seeds new accounts.
+    // Preserve archived_at, owner, AND name on resync. Plaid seeds these on
+    // first link only; any manual override (via set_account_name, etc.)
+    // wins over Plaid's canonical value.
     await d
       .update(accounts)
       .set({
-        name: args.name,
         kind: args.kind,
         currency: args.currency,
         isLiability: args.isLiability,
