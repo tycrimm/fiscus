@@ -1,5 +1,8 @@
 ---
 import '../styles/global.css';
+import { env } from 'cloudflare:workers';
+import { db } from '../db';
+import { searchIndex, type SearchEntry } from '../ops/reads';
 import { fmtDateTime, fmtRelative } from '../lib/format';
 
 interface Props {
@@ -11,6 +14,22 @@ const path = Astro.url.pathname;
 const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 const accessEmail = Astro.request.headers.get('cf-access-authenticated-user-email')?.toLowerCase() ?? '';
 const showDebug = accessEmail === 'tyler.crimm@gmail.com';
+
+// Command palette index. One small query; same DB roundtrip pattern every
+// page already uses. Pages link is appended client-side-aware here so users
+// can jump to top-level routes via the palette too.
+const pageEntries: SearchEntry[] = [
+  { href: '/', name: 'Home', sub: 'Net worth dashboard', kind: 'page' },
+  { href: '/activity', name: 'Activity', sub: 'Recent balance changes', kind: 'page' },
+  { href: '/concentration', name: 'Concentration', sub: 'Top positions', kind: 'page' },
+  { href: '/flows', name: 'Flows', sub: 'Cashflow projections', kind: 'page' },
+  { href: '/connect', name: 'Connect', sub: 'Plaid connections', kind: 'page' },
+];
+if (showDebug) pageEntries.push({ href: '/debug', name: 'Debug', sub: 'Internals', kind: 'page' });
+const paletteEntries: SearchEntry[] = [
+  ...(await searchIndex(db(env.DB))),
+  ...pageEntries,
+];
 
 // Cron fires daily at 10:00 UTC (see wrangler.jsonc triggers.crons).
 function nextSyncSec(): number {
@@ -77,6 +96,12 @@ const syncTitle = lastSyncedAt != null
           </a>
         )}
       </nav>
+      <button type="button" class="header-search" aria-label="search" data-cmdk-open title="Search (⌘K)">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.25" />
+          <path d="M10.5 10.5 L14 14" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+        </svg>
+      </button>
       {lastSyncedAt != null && (
         showDebug ? (
           <a href="/debug" class="synced" title={syncTitle}>
@@ -97,10 +122,207 @@ const syncTitle = lastSyncedAt != null
         )
       )}
     </header>
+
+    {/* Command palette. Opens on ⌘K / Ctrl+K / "/" or via the header search
+        button. The whole index is inlined as JSON — it's tiny (≤ a few
+        hundred items) and avoids the round-trip on first open. */}
+    <div id="cmdk" class="cmdk" hidden aria-hidden="true" role="dialog" aria-label="Search">
+      <div class="cmdk-backdrop" data-cmdk-close></div>
+      <div class="cmdk-panel" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-haspopup="listbox">
+        <div class="cmdk-input-row">
+          <svg class="cmdk-search-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.5" />
+            <path d="M10.5 10.5 L14 14" />
+          </svg>
+          <input
+            id="cmdk-input"
+            type="text"
+            placeholder="Search accounts, private investments, pages"
+            autocomplete="off"
+            spellcheck={false}
+            aria-controls="cmdk-list"
+            aria-autocomplete="list"
+          />
+          <button type="button" class="cmdk-esc" data-cmdk-close aria-label="close">ESC</button>
+        </div>
+        <ul id="cmdk-list" class="cmdk-list" role="listbox" aria-label="Results"></ul>
+        <div class="cmdk-foot">
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> open</span>
+          <span class="cmdk-foot-spacer"></span>
+          <span><kbd>⌘K</kbd> toggle</span>
+        </div>
+      </div>
+    </div>
+    <script type="application/json" id="cmdk-data" set:html={JSON.stringify(paletteEntries).replace(/</g, '\\u003c')} />
+    <script>
+      type Entry = { href: string; name: string; sub: string; kind: 'account' | 'private' | 'page' };
+
+      const root = document.getElementById('cmdk') as HTMLDivElement | null;
+      const input = document.getElementById('cmdk-input') as HTMLInputElement | null;
+      const list = document.getElementById('cmdk-list') as HTMLUListElement | null;
+      const dataEl = document.getElementById('cmdk-data') as HTMLScriptElement | null;
+
+      if (root && input && list && dataEl) {
+        const entries: Entry[] = JSON.parse(dataEl.textContent || '[]');
+        let selected = 0;
+        let visible: Entry[] = [];
+
+        const open = () => {
+          root.hidden = false;
+          root.setAttribute('aria-hidden', 'false');
+          input.value = '';
+          render('');
+          // Defer focus so the keystroke that opened the palette doesn't land in the input.
+          requestAnimationFrame(() => input.focus());
+        };
+        const close = () => {
+          root.hidden = true;
+          root.setAttribute('aria-hidden', 'true');
+        };
+        const go = (href: string) => {
+          close();
+          window.location.href = href;
+        };
+
+        // Score: case-insensitive substring across name + sub. Name hits rank
+        // higher than sub hits; earlier hits rank higher than later ones.
+        const score = (e: Entry, q: string): number => {
+          if (!q) return 0;
+          const name = e.name.toLowerCase();
+          const sub = e.sub.toLowerCase();
+          const ni = name.indexOf(q);
+          const si = sub.indexOf(q);
+          if (ni === -1 && si === -1) return -1;
+          let s = 0;
+          if (ni !== -1) s += 1000 - ni;
+          if (si !== -1) s += 500 - si;
+          return s;
+        };
+
+        // Line icons matching the nav-icon style: 16x16, currentColor stroke,
+        // fill:none. CSS handles size/color uniformly via the .cmdk-icon class.
+        const ICONS: Record<Entry['kind'], string> = {
+          account: `<svg viewBox="0 0 16 16" class="cmdk-icon" aria-hidden="true"><rect x="2" y="4" width="12" height="8" /><path d="M2 7 H14" /></svg>`,
+          private: `<svg viewBox="0 0 16 16" class="cmdk-icon" aria-hidden="true"><path d="M2 12 L6 8 L9 10 L13 5" /><path d="M13 5 H10 M13 5 V8" /></svg>`,
+          page:    `<svg viewBox="0 0 16 16" class="cmdk-icon" aria-hidden="true"><path d="M3 8 H13 M10 5 L13 8 L10 11" /></svg>`,
+        };
+
+        const render = (raw: string) => {
+          const q = raw.trim().toLowerCase();
+          if (!q) {
+            visible = entries.slice(0, 8);
+          } else {
+            visible = entries
+              .map((e) => ({ e, s: score(e, q) }))
+              .filter((x) => x.s > 0)
+              .sort((a, b) => b.s - a.s)
+              .slice(0, 12)
+              .map((x) => x.e);
+          }
+          selected = 0;
+          list.innerHTML = visible.length === 0
+            ? `<li class="cmdk-empty">No matches</li>`
+            : visible.map((e, i) => `
+              <li role="option" data-href="${e.href}" data-idx="${i}" class="cmdk-row${i === 0 ? ' is-selected' : ''}" aria-selected="${i === 0}">
+                <span class="cmdk-icon-cell" data-kind="${e.kind}">${ICONS[e.kind]}</span>
+                <span class="cmdk-name">${escapeHtml(e.name)}</span>
+                <span class="cmdk-sub">${escapeHtml(e.sub)}</span>
+              </li>
+            `).join('');
+        };
+
+        const updateSelected = (next: number) => {
+          if (visible.length === 0) return;
+          selected = (next + visible.length) % visible.length;
+          const rows = list.querySelectorAll<HTMLLIElement>('.cmdk-row');
+          rows.forEach((row, i) => {
+            const on = i === selected;
+            row.classList.toggle('is-selected', on);
+            row.setAttribute('aria-selected', on ? 'true' : 'false');
+            if (on) row.scrollIntoView({ block: 'nearest' });
+          });
+        };
+
+        const escapeHtml = (s: string) =>
+          s.replace(/[&<>"']/g, (c) =>
+            c === '&' ? '&amp;'
+            : c === '<' ? '&lt;'
+            : c === '>' ? '&gt;'
+            : c === '"' ? '&quot;'
+            : '&#39;');
+
+        // Global open shortcuts.
+        document.addEventListener('keydown', (e) => {
+          const meta = e.metaKey || e.ctrlKey;
+          if (meta && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            root.hidden ? open() : close();
+            return;
+          }
+          if (e.key === '/' && root.hidden) {
+            const t = e.target as HTMLElement | null;
+            const tag = t?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+            e.preventDefault();
+            open();
+          }
+        });
+
+        root.addEventListener('click', (e) => {
+          const t = e.target as HTMLElement;
+          if (t.closest('[data-cmdk-close]')) { close(); return; }
+          const row = t.closest('.cmdk-row') as HTMLLIElement | null;
+          if (row?.dataset.href) go(row.dataset.href);
+        });
+
+        // Any element marked [data-cmdk-open] (e.g. the header search button)
+        // opens the palette.
+        document.querySelectorAll<HTMLElement>('[data-cmdk-open]').forEach((el) => {
+          el.addEventListener('click', (e) => {
+            e.preventDefault();
+            open();
+          });
+        });
+
+        input.addEventListener('input', () => render(input.value));
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+          if (e.key === 'ArrowDown') { e.preventDefault(); updateSelected(selected + 1); return; }
+          if (e.key === 'ArrowUp')   { e.preventDefault(); updateSelected(selected - 1); return; }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = visible[selected];
+            if (target) go(target.href);
+          }
+        });
+      }
+    </script>
+
     <slot />
     <style>
-      .app-header .synced {
+      /* Header search trigger. Sits on the right side of the header,
+         immediately before the synced indicator. Claims margin-left:auto
+         so the search button + synced cluster ride the right edge. */
+      .header-search {
         margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        color: var(--fg-muted);
+        cursor: pointer;
+        width: 1.1rem;
+        height: 1.1rem;
+        letter-spacing: normal;
+        text-transform: none;
+      }
+      .header-search:hover { color: var(--fg); opacity: 1; }
+      .header-search svg { width: 0.95rem; height: 0.95rem; display: block; }
+
+      .app-header .synced {
         display: inline-flex;
         align-items: center;
         gap: var(--space-1);
@@ -149,6 +371,197 @@ const syncTitle = lastSyncedAt != null
           text-decoration: none;
           color: var(--fg);
         }
+      }
+    </style>
+
+    {/* Palette styles must NOT be Astro-scoped: the result rows are injected
+        via innerHTML by the client script, so they don't carry the data-cid
+        attribute that scoped selectors require. Class names are all .cmdk-*
+        prefixed; no collision risk. */}
+    <style is:global>
+      /* === Command palette =============================================
+         Centered overlay matching the app's "no-radius / uppercase chrome
+         / cased data" language. Three stacked sections: input row,
+         scrolling result list, footer of keyboard hints. */
+      .cmdk {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+      }
+      .cmdk[hidden] { display: none; }
+      .cmdk-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 10, 10, 0.16);
+      }
+      .cmdk-panel {
+        position: absolute;
+        top: 12vh;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(34rem, calc(100vw - var(--space-6) * 2));
+        max-height: min(70vh, 36rem);
+        background: var(--bg);
+        border: 1px solid var(--fg);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.10);
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      /* Input row: search icon + bare input + ESC chip. */
+      .cmdk-input-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: var(--space-3);
+        padding: 0 var(--space-3);
+        border-bottom: 1px solid var(--rule);
+      }
+      .cmdk-search-icon {
+        width: 0.85rem;
+        height: 0.85rem;
+        fill: none;
+        stroke: var(--fg-muted);
+        stroke-width: 1.25;
+        stroke-linecap: round;
+        flex-shrink: 0;
+      }
+      .cmdk-input-row input {
+        width: 100%;
+        border: 0;
+        padding: var(--space-3) 0;
+        background: transparent;
+        font-size: var(--size-sm);
+        letter-spacing: normal;
+        text-transform: none;
+        color: var(--fg);
+      }
+      .cmdk-input-row input::placeholder {
+        color: var(--fg-muted);
+        text-transform: none;
+        letter-spacing: normal;
+      }
+      .cmdk-input-row input:focus { outline: 0; }
+      .cmdk-esc {
+        font: inherit;
+        font-size: 0.625rem;
+        line-height: 1;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--fg-muted);
+        background: var(--bg);
+        padding: 0.25rem 0.45rem;
+        border: 1px solid var(--rule-strong);
+        border-radius: 0;
+        cursor: pointer;
+      }
+      .cmdk-esc:hover { color: var(--fg); border-color: var(--fg); opacity: 1; }
+
+      /* Result list. */
+      .cmdk-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        overflow-y: auto;
+        min-height: 0;
+      }
+      /* Rows render as a 3-column "table": icon | name (truncates) | sub
+         (right-aligned). All columns left-anchored to the same grid so
+         names line up vertically down the list. */
+      .cmdk-row {
+        display: grid;
+        grid-template-columns: 1.25rem 1fr auto;
+        align-items: center;
+        gap: var(--space-3);
+        padding: 0.55rem var(--space-4);
+        cursor: pointer;
+        font-size: var(--size-sm);
+        line-height: 1.25;
+        border-top: 1px solid transparent;
+      }
+      .cmdk-row + .cmdk-row { border-top-color: var(--rule); }
+      .cmdk-row:hover { background: var(--bg-subtle); }
+      .cmdk-row.is-selected { background: var(--bg-subtle); }
+      .cmdk-row.is-selected .cmdk-icon-cell { color: var(--fg); }
+
+      .cmdk-icon-cell {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        color: var(--fg-muted);
+      }
+      .cmdk-icon {
+        width: 0.95rem;
+        height: 0.95rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.25;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        display: block;
+      }
+      .cmdk-name {
+        color: var(--fg);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      .cmdk-sub {
+        color: var(--fg-muted);
+        font-size: var(--size-xs);
+        white-space: nowrap;
+        letter-spacing: 0.02em;
+      }
+      .cmdk-empty {
+        padding: var(--space-6) var(--space-3);
+        text-align: center;
+        color: var(--fg-muted);
+        font-size: var(--size-xs);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      /* Footer: keyboard hints. */
+      .cmdk-foot {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        border-top: 1px solid var(--rule);
+        font-size: 0.625rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--fg-muted);
+      }
+      .cmdk-foot-spacer { flex: 1; }
+      .cmdk-foot kbd {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.625rem;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        padding: 0.05rem 0.3rem;
+        margin-right: 0.25rem;
+        letter-spacing: 0.05em;
+      }
+
+      @media (max-width: 40rem) {
+        .cmdk-panel { top: 6vh; width: calc(100vw - var(--space-4) * 2); max-height: 80vh; }
+        .cmdk-row {
+          grid-template-columns: 1.25rem 1fr;
+          align-items: start;
+          padding: 0.5rem var(--space-3);
+        }
+        .cmdk-icon-cell { margin-top: 0.05rem; }
+        .cmdk-sub {
+          grid-column: 2 / -1;
+          padding-top: 0.125rem;
+          font-size: 0.6875rem;
+        }
+        .cmdk-foot { flex-wrap: wrap; gap: var(--space-2); }
       }
     </style>
   </body>

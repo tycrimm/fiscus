@@ -901,6 +901,43 @@ export async function activityFeed(d: DB, opts: { days?: number } = {}): Promise
   return events;
 }
 
+export type SearchEntry = {
+  href: string;
+  name: string;
+  sub: string;
+  kind: 'account' | 'private' | 'page';
+};
+
+export async function searchIndex(d: DB): Promise<SearchEntry[]> {
+  const r = await rows<{ id: string; name: string; institution: string; kind: string; is_priv: number }>(
+    d,
+    sql`
+      SELECT a.id AS id, a.name AS name, i.name AS institution, a.kind AS kind, 0 AS is_priv
+      FROM accounts a JOIN institutions i ON i.id = a.institution_id
+      WHERE a.archived_at IS NULL
+      UNION ALL
+      SELECT pi.id AS id, pi.name AS name, '' AS institution, pi.kind AS kind, 1 AS is_priv
+      FROM private_investments pi
+      WHERE pi.archived_at IS NULL
+    `,
+    ['id', 'name', 'institution', 'kind', 'is_priv'],
+  );
+  return r.map((row) => num(row.is_priv) === 1
+    ? {
+        href: `/private-investments/${row.id}`,
+        name: row.name,
+        sub: `Private · ${prettyKind(row.kind)}`,
+        kind: 'private' as const,
+      }
+    : {
+        href: `/accounts/${row.id}`,
+        name: row.name,
+        sub: `${row.institution} · ${prettyKind(row.kind)}`,
+        kind: 'account' as const,
+      },
+  );
+}
+
 export async function getAccount(d: DB, accountId: string) {
   const [account] = await rows<Record<string, unknown>>(
     d,

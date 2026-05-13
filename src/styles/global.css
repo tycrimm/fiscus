@@ -89,7 +89,7 @@ a {
 
 .app-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-6);
   border-bottom: 1px solid var(--rule);
   /* Sticky at viewport top. Absorb the body's top padding into padding-top
