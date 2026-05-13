@@ -1,7 +1,7 @@
 ---
 import { fmtUSD, fmtTickMonthYearShort } from '../lib/format';
 import { CHART_W, CHART_PAD_T, CHART_INNER_H } from '../lib/chart';
-import Chart, { type ChartHoverPoint, type ChartMark, type ChartTick, type ChartYTick } from './Chart.astro';
+import Chart, { type ChartHoverPoint, type ChartTick, type ChartYTick } from './Chart.astro';
 
 export type BalancePoint = {
   as_of: number;
@@ -97,8 +97,6 @@ if (series.length > 0) {
   }
 }
 
-const marks: ChartMark[] = series.map((p) => ({ x: xAt(p.as_of), y: yAt(p.balance_cents) }));
-
 const first = series[0];
 const last = series[series.length - 1];
 const rawChange = last && first ? last.balance_cents - first.balance_cents : 0;
@@ -125,7 +123,6 @@ const points: ChartHoverPoint[] = series.map((p) => ({
   delta={series.length > 1 ? { cents: change, pct: signedChangePct, pctDecimals: 1 } : null}
   area={area}
   paths={stepPath ? [{ d: stepPath, variant: 'solid' as const }] : []}
-  marks={marks}
   ticks={ticks}
   yTicks={yTicks}
   points={points}
