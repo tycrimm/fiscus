@@ -18,7 +18,7 @@ const points_ = series.filter((p) => !p.synthetic && p.date >= CAPTURE_BASELINE_
 
 const xAt = (i: number) => (i / Math.max(points_.length - 1, 1)) * CHART_W;
 
-// === Line view (existing behavior) ====================================
+// === Line view ========================================================
 const lineY = (() => {
   const totals = points_.map((p) => p.total_cents);
   const lo = totals.length ? Math.min(...totals) : 0;
@@ -65,53 +65,54 @@ const lineHoverPoints: ChartHoverPoint[] = points_.map((p, i) => ({
   readout: `${fmtReadoutDate(p.date)} · ${fmtUSD.format(p.total_cents / 100)}`,
 }));
 
-// === Breakdown view ===================================================
-// Asset stack (bottom→top, biggest at bottom): invest, other, private, cash
-// Liability stack (zero→down, biggest at bottom): amortized, revolving
-const ASSET_LAYERS = [
-  { label: 'Investments', cls: 'band-a-1', get: (p: NetWorthPoint) => p.invest_cents },
-  { label: 'Other',       cls: 'band-a-2', get: (p: NetWorthPoint) => p.other_cents },
-  { label: 'Private',     cls: 'band-a-3', get: (p: NetWorthPoint) => p.private_cents },
-  { label: 'Cash',        cls: 'band-a-4', get: (p: NetWorthPoint) => p.cash_cents },
-] as const;
+// === Breakdown view (absolute split-y + side legend) ==================
+type LayerCfg = {
+  key: string;
+  label: string;
+  cls: string;        // legend swatch class
+  bandCls: string;    // SVG band class
+  neg: boolean;
+  get: (p: NetWorthPoint) => number;
+};
 
-const LIAB_LAYERS = [
-  { label: 'Amortized', cls: 'band-l-1', get: (p: NetWorthPoint) => p.amortized_cents },
-  { label: 'Revolving', cls: 'band-l-2', get: (p: NetWorthPoint) => p.revolving_cents },
-] as const;
+const ASSET_LAYERS: LayerCfg[] = [
+  { key: 'invest', label: 'Investments', cls: 'sw-invest', bandCls: 'band-a-1', neg: false, get: (p) => p.invest_cents },
+  { key: 'other',  label: 'Other',       cls: 'sw-other',  bandCls: 'band-a-2', neg: false, get: (p) => p.other_cents },
+  { key: 'priv',   label: 'Private',     cls: 'sw-priv',   bandCls: 'band-a-3', neg: false, get: (p) => p.private_cents },
+  { key: 'cash',   label: 'Cash',        cls: 'sw-cash',   bandCls: 'band-a-4', neg: false, get: (p) => p.cash_cents },
+];
+
+const LIAB_LAYERS: LayerCfg[] = [
+  { key: 'amort', label: 'Amortized', cls: 'sw-amort', bandCls: 'band-l-1', neg: true, get: (p) => p.amortized_cents },
+  { key: 'rev',   label: 'Revolving', cls: 'sw-rev',   bandCls: 'band-l-2', neg: true, get: (p) => p.revolving_cents },
+];
+
+const ALL_LAYERS = [...ASSET_LAYERS, ...LIAB_LAYERS];
 
 const assetTotals = points_.map((p) => ASSET_LAYERS.reduce((s, l) => s + l.get(p), 0));
 const liabTotals = points_.map((p) => LIAB_LAYERS.reduce((s, l) => s + l.get(p), 0));
+const grossTotals = assetTotals.map((a, i) => Math.max(a + liabTotals[i], 1));
 
-// Split-y axis: at proportional scale, liabilities (~1-2% of NW) would be
-// a sub-pixel red strip. Give the bottom region a fixed share of the
-// chart so its bands stay legible at their own scale. The trade-off:
-// pixel distance between asset-top and NW line no longer equals the
-// liability band height — the legend carries the exact numbers.
-const BOT_FRAC = 0.30;
+// Split-y axis: at proportional scale, liabilities (~10-15% of NW) would
+// be a thin red strip. Give the bottom region a fixed share of the chart
+// so its bands stay legible at their own scale.
+const BOT_FRAC = 0.22;
 const maxAssets = assetTotals.length ? Math.max(...assetTotals) : 0;
 const maxLiabs = liabTotals.length ? Math.max(...liabTotals) : 0;
 const assetScale = maxAssets * 1.08;
-const liabScale = maxLiabs * 1.08;
-// No debt → give the whole chart to assets (no awkward empty negative band).
-const effectiveBotFrac = maxLiabs > 0 ? BOT_FRAC : 0;
-const assetHeight = (1 - effectiveBotFrac) * CHART_INNER_H;
-const liabHeight = effectiveBotFrac * CHART_INNER_H;
+const liabScale = maxLiabs * 1.20;
+const effBotFrac = maxLiabs > 0 ? BOT_FRAC : 0;
+const assetHeight = (1 - effBotFrac) * CHART_INNER_H;
+const liabHeight = effBotFrac * CHART_INNER_H;
 const zeroY = CHART_PAD_T + assetHeight;
 
-const breakY = (cents: number) => {
-  if (cents >= 0) return zeroY - (cents / Math.max(assetScale, 1)) * assetHeight;
-  return zeroY - (cents / Math.max(liabScale, 1)) * liabHeight;
-};
+const yA = (v: number) => zeroY - (v / Math.max(assetScale, 1)) * assetHeight;
+const yL = (v: number) => zeroY + (v / Math.max(liabScale, 1)) * liabHeight;
 
-function bandPath(lower: number[], upper: number[]): string {
-  if (lower.length < 2) return '';
-  const top = upper.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${breakY(v).toFixed(2)}`).join(' ');
-  const bot = lower
-    .map((v, i) => ({ i, v }))
-    .reverse()
-    .map(({ i, v }) => `L ${xAt(i).toFixed(2)} ${breakY(v).toFixed(2)}`)
-    .join(' ');
+function areaPath(values: number[], yFn: (v: number) => number, lower: number[]): string {
+  if (values.length < 2) return '';
+  const top = values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yFn(v).toFixed(2)}`).join(' ');
+  const bot = lower.map((v, i) => ({ i, v })).reverse().map(({ i, v }) => `L ${xAt(i).toFixed(2)} ${yFn(v).toFixed(2)}`).join(' ');
   return `${top} ${bot} Z`;
 }
 
@@ -120,42 +121,126 @@ const assetBands: { d: string; cls: string }[] = [];
   let cum = points_.map(() => 0);
   for (const layer of ASSET_LAYERS) {
     const next = cum.map((c, i) => c + layer.get(points_[i]));
-    assetBands.push({ d: bandPath(cum, next), cls: layer.cls });
+    assetBands.push({ d: areaPath(next, yA, cum), cls: layer.bandCls });
     cum = next;
   }
 }
-
 const liabBands: { d: string; cls: string }[] = [];
 {
   let cum = points_.map(() => 0);
   for (const layer of LIAB_LAYERS) {
-    const next = cum.map((c, i) => c - layer.get(points_[i]));
-    liabBands.push({ d: bandPath(next, cum), cls: layer.cls });
+    const next = cum.map((c, i) => c + layer.get(points_[i]));
+    liabBands.push({ d: areaPath(next, yL, cum), cls: layer.bandCls });
     cum = next;
   }
 }
-
-const nwBreakPath = points_
-  .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${breakY(p.total_cents).toFixed(2)}`)
+// NW line — top of asset stack
+const nwLinePath = points_
+  .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yA(assetTotals[i]).toFixed(2)}`)
   .join(' ');
 
-const breakHoverPoints = points_.map((p, i) => ({
-  x: xAt(i),
-  y: breakY(p.total_cents),
-  readout: `${fmtReadoutDate(p.date)} · NW ${fmtUSD.format(p.total_cents / 100)} · A ${fmtUSD.format((p.cash_cents + p.invest_cents + p.other_cents + p.private_cents) / 100)} · L ${fmtUSD.format((p.revolving_cents + p.amortized_cents) / 100)}`,
-}));
+const fmtPct1 = (n: number) => `${(n * 100).toFixed(1)}%`;
+
+// Per-point legend data: cents + pct-of-gross for each band, plus the NW
+// total. JS swaps these into the legend on hover.
+type LegendCell = { cents: number; pct: number };
+type LegendPoint = {
+  x: number;
+  y: number;
+  date: string;
+  nwCents: number;
+  nwPct: number;
+  rows: LegendCell[]; // same order as ALL_LAYERS
+};
+const legendPoints: LegendPoint[] = points_.map((p, i) => {
+  const g = grossTotals[i];
+  return {
+    x: xAt(i),
+    y: yA(assetTotals[i]),
+    date: fmtReadoutDate(p.date),
+    nwCents: p.total_cents,
+    nwPct: p.total_cents / g,
+    rows: ALL_LAYERS.map((l) => ({ cents: l.get(p), pct: l.get(p) / g })),
+  };
+});
+const lastLegend = legendPoints[legendPoints.length - 1] ?? null;
 
 const deltaZero = isDisplayZero(change);
 const pos = change >= 0;
 
 const hasData = points_.length > 0;
 const breakdownHasShape = points_.length > 1;
+
+// === Multiples view (small multiples grid) ============================
+const SM_W = 200;
+const SM_H = 36;
+
+type MultCard = {
+  key: string;
+  label: string;
+  cls: string;
+  neg: boolean;
+  curCents: number;
+  pctOfGross: number;
+  changeCents: number;
+  changePct: number;
+  sparkPath: string;
+  areaPath: string;
+  hasSpark: boolean;
+};
+
+const multCards: MultCard[] = ALL_LAYERS.map((l) => {
+  const values = points_.map(l.get);
+  const cur = values[values.length - 1] ?? 0;
+  const startVal = values[0] ?? 0;
+  const changeCents = cur - startVal;
+  const changePct = startVal !== 0 ? changeCents / startVal : 0;
+  const gLast = grossTotals[grossTotals.length - 1] ?? 0;
+  const pctOfGross = gLast > 0 ? cur / gLast : 0;
+
+  let sparkPath = '';
+  let aPath = '';
+  let hasSpark = false;
+  if (values.length >= 2) {
+    const lo = Math.min(...values);
+    const hi = Math.max(...values);
+    const span = Math.max(hi - lo, 1);
+    const sxAt = (i: number) => (i / (values.length - 1)) * SM_W;
+    const syAt = (v: number) => SM_H - 3 - ((v - lo) / span) * (SM_H - 6);
+    sparkPath = values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${sxAt(i).toFixed(1)} ${syAt(v).toFixed(1)}`).join(' ');
+    aPath = `${sparkPath} L ${sxAt(values.length - 1).toFixed(1)} ${SM_H} L 0 ${SM_H} Z`;
+    hasSpark = true;
+  }
+  return {
+    key: l.key, label: l.label, cls: l.cls, neg: l.neg,
+    curCents: cur, pctOfGross, changeCents, changePct,
+    sparkPath, areaPath: aPath, hasSpark,
+  };
+});
 ---
 <div class="nw-chart" data-mode="line">
   <div class="nw-toolbar">
-    <div class="nw-toggle">
-      <button type="button" data-mode="line" class="active">line</button>
-      <button type="button" data-mode="breakdown">breakdown</button>
+    <div class="nw-toggle" role="tablist">
+      <button type="button" data-mode="line" class="active" title="Trend" aria-label="Trend">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><polyline points="1,12 5,7 9,9 15,3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" /></svg>
+      </button>
+      <button type="button" data-mode="breakdown" title="Breakdown" aria-label="Breakdown">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M0 16 L0 11 L4 7 L8 9 L12 5 L16 7 L16 16 Z" fill="currentColor" fill-opacity="0.25"/>
+          <path d="M0 16 L0 13 L4 10 L8 12 L12 8 L16 10 L16 16 Z" fill="currentColor" fill-opacity="0.45"/>
+          <path d="M0 16 L0 15 L4 13 L8 14 L12 11 L16 13 L16 16 Z" fill="currentColor" fill-opacity="0.75"/>
+        </svg>
+      </button>
+      <button type="button" data-mode="multiples" title="Components" aria-label="Components">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <rect x="1" y="2" width="4" height="4" fill="currentColor" />
+          <rect x="6" y="2" width="4" height="4" fill="currentColor" />
+          <rect x="11" y="2" width="4" height="4" fill="currentColor" />
+          <rect x="1" y="10" width="4" height="4" fill="currentColor" />
+          <rect x="6" y="10" width="4" height="4" fill="currentColor" />
+          <rect x="11" y="10" width="4" height="4" fill="currentColor" />
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -192,37 +277,117 @@ const breakdownHasShape = points_.length > 1;
     ) : !breakdownHasShape ? (
       <p class="break-empty">BREAKDOWN BEGINS WITH A SECOND SNAPSHOT — CHECK BACK TOMORROW.</p>
     ) : (
-      <div class="break-wrap" data-points={JSON.stringify(breakHoverPoints)} data-vb-w={CHART_W}>
-        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" class="break-svg" role="img" aria-label="net worth breakdown">
-          {assetBands.map((b) => (
-            <path d={b.d} class={`break-band ${b.cls}`} />
-          ))}
-          {liabBands.map((b) => (
-            <path d={b.d} class={`break-band ${b.cls}`} />
-          ))}
-          <line x1="0" x2={CHART_W} y1={zeroY.toFixed(2)} y2={zeroY.toFixed(2)} class="break-zero" vector-effect="non-scaling-stroke" />
-          <path d={nwBreakPath} class="break-line" vector-effect="non-scaling-stroke" />
-          <g class="break-hover" style="display:none">
-            <line class="break-cross" y1={CHART_PAD_T} y2={CHART_PAD_T + CHART_INNER_H} vector-effect="non-scaling-stroke" />
-            <circle class="break-dot" r="3" />
-          </g>
-        </svg>
-        <div class="break-axis">
-          {ticks.map((t) => (
-            <span class="break-tick" style={`left: ${(t.x / CHART_W) * 100}%`}>{t.label}</span>
-          ))}
+      <div class="break-body">
+        <div class="break-wrap" data-points={JSON.stringify(legendPoints)} data-vb-w={CHART_W}>
+          <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" class="break-svg" role="img" aria-label="net worth breakdown">
+            {assetBands.map((b) => (
+              <path d={b.d} class={`break-band ${b.cls}`} />
+            ))}
+            {liabBands.map((b) => (
+              <path d={b.d} class={`break-band ${b.cls}`} />
+            ))}
+            <line x1="0" x2={CHART_W} y1={zeroY.toFixed(2)} y2={zeroY.toFixed(2)} class="break-zero" vector-effect="non-scaling-stroke" />
+            <path d={nwLinePath} class="break-line" vector-effect="non-scaling-stroke" />
+            <g class="break-hover" style="display:none">
+              <line class="break-cross" y1={CHART_PAD_T} y2={CHART_PAD_T + CHART_INNER_H} vector-effect="non-scaling-stroke" />
+              <circle class="break-dot" r="3" />
+            </g>
+          </svg>
+          <div class="break-axis">
+            {ticks.map((t) => (
+              <span class="break-tick" style={`left: ${(t.x / CHART_W) * 100}%`}>{t.label}</span>
+            ))}
+          </div>
         </div>
+        <aside class="break-legend">
+          <table>
+            {ALL_LAYERS.map((l, idx) => (
+              <tr data-idx={idx}>
+                <td class="sw"><span class={`bd-sw ${l.cls}`} /></td>
+                <td class="cat">{l.label}</td>
+                <td class={`amt ${l.neg ? 'neg' : ''}`} data-amt>
+                  {l.neg ? '−' : ''}{lastLegend ? fmtUSD.format(lastLegend.rows[idx].cents / 100) : '—'}
+                </td>
+                <td class="pct" data-pct>{lastLegend ? fmtPct1(lastLegend.rows[idx].pct) : '—'}</td>
+              </tr>
+            ))}
+            <tr class="tot">
+              <td class="sw"><span class="bd-sw sw-nw" /></td>
+              <td class="cat">Net worth</td>
+              <td class="amt" data-nw>{lastLegend ? fmtUSD.format(lastLegend.nwCents / 100) : '—'}</td>
+              <td class="pct" data-nw-pct>{lastLegend ? fmtPct1(lastLegend.nwPct) : '—'}</td>
+            </tr>
+          </table>
+        </aside>
       </div>
     )}
+  </div>
 
+  <div class="nw-view view-multiples">
+    <header class="break-head">
+      <span class="break-label">net worth · components</span>
+      {points_.length > 1 && (
+        deltaZero ? (
+          <div class="break-delta zero"><span class="num">—</span></div>
+        ) : (
+          <div class={`break-delta ${pos ? 'pos' : 'neg'}`}>
+            <span class="num">{pos ? '+' : '−'}{fmtUSD.format(Math.abs(change) / 100)}</span>
+            <span class="num pct">({pos ? '+' : '−'}{(Math.abs(changePct) * 100).toFixed(2)}%)</span>
+          </div>
+        )
+      )}
+    </header>
+
+    {!hasData ? (
+      <p class="break-empty">NO SNAPSHOTS YET — DAILY CRON FILLS THIS IN.</p>
+    ) : (
+      <div class="mult-grid">
+        {multCards.map((c) => {
+          // "good" direction differs for liabilities (paying debt down = good)
+          const goodMove = c.neg ? c.changeCents < 0 : c.changeCents > 0;
+          const deltaCls = c.changeCents === 0 ? '' : (goodMove ? 'pos' : 'neg');
+          const sign = c.changeCents > 0 ? '+' : c.changeCents < 0 ? '−' : '';
+          return (
+            <div class="sm-card">
+              <div class="sm-head">
+                <span class={`bd-sw ${c.cls}`} />
+                <span class="sm-cat">{c.label}</span>
+                <span class="sm-pct">{fmtPct1(c.pctOfGross)}</span>
+              </div>
+              <div class={`sm-amt ${c.neg ? 'neg' : ''}`}>
+                {c.neg ? '−' : ''}{fmtUSD.format(c.curCents / 100)}
+              </div>
+              {c.hasSpark && (
+                <svg class="sm-svg" viewBox={`0 0 ${SM_W} ${SM_H}`} preserveAspectRatio="none" aria-hidden="true">
+                  <path d={c.areaPath} class={`sm-area ${c.neg ? 'neg-fill' : ''}`} />
+                  <path d={c.sparkPath} class={`sm-spark ${c.neg ? 'neg-stroke' : ''}`} />
+                </svg>
+              )}
+              {points_.length > 1 ? (
+                <div class={`sm-delta ${deltaCls}`}>
+                  <span class="num">{sign}{fmtUSD.format(Math.abs(c.changeCents) / 100)}</span>
+                  <span class="num pct">({sign}{(Math.abs(c.changePct) * 100).toFixed(1)}%)</span>
+                </div>
+              ) : (
+                <div class="sm-delta zero"><span class="num">—</span></div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )}
   </div>
 </div>
 
 <script>
-  type Pt = { x: number; y: number; readout: string };
+  type LegendCell = { cents: number; pct: number };
+  type LegendPt = { x: number; y: number; date: string; nwCents: number; nwPct: number; rows: LegendCell[] };
+
+  const fmtUSD0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const fmtPct1 = (n: number) => `${(n * 100).toFixed(1)}%`;
 
   for (const root of document.querySelectorAll<HTMLElement>('.nw-chart')) {
-    // toggle line / breakdown
+    // toggle
     for (const btn of root.querySelectorAll<HTMLButtonElement>('.nw-toggle button')) {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.mode!;
@@ -233,11 +398,11 @@ const breakdownHasShape = points_.length > 1;
       });
     }
 
-    // breakdown hover
+    // breakdown hover — updates side legend + crosshair
     const wrap = root.querySelector<HTMLElement>('.break-wrap');
     if (!wrap) continue;
-    const points = JSON.parse(wrap.dataset.points!) as Pt[];
-    if (points.length === 0) continue;
+    const pts = JSON.parse(wrap.dataset.points!) as LegendPt[];
+    if (pts.length === 0) continue;
     const vbW = Number(wrap.dataset.vbW);
     const svg = wrap.querySelector<SVGSVGElement>('svg')!;
     const hoverG = wrap.querySelector<SVGGElement>('.break-hover')!;
@@ -245,14 +410,32 @@ const breakdownHasShape = points_.length > 1;
     const dot = hoverG.querySelector<SVGCircleElement>('.break-dot')!;
     const head = root.querySelector<HTMLElement>('.break-head')!;
     const readout = head.querySelector<HTMLElement>('.break-readout')!;
+    const legend = root.querySelector<HTMLElement>('.break-legend')!;
+    const rowEls = Array.from(legend.querySelectorAll<HTMLTableRowElement>('tr[data-idx]'));
+    const nwAmtEl = legend.querySelector<HTMLElement>('[data-nw]')!;
+    const nwPctEl = legend.querySelector<HTMLElement>('[data-nw-pct]')!;
+
+    const renderLegend = (pt: LegendPt) => {
+      for (let i = 0; i < rowEls.length; i++) {
+        const row = rowEls[i];
+        const cell = pt.rows[i];
+        const amtEl = row.querySelector<HTMLElement>('[data-amt]')!;
+        const pctEl = row.querySelector<HTMLElement>('[data-pct]')!;
+        const neg = amtEl.classList.contains('neg');
+        amtEl.textContent = (neg ? '−' : '') + fmtUSD0.format(cell.cents / 100);
+        pctEl.textContent = fmtPct1(cell.pct);
+      }
+      nwAmtEl.textContent = fmtUSD0.format(pt.nwCents / 100);
+      nwPctEl.textContent = fmtPct1(pt.nwPct);
+    };
 
     const onMove = (e: PointerEvent) => {
       const rect = svg.getBoundingClientRect();
       if (rect.width === 0) return;
       const xView = ((e.clientX - rect.left) / rect.width) * vbW;
-      let best = points[0];
+      let best = pts[0];
       let bestDelta = Math.abs(xView - best.x);
-      for (const p of points) {
+      for (const p of pts) {
         const delta = Math.abs(xView - p.x);
         if (delta < bestDelta) { best = p; bestDelta = delta; }
       }
@@ -261,12 +444,14 @@ const breakdownHasShape = points_.length > 1;
       dot.setAttribute('cx', String(best.x));
       dot.setAttribute('cy', String(best.y));
       hoverG.style.display = '';
-      readout.textContent = best.readout;
+      readout.textContent = `${best.date} · ${fmtUSD0.format(best.nwCents / 100)}`;
       head.classList.add('hovering');
+      renderLegend(best);
     };
     const onLeave = () => {
       hoverG.style.display = 'none';
       head.classList.remove('hovering');
+      renderLegend(pts[pts.length - 1]);
     };
     wrap.addEventListener('pointermove', onMove);
     wrap.addEventListener('pointerleave', onLeave);
@@ -283,36 +468,33 @@ const breakdownHasShape = points_.length > 1;
   }
 
   /* toolbar */
-  .nw-toolbar {
-    display: flex;
-    justify-content: flex-end;
-  }
-  .nw-toggle {
-    display: flex;
-    border: 1px solid var(--rule-strong);
-  }
+  .nw-toolbar { display: flex; justify-content: flex-end; }
+  .nw-toggle { display: flex; border: 1px solid var(--rule-strong); }
   .nw-toggle button {
     background: var(--bg);
     border: 0;
     border-right: 1px solid var(--rule-strong);
-    padding: 0.25rem 0.625rem;
+    padding: 0.3rem 0.5rem;
     font: inherit;
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
     color: var(--fg-muted);
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
   }
   .nw-toggle button:last-child { border-right: 0; }
   .nw-toggle button.active { background: var(--fg); color: var(--bg); }
   .nw-toggle button:hover:not(.active) { color: var(--fg); }
+  .nw-toggle button svg { display: block; }
 
   /* view switching */
   .nw-view { display: none; }
   .nw-chart[data-mode="line"] .view-line { display: block; }
   .nw-chart[data-mode="breakdown"] .view-breakdown { display: block; }
+  .nw-chart[data-mode="multiples"] .view-multiples { display: block; }
 
-  /* breakdown header (mirrors Chart.astro's chart-head) */
+  /* shared head (breakdown + multiples) */
   .break-head {
     position: relative;
     display: flex;
@@ -357,27 +539,26 @@ const breakdownHasShape = points_.length > 1;
   .break-head.hovering .break-delta { opacity: 0; }
   .break-head.hovering .break-readout { opacity: 1; }
 
-  /* breakdown chart body */
-  .break-wrap {
-    position: relative;
-    touch-action: none;
+  /* breakdown: chart + side legend */
+  .break-body {
+    display: grid;
+    grid-template-columns: 1fr 14rem;
+    gap: var(--space-5);
+    align-items: start;
     margin-top: var(--space-2);
   }
+  @media (max-width: 56rem) {
+    .break-body { grid-template-columns: 1fr; }
+  }
+  .break-wrap { position: relative; touch-action: none; }
   .break-svg {
     width: 100%;
     height: 220px;
     display: block;
     overflow: visible;
   }
-  .break-zero {
-    stroke: var(--rule-strong);
-    stroke-width: 1;
-  }
-  .break-line {
-    fill: none;
-    stroke: var(--fg);
-    stroke-width: 1.25;
-  }
+  .break-zero { stroke: var(--rule-strong); stroke-width: 1; }
+  .break-line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
   .break-cross {
     stroke: var(--fg-muted);
     stroke-width: 1;
@@ -408,16 +589,52 @@ const breakdownHasShape = points_.length > 1;
   .break-tick:first-child { transform: translateX(0); }
   .break-tick:last-child { transform: translateX(-100%); }
 
-  /* asset bands: stack of fg with decreasing opacity (largest layer
-     darkest, smallest at top lightest) */
+  /* asset / liab bands */
   .break-band { stroke: none; }
   .break-band.band-a-1 { fill: var(--fg); fill-opacity: 0.18; }
   .break-band.band-a-2 { fill: var(--fg); fill-opacity: 0.12; }
   .break-band.band-a-3 { fill: var(--fg); fill-opacity: 0.07; }
   .break-band.band-a-4 { fill: var(--fg); fill-opacity: 0.04; }
-  /* liability bands: red, same opacity steps */
   .break-band.band-l-1 { fill: var(--neg); fill-opacity: 0.18; }
   .break-band.band-l-2 { fill: var(--neg); fill-opacity: 0.10; }
+
+  /* legend */
+  .break-legend {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .break-legend table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .break-legend td {
+    padding: var(--space-2) var(--space-1);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+  }
+  .break-legend tr.tot td {
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 0;
+    font-weight: 600;
+  }
+  .break-legend td.sw { width: 14px; padding-right: var(--space-2); }
+  .break-legend td.cat { color: var(--fg); }
+  .break-legend td.amt { text-align: right; color: var(--fg); }
+  .break-legend td.amt.neg { color: var(--neg); }
+  .break-legend td.pct { text-align: right; color: var(--fg-muted); width: 3.4em; }
+
+  /* swatches — solid colors approximating the band opacities over white */
+  .bd-sw {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 1px solid var(--rule);
+  }
+  .bd-sw.sw-invest { background: #d3d3d3; }
+  .bd-sw.sw-other  { background: #e1e1e1; }
+  .bd-sw.sw-priv   { background: #ededed; }
+  .bd-sw.sw-cash   { background: #f5f5f5; }
+  .bd-sw.sw-amort  { background: #efc8c8; }
+  .bd-sw.sw-rev    { background: #f6dcdc; }
+  .bd-sw.sw-nw     { background: var(--fg); }
 
   .break-empty {
     color: var(--fg-muted);
@@ -426,4 +643,69 @@ const breakdownHasShape = points_.length > 1;
     font-size: var(--size-sm);
   }
 
+  /* multiples */
+  .mult-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  @media (max-width: 56rem) {
+    .mult-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 32rem) {
+    .mult-grid { grid-template-columns: 1fr; }
+  }
+  .sm-card {
+    border: 1px solid var(--rule);
+    padding: var(--space-3) var(--space-4) var(--space-3);
+    display: grid;
+    gap: var(--space-1);
+  }
+  .sm-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .sm-head .bd-sw { width: 10px; height: 10px; }
+  .sm-cat {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    flex: 1;
+  }
+  .sm-pct {
+    font-size: var(--size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+  }
+  .sm-amt {
+    font-size: var(--size-lg);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .sm-amt.neg { color: var(--neg); }
+  .sm-svg {
+    width: 100%;
+    height: 36px;
+    display: block;
+    margin: var(--space-1) 0;
+  }
+  .sm-spark { fill: none; stroke: var(--fg); stroke-width: 1.25; }
+  .sm-spark.neg-stroke { stroke: var(--neg); }
+  .sm-area { fill: var(--fg); fill-opacity: 0.06; }
+  .sm-area.neg-fill { fill: var(--neg); fill-opacity: 0.06; }
+  .sm-delta {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+  }
+  .sm-delta .pct { color: var(--fg-muted); font-size: 0.6875rem; }
+  .sm-delta.pos { color: var(--pos); }
+  .sm-delta.neg { color: var(--neg); }
+  .sm-delta.zero { color: var(--fg-muted); }
 </style>
