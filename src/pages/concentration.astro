@@ -28,7 +28,7 @@ const lastSyncedAt = accounts.reduce<number | null>(
 
 const viewParam = Astro.url.searchParams.get('view');
 const view: 'class' | 'flat' | 'security' =
-  viewParam === 'flat' ? 'flat' : viewParam === 'security' ? 'security' : 'class';
+  viewParam === 'flat' ? 'flat' : viewParam === 'class' ? 'class' : 'security';
 
 const { totalCents } = computeAllocation(accounts, privateInv);
 const positions = view === 'security'
@@ -146,8 +146,8 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
         </div>
         <nav class="views" aria-label="Group by">
           <span class="k">view</span>
-          <a href="/concentration" class:list={['vlink', { active: view === 'class' }]}>by class</a>
-          <a href="/concentration?view=security" class:list={['vlink', { active: view === 'security' }]}>by security</a>
+          <a href="/concentration" class:list={['vlink', { active: view === 'security' }]}>by security</a>
+          <a href="/concentration?view=class" class:list={['vlink', { active: view === 'class' }]}>by class</a>
           <a href="/concentration?view=flat" class:list={['vlink', { active: view === 'flat' }]}>flat rank</a>
         </nav>
       </div>
