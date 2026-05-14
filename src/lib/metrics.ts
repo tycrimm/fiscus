@@ -282,6 +282,146 @@ export function topConcentration(
   return allPositions(accounts, privateInv, totalAssetsCents).slice(0, topN);
 }
 
+// ─── positions exploded by security (single-name concentration) ─────────────
+//
+// For investment accounts that have a holdings snapshot, replace the
+// account-level row with: one row per security (aggregated across accounts
+// when the same ticker is held in multiple brokerages) plus a "cash sleeve"
+// row for the residual (account balance − sum of holdings). Investment
+// accounts WITHOUT holdings data fall back to their account-level row so
+// nothing disappears from the view. Non-investment accounts and private
+// investments are unchanged.
+
+type ConcHolding = {
+  account_id: string;
+  account_name: string;
+  institution: string;
+  security_id: string;
+  ticker: string | null;
+  security_name: string;
+  security_kind: string;
+  value_cents: number;
+};
+
+const SECURITY_TO_CLASS: Record<string, PositionClass> = {
+  public: 'equities',
+  fund: 'equities',
+  crypto: 'crypto',
+  private: 'private',
+};
+
+export function positionsBySecurity(
+  accounts: ConcAccount[],
+  privateInv: ConcPrivate[],
+  holdings: ConcHolding[],
+  totalAssetsCents: number,
+): Position[] {
+  // Aggregate holdings by ticker (or by security name if no ticker exists).
+  // Plaid sometimes assigns different security_ids to the same ticker across
+  // brokerages, so grouping by security_id alone would miss cross-account
+  // concentration — the whole point of this view.
+  type Bucket = {
+    key: string;
+    label: string;
+    securityName: string;
+    accounts: Set<string>;
+    institutions: Set<string>;
+    cents: number;
+    kind: string;
+  };
+  const buckets = new Map<string, Bucket>();
+  const heldByAccount = new Map<string, number>();
+  for (const h of holdings) {
+    if (h.value_cents <= 0) continue;
+    heldByAccount.set(h.account_id, (heldByAccount.get(h.account_id) ?? 0) + h.value_cents);
+    const key = h.ticker ?? `name:${h.security_name}`;
+    let b = buckets.get(key);
+    if (!b) {
+      b = {
+        key,
+        label: h.ticker ?? h.security_name,
+        securityName: h.security_name,
+        accounts: new Set(),
+        institutions: new Set(),
+        cents: 0,
+        kind: h.security_kind,
+      };
+      buckets.set(key, b);
+    }
+    b.cents += h.value_cents;
+    b.accounts.add(h.account_id);
+    b.institutions.add(h.institution);
+  }
+
+  const positions: Array<Omit<Position, 'pct'>> = [];
+
+  for (const b of buckets.values()) {
+    const subParts: string[] = [];
+    if (b.label !== b.securityName) subParts.push(b.securityName);
+    if (b.accounts.size > 1) {
+      subParts.push(`${b.accounts.size} accounts`);
+    } else if (b.institutions.size === 1) {
+      subParts.push([...b.institutions][0]);
+    }
+    positions.push({
+      id: `sec:${b.key}`,
+      label: b.label,
+      sub: subParts.join(' · '),
+      class: SECURITY_TO_CLASS[b.kind] ?? 'equities',
+      cents: b.cents,
+    });
+  }
+
+  for (const a of accounts) {
+    if (a.is_liability) continue;
+    const cents = a.latest_cents ?? 0;
+    if (cents <= 0) continue;
+    const held = heldByAccount.get(a.id);
+    if (held != null) {
+      // Investment account with positions surfaced — only the cash sleeve
+      // (residual after subtracting positions) remains at the account level.
+      // Holdings/balance snapshots can be a few minutes apart so the residual
+      // can be slightly negative; treat that as zero (don't emit a row).
+      const residual = cents - held;
+      if (residual > 0) {
+        positions.push({
+          id: `cash:${a.id}`,
+          label: `${a.name} cash`,
+          sub: `${a.institution} · ${a.kind}`,
+          class: 'cash',
+          cents: residual,
+        });
+      }
+    } else {
+      positions.push({
+        id: a.id,
+        label: a.name,
+        sub: `${a.institution} · ${a.kind}`,
+        class: classifyAccount(a.kind),
+        cents,
+      });
+    }
+  }
+
+  for (const i of privateInv) {
+    if (i.current_value_cents <= 0) continue;
+    positions.push({
+      id: i.id,
+      label: i.name,
+      sub: i.kind,
+      class: classifyPrivate(i.kind),
+      cents: i.current_value_cents,
+      href: `/private-investments/${i.id}`,
+    });
+  }
+
+  positions.sort((a, b) => b.cents - a.cents);
+  return positions.map((p) => ({
+    ...p,
+    pct: totalAssetsCents > 0 ? p.cents / totalAssetsCents : 0,
+  }));
+}
+
 export type ConcentrationStats = {
   top1: number;   // share of gross assets held by the #1 position, 0-1
   top5: number;

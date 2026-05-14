@@ -938,6 +938,41 @@ export async function searchIndex(d: DB): Promise<SearchEntry[]> {
   );
 }
 
+// Cross-account holdings: every position in the latest per-account snapshot,
+// joined with account + institution + security. Used by the concentration
+// "by security" view to aggregate the same ticker across multiple brokerages.
+export type InvestmentHoldingRow = {
+  account_id: string;
+  account_name: string;
+  institution: string;
+  security_id: string;
+  ticker: string | null;
+  security_name: string;
+  security_kind: string;
+  value_cents: number;
+  quantity_text: string;
+  as_of: number;
+};
+
+export async function listAllHoldings(d: DB): Promise<InvestmentHoldingRow[]> {
+  return rows<InvestmentHoldingRow>(
+    d,
+    sql`
+      SELECT h.account_id, a.name AS account_name, i.name AS institution,
+        h.security_id, s.ticker, s.name AS security_name, s.kind AS security_kind,
+        h.value_cents, h.quantity_text, h.as_of
+      FROM holdings h
+      JOIN securities s ON s.id = h.security_id
+      JOIN accounts a ON a.id = h.account_id
+      JOIN institutions i ON i.id = a.institution_id
+      WHERE a.archived_at IS NULL
+        AND h.as_of = (SELECT MAX(as_of) FROM holdings h2 WHERE h2.account_id = h.account_id)
+      ORDER BY h.value_cents DESC
+    `,
+    ['account_id', 'account_name', 'institution', 'security_id', 'ticker', 'security_name', 'security_kind', 'value_cents', 'quantity_text', 'as_of'],
+  );
+}
+
 export type HoldingRow = {
   id: string;
   security_id: string;

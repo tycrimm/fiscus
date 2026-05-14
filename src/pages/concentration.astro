@@ -1,12 +1,13 @@
 ---
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
-import { listAccounts, listPrivateInvestments } from '../ops/reads';
+import { listAccounts, listAllHoldings, listPrivateInvestments } from '../ops/reads';
 import { fmtUSD, pluralize, prettyKind } from '../lib/format';
 import {
   allPositions,
   computeAllocation,
   concentrationStats,
+  positionsBySecurity,
   CLASS_LABEL,
   type Position,
   type PositionClass,
@@ -14,9 +15,10 @@ import {
 import Shell from '../layouts/Shell.astro';
 
 const d = db(env.DB);
-const [accounts, privateInv] = await Promise.all([
+const [accounts, privateInv, holdings] = await Promise.all([
   listAccounts(d),
   listPrivateInvestments(d),
+  listAllHoldings(d),
 ]);
 
 const lastSyncedAt = accounts.reduce<number | null>(
@@ -24,10 +26,14 @@ const lastSyncedAt = accounts.reduce<number | null>(
   null,
 );
 
-const view = Astro.url.searchParams.get('view') === 'flat' ? 'flat' : 'class';
+const viewParam = Astro.url.searchParams.get('view');
+const view: 'class' | 'flat' | 'security' =
+  viewParam === 'flat' ? 'flat' : viewParam === 'security' ? 'security' : 'class';
 
 const { totalCents } = computeAllocation(accounts, privateInv);
-const positions = allPositions(accounts, privateInv, totalCents);
+const positions = view === 'security'
+  ? positionsBySecurity(accounts, privateInv, holdings, totalCents)
+  : allPositions(accounts, privateInv, totalCents);
 const stats = concentrationStats(positions);
 
 // Group by class, ordered by group total descending. Used only in class view,
@@ -68,10 +74,12 @@ function collapseCashForFlat(all: Position[]): Position[] {
 }
 
 // Cumulative % runs top-to-bottom in whatever order the rows end up rendered.
-// In class view that's group-by-group; in flat view it's pure rank by cents.
+// In class view that's group-by-group; in flat/security view it's pure rank by cents.
 const orderedPositions: Position[] = view === 'flat'
   ? collapseCashForFlat(positions)
-  : groups.flatMap((g) => g.items);
+  : view === 'security'
+    ? collapseCashForFlat(positions)
+    : groups.flatMap((g) => g.items);
 const cumByPos = new Map<string, number>();
 {
   let cum = 0;
@@ -130,6 +138,8 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
         <div class="desc">
           {view === 'flat' ? (
             <>{pluralize(orderedPositions.length, 'position')}{orderedPositions.length !== positions.length ? ' · cash collapsed' : ''} · cumulative runs top-to-bottom</>
+          ) : view === 'security' ? (
+            <>{pluralize(orderedPositions.length, 'position')} · single-name risk · cumulative runs top-to-bottom</>
           ) : (
             <>{pluralize(positions.length, 'position')} across {classCountLabel} · cumulative runs top-to-bottom</>
           )}
@@ -137,6 +147,7 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
         <nav class="views" aria-label="Group by">
           <span class="k">view</span>
           <a href="/concentration" class:list={['vlink', { active: view === 'class' }]}>by class</a>
+          <a href="/concentration?view=security" class:list={['vlink', { active: view === 'security' }]}>by security</a>
           <a href="/concentration?view=flat" class:list={['vlink', { active: view === 'flat' }]}>flat rank</a>
         </nav>
       </div>
@@ -152,14 +163,14 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
           </tr>
         </thead>
         <tbody>
-          {view === 'flat' ? (
+          {view === 'flat' || view === 'security' ? (
             orderedPositions.map((p) => {
               const NameTag = p.href ? 'a' : 'span';
               return (
                 <tr class="row flat">
                   <td class="col-name">
                     <NameTag class="name" href={p.href}>{p.label}</NameTag>
-                    <span class="inst">{CLASS_LABEL[p.class]} · {prettySub(p.sub)}</span>
+                    <span class="inst">{CLASS_LABEL[p.class]}{p.sub ? <> · {prettySub(p.sub)}</> : null}</span>
                   </td>
                   <td class="col-bar">
                     <span class="bar" aria-hidden="true">
