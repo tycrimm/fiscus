@@ -27,13 +27,15 @@ export function makePlaidClient(env: PlaidEnv): PlaidApi {
 // Transactions is the closest thing to universal; brokerages and banks both have it.
 export const REQUIRED_PRODUCTS: Products[] = [Products.Transactions];
 
-// Optional products: enabled when the institution supports them. Listing them
-// here doesn't gate Link, so a Mercury (no liabilities) or a credit-card-only
-// (no investments) connection still succeeds.
-export const OPTIONAL_PRODUCTS: Products[] = [
-  Products.Investments,
-  Products.Liabilities,
-];
+// Required-if-supported: Plaid guarantees the product is enabled whenever the
+// institution offers it, but doesn't block Link if it doesn't. Stronger than
+// `optional_products` (which is best-effort) — closes brokerage items that
+// otherwise link without Investments enabled.
+export const REQUIRED_IF_SUPPORTED_PRODUCTS: Products[] = [Products.Investments];
+
+// Optional: best-effort only. Liabilities stays here — we don't actively
+// consume it yet, but listing it nudges Plaid to enable it where available.
+export const OPTIONAL_PRODUCTS: Products[] = [Products.Liabilities];
 
 export const COUNTRY: CountryCode[] = [CountryCode.Us];
 

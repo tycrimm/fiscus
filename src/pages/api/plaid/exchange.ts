@@ -33,21 +33,15 @@ export const POST: APIRoute = async ({ request }) => {
     const accessToken = exchange.data.access_token;
     const plaidItemId = exchange.data.item_id;
 
-    const itemResp = await plaid.itemGet({ access_token: accessToken });
-    const institutionPlaidId =
-      body.institution?.institution_id ?? itemResp.data.item.institution_id ?? 'unknown';
-    let institutionName = body.institution?.name ?? 'Unknown';
-    if (institutionPlaidId && institutionPlaidId !== 'unknown') {
-      try {
-        const inst = await plaid.institutionsGetById({
-          institution_id: institutionPlaidId,
-          country_codes: ['US' as any],
-        });
-        institutionName = inst.data.institution.name ?? institutionName;
-      } catch {
-        // fall back to metadata name
-      }
+    // Institution name comes from Link's onSuccess metadata, which is Plaid's
+    // canonical name — same value institutionsGetById would return. Fall back
+    // to itemGet only if the client didn't pass metadata (defensive).
+    let institutionPlaidId = body.institution?.institution_id ?? null;
+    if (!institutionPlaidId) {
+      const itemResp = await plaid.itemGet({ access_token: accessToken });
+      institutionPlaidId = itemResp.data.item.institution_id ?? 'unknown';
     }
+    const institutionName = body.institution?.name ?? 'Unknown';
 
     const d = drizzle(env.DB, { schema });
     const item = await createPlaidItem(d, env as any, {

@@ -1,6 +1,13 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
-import { COUNTRY, REQUIRED_PRODUCTS, OPTIONAL_PRODUCTS, LINK_USER_ID, makePlaidClient } from '../../../lib/plaid';
+import {
+  COUNTRY,
+  REQUIRED_PRODUCTS,
+  REQUIRED_IF_SUPPORTED_PRODUCTS,
+  OPTIONAL_PRODUCTS,
+  LINK_USER_ID,
+  makePlaidClient,
+} from '../../../lib/plaid';
 
 export const prerender = false;
 
@@ -10,6 +17,7 @@ export const POST: APIRoute = async () => {
     user: { client_user_id: LINK_USER_ID },
     client_name: 'fiscus',
     products: REQUIRED_PRODUCTS,
+    required_if_supported_products: REQUIRED_IF_SUPPORTED_PRODUCTS,
     optional_products: OPTIONAL_PRODUCTS,
     country_codes: COUNTRY,
     language: 'en',
