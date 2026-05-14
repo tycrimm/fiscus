@@ -487,6 +487,10 @@ const multCards: MultCard[] = ALL_LAYERS.map((l) => {
   .nw-toggle button.active { background: var(--fg); color: var(--bg); }
   .nw-toggle button:hover:not(.active) { color: var(--fg); }
   .nw-toggle button svg { display: block; }
+  @media (max-width: 40rem) {
+    .nw-toggle button { padding: 0.5rem 0.75rem; }
+    .nw-toggle button svg { width: 16px; height: 16px; }
+  }
 
   /* view switching */
   .nw-view { display: none; }
@@ -531,9 +535,15 @@ const multCards: MultCard[] = ALL_LAYERS.map((l) => {
     font-variant-numeric: tabular-nums;
     color: var(--fg);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: var(--bg);
     opacity: 0;
     transition: opacity 80ms linear;
     pointer-events: none;
+  }
+  @media (max-width: 40rem) {
+    .break-readout { font-size: var(--size-xs); }
   }
   .break-head.hovering .break-label,
   .break-head.hovering .break-delta { opacity: 0; }
@@ -542,20 +552,31 @@ const multCards: MultCard[] = ALL_LAYERS.map((l) => {
   /* breakdown: chart + side legend */
   .break-body {
     display: grid;
-    grid-template-columns: 1fr 14rem;
-    gap: var(--space-5);
-    align-items: start;
+    grid-template-columns: 1fr 11rem;
+    gap: var(--space-4);
+    align-items: stretch;
     margin-top: var(--space-2);
   }
   @media (max-width: 56rem) {
-    .break-body { grid-template-columns: 1fr; }
+    .break-body { grid-template-columns: 1fr; align-items: start; }
   }
-  .break-wrap { position: relative; touch-action: none; }
+  .break-wrap {
+    position: relative;
+    touch-action: none;
+    display: flex;
+    flex-direction: column;
+    min-height: 160px;
+  }
   .break-svg {
     width: 100%;
-    height: 220px;
+    flex: 1;
+    min-height: 0;
     display: block;
     overflow: visible;
+  }
+  @media (max-width: 56rem) {
+    .break-wrap { min-height: 200px; }
+    .break-svg { height: 200px; flex: none; }
   }
   .break-zero { stroke: var(--rule-strong); stroke-width: 1; }
   .break-line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
@@ -599,33 +620,46 @@ const multCards: MultCard[] = ALL_LAYERS.map((l) => {
   .break-band.band-l-2 { fill: var(--neg); fill-opacity: 0.10; }
 
   /* legend */
-  .break-legend {
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
   .break-legend table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   .break-legend td {
-    padding: var(--space-2) var(--space-1);
+    padding: 0.3125rem var(--space-1);
     border-bottom: 1px solid var(--rule);
     vertical-align: middle;
+    line-height: 1.2;
   }
   .break-legend tr.tot td {
     border-top: 1px solid var(--rule-strong);
     border-bottom: 0;
-    font-weight: 600;
+    font-weight: 500;
   }
-  .break-legend td.sw { width: 14px; padding-right: var(--space-2); }
-  .break-legend td.cat { color: var(--fg); }
-  .break-legend td.amt { text-align: right; color: var(--fg); }
+  .break-legend td.sw { width: 12px; padding-right: var(--space-1); }
+  .break-legend td.cat {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .break-legend tr.tot td.cat { color: var(--fg); }
+  .break-legend td.amt {
+    text-align: right;
+    color: var(--fg);
+    font-size: 0.6875rem;
+    padding-left: var(--space-2);
+  }
   .break-legend td.amt.neg { color: var(--neg); }
-  .break-legend td.pct { text-align: right; color: var(--fg-muted); width: 3.4em; }
+  .break-legend td.pct {
+    text-align: right;
+    color: var(--fg-muted);
+    width: 2.6em;
+    font-size: 0.625rem;
+  }
 
   /* swatches — solid colors approximating the band opacities over white */
   .bd-sw {
     display: inline-block;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border: 1px solid var(--rule);
   }
   .bd-sw.sw-invest { background: #d3d3d3; }
