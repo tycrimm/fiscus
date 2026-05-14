@@ -47,6 +47,19 @@ type Snap = {
 // an activity feed — "$400 added yesterday").
 const snapshotsDesc = detail.snapshots as unknown as Snap[];
 const snapshotsAsc = [...snapshotsDesc].sort((a, b) => a.as_of - b.as_of);
+const holdings = detail.holdings;
+const holdingsAsOf = holdings.length > 0 ? holdings[0].as_of : null;
+const holdingsTotalCents = holdings.reduce((sum, h) => sum + h.value_cents, 0);
+
+// Quantity formatting: integer shares get no decimals, fractional gets up to
+// 6 decimals trimmed. Crypto fractionals (0.72 BTC) need the precision; whole
+// share counts (124 GOOG) shouldn't show ".0".
+function fmtQty(text: string): string {
+  const n = Number(text);
+  if (!Number.isFinite(n)) return text;
+  if (Number.isInteger(n)) return n.toLocaleString('en-US');
+  return n.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
 
 const isLiability = !!account.is_liability;
 const currentCents = snapshotsAsc.length > 0 ? snapshotsAsc[snapshotsAsc.length - 1].balance_cents : 0;
@@ -140,6 +153,62 @@ const debugPayload = {
     <div class="chart-col">
       <AccountBalanceChart series={chartSeries} isLiability={isLiability} />
     </div>
+
+    {holdings.length > 0 && (
+      <section class="block">
+        <div class="block-head">
+          <h2>Positions</h2>
+          <span class="block-sub">
+            {pluralize(holdings.length, 'position')} ·
+            {' '}{fmtUSD.format(holdingsTotalCents / 100)}
+            {holdingsAsOf != null && <> · as of {fmtDate(holdingsAsOf)}</>}
+          </span>
+        </div>
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Security</th>
+              <th class="num-col">Qty</th>
+              <th class="num-col">Value</th>
+              <th class="num-col">Cost basis</th>
+              <th class="num-col delta-col">P / L</th>
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.map((h) => {
+              const hasBasis = h.cost_basis_cents != null;
+              const pl = hasBasis ? h.value_cents - (h.cost_basis_cents as number) : 0;
+              const plPct = hasBasis && (h.cost_basis_cents as number) !== 0
+                ? pl / (h.cost_basis_cents as number)
+                : 0;
+              const plPos = pl >= 0;
+              return (
+                <tr>
+                  <td class="ticker-cell">{h.ticker ?? '—'}</td>
+                  <td class="sec-name">{h.security_name}</td>
+                  <td class="num-col">{fmtQty(h.quantity_text)}</td>
+                  <td class="num-col">{fmtUSD.format(h.value_cents / 100)}</td>
+                  <td class="num-col muted">
+                    {hasBasis ? fmtUSD.format((h.cost_basis_cents as number) / 100) : '—'}
+                  </td>
+                  <td class="num-col delta-col">
+                    {hasBasis && pl !== 0 ? (
+                      <div class={`delta-cell ${plPos ? 'pos' : 'neg'}`}>
+                        <div>{signedUSD(pl)}</div>
+                        <div class="delta-pct">{signedPct(plPct)}</div>
+                      </div>
+                    ) : (
+                      <span class="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+    )}
 
     {snapshotsDesc.length > 0 && (
       <section class="block">
@@ -297,6 +366,31 @@ const debugPayload = {
     letter-spacing: 0.12em;
     font-weight: 500;
     margin: 0;
+  }
+  .block-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .block-sub {
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  .ticker-cell {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .sec-name {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    max-width: 24rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .ledger-table {

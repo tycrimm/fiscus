@@ -938,6 +938,38 @@ export async function searchIndex(d: DB): Promise<SearchEntry[]> {
   );
 }
 
+export type HoldingRow = {
+  id: string;
+  security_id: string;
+  ticker: string | null;
+  security_name: string;
+  security_kind: string;
+  quantity_text: string;
+  value_cents: number;
+  cost_basis_cents: number | null;
+  as_of: number;
+};
+
+// Latest holdings snapshot for an account: every position present in the most
+// recent (account, as_of) batch. A position that's been sold drops off because
+// it's absent from the latest as_of bucket. Returns [] for non-investment
+// accounts and brokerages that haven't had a holdings sync yet.
+export async function getAccountHoldings(d: DB, accountId: string): Promise<HoldingRow[]> {
+  return rows<HoldingRow>(
+    d,
+    sql`
+      SELECT h.id, h.security_id, s.ticker, s.name AS security_name, s.kind AS security_kind,
+        h.quantity_text, h.value_cents, h.cost_basis_cents, h.as_of
+      FROM holdings h
+      JOIN securities s ON s.id = h.security_id
+      WHERE h.account_id = ${accountId}
+        AND h.as_of = (SELECT MAX(as_of) FROM holdings WHERE account_id = ${accountId})
+      ORDER BY h.value_cents DESC
+    `,
+    ['id', 'security_id', 'ticker', 'security_name', 'security_kind', 'quantity_text', 'value_cents', 'cost_basis_cents', 'as_of'],
+  );
+}
+
 export async function getAccount(d: DB, accountId: string) {
   const [account] = await rows<Record<string, unknown>>(
     d,
@@ -960,5 +992,7 @@ export async function getAccount(d: DB, accountId: string) {
     ['id', 'balance_cents', 'currency', 'as_of', 'source', 'created_at'],
   );
 
-  return { account, snapshots };
+  const holdings = await getAccountHoldings(d, accountId);
+
+  return { account, snapshots, holdings };
 }
