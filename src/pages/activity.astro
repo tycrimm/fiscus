@@ -195,6 +195,10 @@ const KIND_BADGE: Partial<Record<ActivityEvent['kind'], string>> = {
     vertical-align: baseline;
     border-bottom: 1px solid var(--rule);
   }
+  .register th:first-child,
+  .register td:first-child { padding-left: 0; }
+  .register th:last-child,
+  .register td:last-child { padding-right: 0; }
   .register tbody:last-of-type tr:last-child td { border-bottom: none; }
 
   /* Vertical gridlines between numeric columns reinforce the ledger feel

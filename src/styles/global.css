@@ -155,6 +155,17 @@ td {
   border-bottom: 1px solid var(--rule);
   vertical-align: baseline;
 }
+/* Flush the table edges with the page chrome — the leftmost cell starts at
+   the page left edge, the rightmost cell ends at the page right edge.
+   Per-table CSS may opt out by restoring padding on these cells. */
+th:first-child,
+td:first-child {
+  padding-left: 0;
+}
+th:last-child,
+td:last-child {
+  padding-right: 0;
+}
 thead th {
   font-weight: 500;
   color: var(--fg-muted);

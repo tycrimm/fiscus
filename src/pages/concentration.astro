@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { db } from '../db';
 import { listAccounts, listAllHoldings, listPrivateInvestments } from '../ops/reads';
-import { fmtUSD, pluralize, prettyKind } from '../lib/format';
+import { fmtUSD, pluralize } from '../lib/format';
 import {
   allPositions,
   computeAllocation,
@@ -97,8 +97,6 @@ const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 const fmtPctInt = (n: number) => `${Math.round(n * 100)}%`;
 const hhi = stats.hhi.toFixed(3);
 const classCountLabel = `${groups.length} ${groups.length === 1 ? 'class' : 'classes'}`;
-// Match the existing Top Positions block: prettyKind each dot-separated part.
-const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · ');
 ---
 <Shell title="concentration" lastSyncedAt={lastSyncedAt}>
   {positions.length === 0 ? (
@@ -156,6 +154,8 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
         <thead>
           <tr>
             <th class="col-name">position</th>
+            <th class="col-class">class</th>
+            <th class="col-detail">detail</th>
             <th class="col-bar"></th>
             <th class="num-col col-value">value</th>
             <th class="num-col col-pct">share</th>
@@ -170,8 +170,9 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
                 <tr class="row flat">
                   <td class="col-name">
                     <NameTag class="name" href={p.href}>{p.label}</NameTag>
-                    <span class="inst">{CLASS_LABEL[p.class]}{p.sub ? <> · {prettySub(p.sub)}</> : null}</span>
                   </td>
+                  <td class="col-class">{CLASS_LABEL[p.class]}</td>
+                  <td class="col-detail">{p.sub}</td>
                   <td class="col-bar">
                     <span class="bar" aria-hidden="true">
                       <span class="fill" style={`width: ${Math.max(barPctFor(p.cents) * 100, 0.5).toFixed(2)}%`}></span>
@@ -187,7 +188,7 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
             groups.map((g) => (
               <>
                 <tr class="group">
-                  <td colspan="2">
+                  <td colspan="4">
                     <span class="gname">{CLASS_LABEL[g.key]}</span>
                     <span class="gcount">· {pluralize(g.items.length, 'position')}</span>
                   </td>
@@ -201,8 +202,9 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
                     <tr class="row">
                       <td class="col-name">
                         <NameTag class="name" href={p.href}>{p.label}</NameTag>
-                        <span class="inst">{prettySub(p.sub)}</span>
                       </td>
+                      <td class="col-class">{CLASS_LABEL[p.class]}</td>
+                      <td class="col-detail">{p.sub}</td>
                       <td class="col-bar">
                         <span class="bar" aria-hidden="true">
                           <span class="fill" style={`width: ${Math.max(barPctFor(p.cents) * 100, 0.5).toFixed(2)}%`}></span>
@@ -328,6 +330,23 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
     padding-bottom: var(--space-2);
   }
   table.conc .num-col { text-align: right; white-space: nowrap; }
+  table.conc .col-name { white-space: nowrap; }
+  table.conc .col-class {
+    white-space: nowrap;
+    font-size: var(--size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+  }
+  table.conc .col-detail {
+    color: var(--fg-muted);
+    font-size: var(--size-xs);
+    /* Detail is the only column that wraps; everything else is fixed-width. */
+    max-width: 28rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   table.conc .col-bar { width: 10rem; min-width: 6rem; }
   table.conc .col-value { width: 8rem; }
   table.conc .col-pct { width: 4.5rem; }
@@ -362,13 +381,6 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
     text-decoration: none;
   }
   table.conc a.name:hover { text-decoration: underline; text-underline-offset: 3px; }
-  table.conc .inst {
-    margin-left: var(--space-3);
-    font-size: var(--size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--fg-muted);
-  }
 
   table.conc .bar {
     display: block;
@@ -392,6 +404,7 @@ const prettySub = (sub: string) => sub.split(' · ').map(prettyKind).join(' · '
     table.conc .col-bar, table.conc .col-cum { display: none; }
     table.conc tbody tr.row .col-name { padding-left: var(--space-3); }
     table.conc tbody tr.row.flat .col-name { padding-left: 0; }
-    table.conc .inst { display: block; margin-left: 0; margin-top: 1px; }
+    /* Mobile: collapse detail column out of view; class chip stays. */
+    table.conc .col-detail { display: none; }
   }
 </style>

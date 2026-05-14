@@ -237,6 +237,21 @@ const classifyAccount = (kind: string): PositionClass => {
 const classifyPrivate = (kind: string): PositionClass =>
   PRIVATE_KINDS.has(kind) ? 'private' : 'other';
 
+// Title-cased display for a private_investments.kind enum. The bucket-level
+// chrome ("Private", "Crypto") already lives in CLASS_LABEL; this is the
+// finer-grained detail rendered in cased typography (sub-column on
+// /concentration). Falls back to a generic title-case for unknown values.
+const PRIVATE_KIND_DETAIL: Record<string, string> = {
+  private_company: 'Private Company',
+  fund: 'Fund',
+  loan_receivable: 'Loan',
+  gift_earmark: 'Gift earmark',
+  education_529: '529',
+  other: 'Other',
+};
+const detailForPrivateKind = (kind: string): string =>
+  PRIVATE_KIND_DETAIL[kind] ?? kind.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
 export function allPositions(
   accounts: ConcAccount[],
   privateInv: ConcPrivate[],
@@ -250,7 +265,7 @@ export function allPositions(
     positions.push({
       id: a.id,
       label: a.name,
-      sub: `${a.institution} · ${a.kind}`,
+      sub: a.institution,
       class: classifyAccount(a.kind),
       cents,
     });
@@ -260,7 +275,7 @@ export function allPositions(
     positions.push({
       id: i.id,
       label: i.name,
-      sub: i.kind,
+      sub: detailForPrivateKind(i.kind),
       class: classifyPrivate(i.kind),
       cents: i.current_value_cents,
       href: `/private-investments/${i.id}`,
@@ -387,7 +402,7 @@ export function positionsBySecurity(
         positions.push({
           id: `cash:${a.id}`,
           label: `${a.name} cash`,
-          sub: `${a.institution} · ${a.kind}`,
+          sub: a.institution,
           class: 'cash',
           cents: residual,
         });
@@ -396,7 +411,7 @@ export function positionsBySecurity(
       positions.push({
         id: a.id,
         label: a.name,
-        sub: `${a.institution} · ${a.kind}`,
+        sub: a.institution,
         class: classifyAccount(a.kind),
         cents,
       });
@@ -408,7 +423,7 @@ export function positionsBySecurity(
     positions.push({
       id: i.id,
       label: i.name,
-      sub: i.kind,
+      sub: detailForPrivateKind(i.kind),
       class: classifyPrivate(i.kind),
       cents: i.current_value_cents,
       href: `/private-investments/${i.id}`,

@@ -467,8 +467,16 @@ const fmtSigned = (cents: number, dir: Direction) =>
     text-align: left;
     vertical-align: baseline;
   }
+  table.flows-tbl th:first-child,
+  table.flows-tbl td:first-child { padding-left: 0; }
+  table.flows-tbl th:last-child,
+  table.flows-tbl td:last-child { padding-right: 0; }
   table.flows-tbl.compact th,
   table.flows-tbl.compact td { padding: var(--space-2); }
+  table.flows-tbl.compact th:first-child,
+  table.flows-tbl.compact td:first-child { padding-left: 0; }
+  table.flows-tbl.compact th:last-child,
+  table.flows-tbl.compact td:last-child { padding-right: 0; }
   table.flows-tbl thead th {
     font-weight: 500;
     color: var(--fg-muted);

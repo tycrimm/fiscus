@@ -1,14 +1,11 @@
 ---
-import { fmtUSD, prettyKind } from '../lib/format';
-import type { Position } from '../lib/metrics';
+import { fmtUSD } from '../lib/format';
+import { CLASS_LABEL, type Position } from '../lib/metrics';
 
 interface Props {
   positions: Position[];
 }
 const { positions } = Astro.props;
-
-const prettySub = (sub: string) =>
-  sub.split(' · ').map(prettyKind).join(' · ');
 ---
 <section class="conc">
   <header>
@@ -26,7 +23,10 @@ const prettySub = (sub: string) =>
           <li class:list={['row', { linked: p.href != null }]}>
             <Inner class="label" href={p.href}>
               <span class="name">{p.label}</span>
-              <span class="row-sub">{prettySub(p.sub)}</span>
+              <span class="row-sub">
+                <span class="row-class">{CLASS_LABEL[p.class]}</span>
+                {p.sub ? <span class="row-detail">{p.sub}</span> : null}
+              </span>
             </Inner>
             <span class="bar" aria-hidden="true">
               <span class="fill" style={`width: ${Math.max(p.pct * 100, 1).toFixed(2)}%`}></span>
@@ -103,8 +103,21 @@ const prettySub = (sub: string) =>
   .row-sub {
     font-size: var(--size-xs);
     color: var(--fg-muted);
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    overflow: hidden;
+  }
+  .row-class {
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    flex-shrink: 0;
+  }
+  .row-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .bar {

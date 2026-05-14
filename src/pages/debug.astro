@@ -148,6 +148,10 @@ const counts = Object.fromEntries(
     border-bottom: 1px solid var(--rule);
     vertical-align: top;
   }
+  table.log th:first-child,
+  table.log td:first-child { padding-left: 0; }
+  table.log th:last-child,
+  table.log td:last-child { padding-right: 0; }
   table.log tr.failed td { background: color-mix(in srgb, var(--neg) 4%, transparent); }
   table.log .ok-badge {
     font-size: var(--size-xs);
