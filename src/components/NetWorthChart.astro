@@ -554,29 +554,18 @@ const multCards: MultCard[] = ALL_LAYERS.map((l) => {
     display: grid;
     grid-template-columns: 1fr 11rem;
     gap: var(--space-4);
-    align-items: stretch;
+    align-items: start;
     margin-top: var(--space-2);
   }
   @media (max-width: 56rem) {
-    .break-body { grid-template-columns: 1fr; align-items: start; }
+    .break-body { grid-template-columns: 1fr; }
   }
-  .break-wrap {
-    position: relative;
-    touch-action: none;
-    display: flex;
-    flex-direction: column;
-    min-height: 160px;
-  }
+  .break-wrap { position: relative; touch-action: none; }
   .break-svg {
     width: 100%;
-    flex: 1;
-    min-height: 0;
+    height: 200px;
     display: block;
     overflow: visible;
-  }
-  @media (max-width: 56rem) {
-    .break-wrap { min-height: 200px; }
-    .break-svg { height: 200px; flex: none; }
   }
   .break-zero { stroke: var(--rule-strong); stroke-width: 1; }
   .break-line { fill: none; stroke: var(--fg); stroke-width: 1.25; }
