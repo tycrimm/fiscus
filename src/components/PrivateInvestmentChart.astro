@@ -112,13 +112,18 @@ for (const p of series) {
   }
 }
 const nowX = xAt(nowSec);
-if (ticks.length > 0 && nowX - ticks[ticks.length - 1].x < MIN_TICK_GAP) {
+// When "future" gets dropped, "today" becomes the right-anchored last tick
+// (CSS :last-child → translateX(-100%)) and visually extends further left,
+// so it needs more breathing room from the previous data tick.
+const futureX = showBand ? xAt(tMax) : null;
+const futureWillRender = futureX != null && futureX - nowX >= MIN_TICK_GAP;
+const todayGap = futureWillRender ? MIN_TICK_GAP : MIN_TICK_GAP * 2.25;
+if (ticks.length > 0 && nowX - ticks[ticks.length - 1].x < todayGap) {
   ticks.pop();
 }
 ticks.push({ x: nowX, label: 'today' });
-// Future horizon tick on the right edge when bands push the chart past today.
-if (showBand) {
-  ticks.push({ x: xAt(tMax), label: 'future' });
+if (futureWillRender) {
+  ticks.push({ x: futureX!, label: 'future' });
 }
 
 // Y-axis: 3 "nice" dollar labels spanning the visible range.

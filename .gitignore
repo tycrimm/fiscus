@@ -7,3 +7,4 @@ dist/
 !.env.example
 .dev.vars
 .DS_Store
+.playwright-mcp/

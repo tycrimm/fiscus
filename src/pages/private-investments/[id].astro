@@ -309,24 +309,24 @@ const debugPayload = {
               const moic = cur != null && r.cost_basis_cents > 0 ? cur / r.cost_basis_cents : null;
               return (
                 <tr class:list={[{ pending }]}>
-                  <td>
+                  <td data-label="Date">
                     {fmtDate(r.entry_date)}
                     {pending && <span class="pending-tag" title="Allocation committed but wire not yet sent">pending</span>}
                   </td>
-                  <td>{r.round_label ?? '—'}</td>
-                  <td>{r.security_type ?? '—'}</td>
-                  <td class="num-col">{fmtShares(r.shares)}</td>
-                  <td class="num-col">{fmtPPS(r.price_per_share_cents)}</td>
-                  <td class="num-col">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
-                  <td class="num-col">{cur == null ? '—' : fmtUSD.format(cur / 100)}</td>
-                  <td class="num-col delta-col">
+                  <td data-label="Round">{r.round_label ?? '—'}</td>
+                  <td data-label="Security">{r.security_type ?? '—'}</td>
+                  <td class="num-col" data-label="Shares">{fmtShares(r.shares)}</td>
+                  <td class="num-col" data-label="PPS">{fmtPPS(r.price_per_share_cents)}</td>
+                  <td class="num-col" data-label="Cost basis">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
+                  <td class="num-col" data-label="Current">{cur == null ? '—' : fmtUSD.format(cur / 100)}</td>
+                  <td class="num-col delta-col" data-label="Δ">
                     {cur != null && !isDisplayZero(delta) ? (
                       <span class={dpos ? 'pos' : 'neg'}>{signedUSD(delta)}</span>
                     ) : (
                       <span class="muted">—</span>
                     )}
                   </td>
-                  <td class:list={['num-col', { muted: moic != null && Math.abs(moic - 1) < 0.01 }]}>
+                  <td class:list={['num-col', { muted: moic != null && Math.abs(moic - 1) < 0.01 }]} data-label="MOIC">
                     {moic == null ? '—' : `${moic.toFixed(2)}×`}
                   </td>
                 </tr>
@@ -370,12 +370,12 @@ const debugPayload = {
               const dpos = deltaTotal >= 0;
               return (
                 <tr>
-                  <td>{fmtDate(v.as_of)}</td>
-                  <td>{v.basis ?? '—'}</td>
-                  <td>{label}</td>
-                  <td class="note-cell">{v.note ?? ''}</td>
-                  <td class="num-col">{fmtUSD.format(v.value_cents / 100)}</td>
-                  <td class="num-col delta-col">
+                  <td data-label="Date">{fmtDate(v.as_of)}</td>
+                  <td data-label="Basis">{v.basis ?? '—'}</td>
+                  <td data-label="Applies to">{label}</td>
+                  <td class="note-cell" data-label="Note">{v.note ?? ''}</td>
+                  <td class="num-col" data-label="Value">{fmtUSD.format(v.value_cents / 100)}</td>
+                  <td class="num-col delta-col" data-label="Δ total">
                     {hasDelta ? (
                       <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
                         <div>{signedUSD(deltaTotal)}</div>
@@ -425,6 +425,7 @@ const debugPayload = {
   .detail {
     display: grid;
     gap: var(--space-6);
+    min-width: 0;
   }
   .detail-head { display: grid; gap: var(--space-2); }
   .head-top { display: flex; }
@@ -492,7 +493,7 @@ const debugPayload = {
     color: var(--fg-muted);
   }
 
-  .block { display: grid; gap: var(--space-3); }
+  .block { display: grid; gap: var(--space-3); min-width: 0; }
   .block h2 {
     font-size: var(--size-sm);
     text-transform: uppercase;
@@ -685,9 +686,54 @@ const debugPayload = {
   }
   .debug-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
 
+  /* Mobile: each <tr> becomes a stacked card; each <td> a label/value row.
+     The desktop table markup is untouched — only display is rewired here. */
   @media (max-width: 40rem) {
-    .stats { grid-template-columns: 1fr; }
-    .ledger-table { font-size: var(--size-xs); }
-    .ledger-table th, .ledger-table td { padding: var(--space-1) var(--space-2); }
+    .stats { grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+    .stat-val { font-size: var(--size-lg); }
+    .gain-pct { display: block; margin-left: 0; margin-top: 2px; }
+    .note-cell { max-width: none; }
+
+    .ledger-table,
+    .ledger-table thead,
+    .ledger-table tbody,
+    .ledger-table tr { display: block; }
+    .ledger-table thead { display: none; }
+    .ledger-table tr {
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    .ledger-table tbody tr:last-child { border-bottom: none; }
+    .ledger-table td {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      column-gap: var(--space-3);
+      align-items: baseline;
+      padding: 2px 0;
+      border-bottom: none;
+      white-space: normal;
+    }
+    .ledger-table td:first-child { padding-left: 0; }
+    .ledger-table td:last-child { padding-right: 0; }
+    .ledger-table td::before {
+      content: attr(data-label);
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .ledger-table .num-col { text-align: right; }
+    .ledger-table .delta-cell { justify-items: end; }
+    /* First cell of each row (Date) reads as a card title. */
+    .ledger-table tr > td:first-child {
+      grid-template-columns: 1fr;
+      padding-bottom: var(--space-1);
+      font-size: var(--size-sm);
+      color: var(--fg);
+    }
+    .ledger-table tr > td:first-child::before { display: none; }
+    /* Hide empty note cells so we don't render an orphan "NOTE" label. */
+    .ledger-table td.note-cell:empty { display: none; }
   }
 </style>
