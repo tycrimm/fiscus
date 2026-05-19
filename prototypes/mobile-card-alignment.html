@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fiscus Mobile Cards — Alignment Prototype</title>
+<style>
+  /* ===== Fiscus tokens (mirrored from src/styles/global.css) ===== */
+  :root {
+    --bg: #ffffff;
+    --bg-subtle: #fafafa;
+    --fg: #0a0a0a;
+    --fg-muted: #666666;
+    --rule: #e5e5e5;
+    --rule-strong: #c8c8c8;
+    --pos: #0f7a3a;
+    --neg: #b00020;
+
+    --size-xs: 0.75rem;
+    --size-sm: 0.875rem;
+    --size-base: 1rem;
+    --size-lg: 1.125rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #ececec;
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--fg-muted); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+
+  /* ===== Sticky variation nav ===== */
+  .proto-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    gap: 0;
+    align-items: center;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    border-bottom: 1px solid var(--rule);
+    padding: 10px 20px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .proto-nav .brand { font-weight: 600; margin-right: 24px; color: var(--fg); }
+  .proto-nav a {
+    display: inline-block;
+    padding: 6px 14px;
+    color: var(--fg-muted);
+    text-decoration: none;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .proto-nav a:hover { color: var(--fg); }
+  .proto-nav a.active {
+    color: #fff;
+    background: var(--fg);
+  }
+  .proto-nav .hint { margin-left: auto; color: #999; text-transform: none; letter-spacing: 0; font-size: 11px; }
+
+  /* ===== Stage: three phone-width frames side by side ===== */
+  .stage {
+    display: grid;
+    grid-template-columns: repeat(3, 393px);
+    gap: 28px;
+    justify-content: center;
+    padding: 36px 20px 80px;
+  }
+  @media (max-width: 1280px) {
+    .stage { grid-template-columns: repeat(2, 393px); }
+  }
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: 393px; }
+  }
+  @media (max-width: 440px) {
+    .stage { grid-template-columns: 100%; padding: 16px 0 60px; }
+    .phone { border-radius: 0 !important; }
+  }
+
+  .phone {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+  }
+  .phone-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg-subtle);
+  }
+  .phone-head .tag {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+  .phone-head .sub {
+    font-size: 11px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .phone-body { padding: 18px 20px 24px; }
+
+  /* Section title shared across variations */
+  .sect-h {
+    font-size: var(--size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    color: var(--fg);
+    margin: 0 0 var(--space-3);
+  }
+  .sect + .sect { margin-top: var(--space-6); }
+
+  /* ===========================================================
+     VARIATION A — Headline + key metric
+     Each card has 3 lines. Right column carries the numeric
+     value for that line so they stack into a clean right rail:
+       row1:  round label             |  delta
+       row2:  date · security         |  MOIC
+       row3:  shares @ pps · basis    |  current
+     =========================================================== */
+  .var-a .card {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    font-variant-numeric: tabular-nums;
+  }
+  .var-a .card:last-child { border-bottom: none; }
+  .var-a .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: var(--space-3);
+    align-items: baseline;
+    padding: 1px 0;
+  }
+  .var-a .row.head .left {
+    font-size: var(--size-sm);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--fg);
+    text-transform: uppercase;
+  }
+  .var-a .row.head .right {
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+  .var-a .row.sub .left,
+  .var-a .row.sub .right {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+  .var-a .row.foot .left {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+  .var-a .row.foot .right {
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+  .var-a .right { white-space: nowrap; }
+  .var-a .mark { color: var(--fg-muted); }
+
+  /* Valuation marks: similar shape, slightly different content
+       row1:  basis · applies-to       |  delta
+       row2:  date · note              |  delta%
+       row3:  value label              |  value
+  */
+  .var-a .mark-card .row.head .left {
+    font-size: var(--size-sm);
+    color: var(--fg);
+    text-transform: none;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  /* ===========================================================
+     VARIATION B — Title + key/value pairs
+     Header block (round + date · security · shares), then a
+     mini key/value table where the labels share a fixed width
+     so values right-align into a column.
+     =========================================================== */
+  .var-b .card {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    font-variant-numeric: tabular-nums;
+  }
+  .var-b .card:last-child { border-bottom: none; }
+  .var-b .title {
+    font-size: var(--size-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg);
+  }
+  .var-b .sub {
+    margin-top: 2px;
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+  }
+  .var-b .kvs {
+    margin-top: var(--space-2);
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    column-gap: var(--space-2);
+    row-gap: 2px;
+    font-size: var(--size-sm);
+  }
+  .var-b .kvs dt {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    align-self: baseline;
+    padding-top: 2px;
+  }
+  .var-b .kvs dd {
+    margin: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .var-b .kvs dd.strong { font-weight: 600; }
+  .var-b .kvs dd .mark { color: var(--fg-muted); font-weight: 400; margin-left: var(--space-2); }
+
+  /* ===========================================================
+     VARIATION C — Two-line scannable
+     Line 1: round · security · shares  (muted context)
+     Line 2: basis → current   ·   delta · MOIC  (the outcome)
+     No labels at all. Numbers right-align via grid.
+     =========================================================== */
+  .var-c .card {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+    font-variant-numeric: tabular-nums;
+  }
+  .var-c .card:last-child { border-bottom: none; }
+  .var-c .ctx {
+    font-size: var(--size-xs);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .var-c .ctx .tag {
+    color: var(--fg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .var-c .out {
+    margin-top: 4px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: var(--space-3);
+    align-items: baseline;
+    font-size: var(--size-sm);
+  }
+  .var-c .out .left { font-weight: 500; }
+  .var-c .out .right { white-space: nowrap; }
+  .var-c .out .right .delta { font-weight: 500; }
+  .var-c .out .right .moic { color: var(--fg-muted); margin-left: var(--space-2); }
+
+  /* Subtle dash for the basis → current arrow */
+  .arrow { color: var(--fg-muted); padding: 0 4px; }
+</style>
+</head>
+<body>
+
+<nav class="proto-nav">
+  <span class="brand">FISCUS · Mobile cards</span>
+  <a href="#a">A · Headline + metric</a>
+  <a href="#b">B · Key/value pairs</a>
+  <a href="#c">C · Two-line scannable</a>
+  <span class="hint">393 px frames · iPhone 17</span>
+</nav>
+
+<div class="stage">
+
+  <!-- ============================================================
+       VARIATION A
+       ============================================================ -->
+  <section class="phone var-a" id="a">
+    <div class="phone-head">
+      <span class="tag">A · Headline + metric</span>
+      <span class="sub">three lines per card</span>
+    </div>
+    <div class="phone-body">
+
+      <section class="sect">
+        <h3 class="sect-h">Rounds</h3>
+
+        <article class="card">
+          <div class="row head">
+            <span class="left">$3M Seed</span>
+            <span class="right pos">+$19,000</span>
+          </div>
+          <div class="row sub">
+            <span class="left">Dec 31, 2022 · Seed Preferred</span>
+            <span class="right mark">20.00×</span>
+          </div>
+          <div class="row foot">
+            <span class="left">1,000 @ $1.00 · basis $1,000</span>
+            <span class="right">$20,000</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="row head">
+            <span class="left">$12M Series A</span>
+            <span class="right pos">+$7,500</span>
+          </div>
+          <div class="row sub">
+            <span class="left">May 31, 2024 · Series A Preferred</span>
+            <span class="right mark">4.00×</span>
+          </div>
+          <div class="row foot">
+            <span class="left">500 @ $5.00 · basis $2,500</span>
+            <span class="right">$10,000</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="row head">
+            <span class="left">$50M Series B</span>
+            <span class="right muted">—</span>
+          </div>
+          <div class="row sub">
+            <span class="left">Oct 31, 2025 · Series B Preferred</span>
+            <span class="right mark">1.00×</span>
+          </div>
+          <div class="row foot">
+            <span class="left">200 @ $20.00 · basis $4,000</span>
+            <span class="right">$4,000</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="sect">
+        <h3 class="sect-h">Valuation marks</h3>
+
+        <article class="card mark-card">
+          <div class="row head">
+            <span class="left">Entry · $50M Series B</span>
+            <span class="right pos">+$26,500</span>
+          </div>
+          <div class="row sub">
+            <span class="left">Oct 31, 2025</span>
+            <span class="right pos">+353.3%</span>
+          </div>
+          <div class="row foot">
+            <span class="left">Value</span>
+            <span class="right">$4,000</span>
+          </div>
+        </article>
+
+        <article class="card mark-card">
+          <div class="row head">
+            <span class="left">Last round · $12M Series A</span>
+            <span class="right pos">+$6,500</span>
+          </div>
+          <div class="row sub">
+            <span class="left">May 31, 2024 · Marked to Series A PPS</span>
+            <span class="right pos">+650.0%</span>
+          </div>
+          <div class="row foot">
+            <span class="left">Value</span>
+            <span class="right">$2,500</span>
+          </div>
+        </article>
+      </section>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VARIATION B
+       ============================================================ -->
+  <section class="phone var-b" id="b">
+    <div class="phone-head">
+      <span class="tag">B · Key/value pairs</span>
+      <span class="sub">labels share a column</span>
+    </div>
+    <div class="phone-body">
+
+      <section class="sect">
+        <h3 class="sect-h">Rounds</h3>
+
+        <article class="card">
+          <div class="title">$3M Seed · Dec 31, 2022</div>
+          <div class="sub">Seed Preferred · 1,000 @ $1.00</div>
+          <dl class="kvs">
+            <dt>Basis</dt>      <dd>$1,000</dd>
+            <dt>Current</dt>    <dd class="strong">$20,000</dd>
+            <dt>Gain</dt>       <dd><span class="pos">+$19,000</span><span class="mark">20.00×</span></dd>
+          </dl>
+        </article>
+
+        <article class="card">
+          <div class="title">$12M Series A · May 31, 2024</div>
+          <div class="sub">Series A Preferred · 500 @ $5.00</div>
+          <dl class="kvs">
+            <dt>Basis</dt>      <dd>$2,500</dd>
+            <dt>Current</dt>    <dd class="strong">$10,000</dd>
+            <dt>Gain</dt>       <dd><span class="pos">+$7,500</span><span class="mark">4.00×</span></dd>
+          </dl>
+        </article>
+
+        <article class="card">
+          <div class="title">$50M Series B · Oct 31, 2025</div>
+          <div class="sub">Series B Preferred · 200 @ $20.00</div>
+          <dl class="kvs">
+            <dt>Basis</dt>      <dd>$4,000</dd>
+            <dt>Current</dt>    <dd class="strong">$4,000</dd>
+            <dt>Gain</dt>       <dd><span class="muted">—</span><span class="mark">1.00×</span></dd>
+          </dl>
+        </article>
+      </section>
+
+      <section class="sect">
+        <h3 class="sect-h">Valuation marks</h3>
+
+        <article class="card">
+          <div class="title">Entry · $50M Series B</div>
+          <div class="sub">Oct 31, 2025</div>
+          <dl class="kvs">
+            <dt>Value</dt>      <dd class="strong">$4,000</dd>
+            <dt>Δ total</dt>    <dd><span class="pos">+$26,500</span><span class="mark">+353.3%</span></dd>
+          </dl>
+        </article>
+
+        <article class="card">
+          <div class="title">Last round · $12M Series A</div>
+          <div class="sub">May 31, 2024 · Marked to Series A PPS</div>
+          <dl class="kvs">
+            <dt>Value</dt>      <dd class="strong">$2,500</dd>
+            <dt>Δ total</dt>    <dd><span class="pos">+$6,500</span><span class="mark">+650.0%</span></dd>
+          </dl>
+        </article>
+      </section>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VARIATION C
+       ============================================================ -->
+  <section class="phone var-c" id="c">
+    <div class="phone-head">
+      <span class="tag">C · Two-line scannable</span>
+      <span class="sub">no labels</span>
+    </div>
+    <div class="phone-body">
+
+      <section class="sect">
+        <h3 class="sect-h">Rounds</h3>
+
+        <article class="card">
+          <div class="ctx">
+            <span class="tag">$3M Seed</span> · Seed Preferred · 1,000 @ $1.00 · Dec 31, 2022
+          </div>
+          <div class="out">
+            <span class="left">$1,000 <span class="arrow">→</span> $20,000</span>
+            <span class="right"><span class="delta pos">+$19,000</span><span class="moic">20.00×</span></span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="ctx">
+            <span class="tag">$12M Series A</span> · Series A Preferred · 500 @ $5.00 · May 31, 2024
+          </div>
+          <div class="out">
+            <span class="left">$2,500 <span class="arrow">→</span> $10,000</span>
+            <span class="right"><span class="delta pos">+$7,500</span><span class="moic">4.00×</span></span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="ctx">
+            <span class="tag">$50M Series B</span> · Series B Preferred · 200 @ $20.00 · Oct 31, 2025
+          </div>
+          <div class="out">
+            <span class="left">$4,000 <span class="arrow">→</span> $4,000</span>
+            <span class="right"><span class="muted">—</span><span class="moic">1.00×</span></span>
+          </div>
+        </article>
+      </section>
+
+      <section class="sect">
+        <h3 class="sect-h">Valuation marks</h3>
+
+        <article class="card">
+          <div class="ctx">
+            <span class="tag">Entry</span> · $50M Series B · Oct 31, 2025
+          </div>
+          <div class="out">
+            <span class="left">$4,000</span>
+            <span class="right"><span class="delta pos">+$26,500</span><span class="moic pos">+353.3%</span></span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="ctx">
+            <span class="tag">Last round</span> · $12M Series A · May 31, 2024 · Marked to Series A PPS
+          </div>
+          <div class="out">
+            <span class="left">$2,500</span>
+            <span class="right"><span class="delta pos">+$6,500</span><span class="moic pos">+650.0%</span></span>
+          </div>
+        </article>
+      </section>
+
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Highlight nav as you scroll through variations.
+  const sections = ['a','b','c'].map(id => document.getElementById(id));
+  const links = document.querySelectorAll('.proto-nav a');
+  const linkMap = new Map();
+  links.forEach(a => linkMap.set(a.getAttribute('href').slice(1), a));
+
+  function update() {
+    const y = window.scrollY + 120;
+    let active = sections[0];
+    for (const s of sections) {
+      if (s.offsetTop <= y) active = s;
+    }
+    links.forEach(a => a.classList.remove('active'));
+    linkMap.get(active.id)?.classList.add('active');
+  }
+  document.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+</script>
+
+</body>
+</html>

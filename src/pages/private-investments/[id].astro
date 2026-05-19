@@ -148,6 +148,33 @@ const fmtShares = (n: number | null) =>
 const signedUSD = (cents: number) => (cents >= 0 ? '+' : '−') + fmtUSD.format(Math.abs(cents) / 100);
 const signedPct = (pct: number) => (pct >= 0 ? '+' : '−') + (Math.abs(pct) * 100).toFixed(1) + '%';
 
+// Pre-compute the row view-models once — used by both the desktop <table>
+// and the mobile card list so derived metrics (delta, MOIC, pct) only get
+// computed once.
+const roundsRows = rounds.map((r) => {
+  const cur = r.derived_value_cents;
+  const pending = r.funded_at == null;
+  const delta = cur == null ? 0 : cur - r.cost_basis_cents;
+  const dpos = delta >= 0;
+  const moic = cur != null && r.cost_basis_cents > 0 ? cur / r.cost_basis_cents : null;
+  const hasDelta = cur != null && !isDisplayZero(delta);
+  return { r, cur, pending, delta, dpos, moic, hasDelta };
+});
+
+const valuationsRows = valuations.map((v) => {
+  const inv = v.investment_id ? invById.get(v.investment_id) : null;
+  const label = inv
+    ? (inv.round_label ?? inv.security_type ?? 'Round')
+    : 'Asset-level';
+  const cumulativeHere = cumulativeByAsOf.get(v.as_of) ?? 0;
+  const cumulativePrev = prevCumulative.get(v.as_of) ?? 0;
+  const deltaTotal = cumulativeHere - cumulativePrev;
+  const hasDelta = cumulativePrev > 0 && !isDisplayZero(deltaTotal);
+  const deltaPct = hasDelta && cumulativePrev > 0 ? deltaTotal / cumulativePrev : 0;
+  const dpos = deltaTotal >= 0;
+  return { v, label, deltaTotal, hasDelta, deltaPct, dpos };
+});
+
 const debugPayload = {
   generated_at: new Date().toISOString(),
   now_sec: nowSec,
@@ -301,39 +328,63 @@ const debugPayload = {
             </tr>
           </thead>
           <tbody>
-            {rounds.map((r) => {
-              const cur = r.derived_value_cents;
-              const pending = r.funded_at == null;
-              const delta = cur == null ? 0 : cur - r.cost_basis_cents;
-              const dpos = delta >= 0;
-              const moic = cur != null && r.cost_basis_cents > 0 ? cur / r.cost_basis_cents : null;
-              return (
-                <tr class:list={[{ pending }]}>
-                  <td data-label="Date">
-                    {fmtDate(r.entry_date)}
-                    {pending && <span class="pending-tag" title="Allocation committed but wire not yet sent">pending</span>}
-                  </td>
-                  <td data-label="Round">{r.round_label ?? '—'}</td>
-                  <td data-label="Security">{r.security_type ?? '—'}</td>
-                  <td class="num-col" data-label="Shares">{fmtShares(r.shares)}</td>
-                  <td class="num-col" data-label="PPS">{fmtPPS(r.price_per_share_cents)}</td>
-                  <td class="num-col" data-label="Cost basis">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
-                  <td class="num-col" data-label="Current">{cur == null ? '—' : fmtUSD.format(cur / 100)}</td>
-                  <td class="num-col delta-col" data-label="Δ">
-                    {cur != null && !isDisplayZero(delta) ? (
-                      <span class={dpos ? 'pos' : 'neg'}>{signedUSD(delta)}</span>
-                    ) : (
-                      <span class="muted">—</span>
-                    )}
-                  </td>
-                  <td class:list={['num-col', { muted: moic != null && Math.abs(moic - 1) < 0.01 }]} data-label="MOIC">
-                    {moic == null ? '—' : `${moic.toFixed(2)}×`}
-                  </td>
-                </tr>
-              );
-            })}
+            {roundsRows.map(({ r, cur, pending, delta, dpos, moic, hasDelta }) => (
+              <tr class:list={[{ pending }]}>
+                <td>
+                  {fmtDate(r.entry_date)}
+                  {pending && <span class="pending-tag" title="Allocation committed but wire not yet sent">pending</span>}
+                </td>
+                <td>{r.round_label ?? '—'}</td>
+                <td>{r.security_type ?? '—'}</td>
+                <td class="num-col">{fmtShares(r.shares)}</td>
+                <td class="num-col">{fmtPPS(r.price_per_share_cents)}</td>
+                <td class="num-col">{fmtUSD.format(r.cost_basis_cents / 100)}</td>
+                <td class="num-col">{cur == null ? '—' : fmtUSD.format(cur / 100)}</td>
+                <td class="num-col delta-col">
+                  {hasDelta ? (
+                    <span class={dpos ? 'pos' : 'neg'}>{signedUSD(delta)}</span>
+                  ) : (
+                    <span class="muted">—</span>
+                  )}
+                </td>
+                <td class:list={['num-col', { muted: moic != null && Math.abs(moic - 1) < 0.01 }]}>
+                  {moic == null ? '—' : `${moic.toFixed(2)}×`}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+
+        <ul class="ledger-cards">
+          {roundsRows.map(({ r, cur, pending, delta, dpos, moic, hasDelta }) => (
+            <li class:list={['lc-card', { pending }]}>
+              <div class="lc-row lc-head">
+                <span class="lc-left lc-tag">{r.round_label ?? '—'}</span>
+                <span class={`lc-right ${hasDelta ? (dpos ? 'pos' : 'neg') : 'muted'}`}>
+                  {hasDelta ? signedUSD(delta) : '—'}
+                </span>
+              </div>
+              <div class="lc-row lc-sub">
+                <span class="lc-left">
+                  {fmtDate(r.entry_date)}
+                  {pending && <span class="pending-tag" title="Allocation committed but wire not yet sent">pending</span>}
+                  {r.security_type && <> · {r.security_type}</>}
+                </span>
+                <span class={`lc-right ${moic != null && Math.abs(moic - 1) < 0.01 ? 'muted' : ''}`}>
+                  {moic == null ? '—' : `${moic.toFixed(2)}×`}
+                </span>
+              </div>
+              <div class="lc-row lc-foot">
+                <span class="lc-left">
+                  {r.shares != null && r.price_per_share_cents != null
+                    ? `${fmtShares(r.shares)} @ ${fmtPPS(r.price_per_share_cents)} · basis ${fmtUSD.format(r.cost_basis_cents / 100)}`
+                    : `basis ${fmtUSD.format(r.cost_basis_cents / 100)}`}
+                </span>
+                <span class="lc-right lc-current">{cur == null ? '—' : fmtUSD.format(cur / 100)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     )}
 
@@ -352,44 +403,56 @@ const debugPayload = {
             </tr>
           </thead>
           <tbody>
-            {valuations.map((v) => {
-              const inv = v.investment_id ? invById.get(v.investment_id) : null;
-              const label = inv
-                ? (inv.round_label ?? inv.security_type ?? 'Round')
-                : 'Asset-level';
-              // Delta = change in the asset's *cumulative* total at this mark's
-              // as_of vs the previous distinct as_of. When multiple marks land
-              // on the same day (e.g. entry + mark-up), they share the cumulative
-              // value, so the first row of the day gets the delta and the rest
-              // show no change. First mark ever shows no delta (no prior state).
-              const cumulativeHere = cumulativeByAsOf.get(v.as_of) ?? 0;
-              const cumulativePrev = prevCumulative.get(v.as_of) ?? 0;
-              const deltaTotal = cumulativeHere - cumulativePrev;
-              const hasDelta = cumulativePrev > 0 && !isDisplayZero(deltaTotal);
-              const deltaPct = hasDelta && cumulativePrev > 0 ? deltaTotal / cumulativePrev : 0;
-              const dpos = deltaTotal >= 0;
-              return (
-                <tr>
-                  <td data-label="Date">{fmtDate(v.as_of)}</td>
-                  <td data-label="Basis">{v.basis ?? '—'}</td>
-                  <td data-label="Applies to">{label}</td>
-                  <td class="note-cell" data-label="Note">{v.note ?? ''}</td>
-                  <td class="num-col" data-label="Value">{fmtUSD.format(v.value_cents / 100)}</td>
-                  <td class="num-col delta-col" data-label="Δ total">
-                    {hasDelta ? (
-                      <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
-                        <div>{signedUSD(deltaTotal)}</div>
-                        <div class="delta-pct">{signedPct(deltaPct)}</div>
-                      </div>
-                    ) : (
-                      <span class="muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {valuationsRows.map(({ v, label, deltaTotal, hasDelta, deltaPct, dpos }) => (
+              <tr>
+                <td>{fmtDate(v.as_of)}</td>
+                <td>{v.basis ?? '—'}</td>
+                <td>{label}</td>
+                <td class="note-cell">{v.note ?? ''}</td>
+                <td class="num-col">{fmtUSD.format(v.value_cents / 100)}</td>
+                <td class="num-col delta-col">
+                  {hasDelta ? (
+                    <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
+                      <div>{signedUSD(deltaTotal)}</div>
+                      <div class="delta-pct">{signedPct(deltaPct)}</div>
+                    </div>
+                  ) : (
+                    <span class="muted">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+
+        <ul class="ledger-cards">
+          {valuationsRows.map(({ v, label, deltaTotal, hasDelta, deltaPct, dpos }) => (
+            <li class="lc-card lc-mark-card">
+              <div class="lc-row lc-head">
+                <span class="lc-left">
+                  <span class="lc-tag">{v.basis ?? 'Mark'}</span>
+                  {label && <> · {label}</>}
+                </span>
+                <span class={`lc-right ${hasDelta ? (dpos ? 'pos' : 'neg') : 'muted'}`}>
+                  {hasDelta ? signedUSD(deltaTotal) : '—'}
+                </span>
+              </div>
+              <div class="lc-row lc-sub">
+                <span class="lc-left">
+                  {fmtDate(v.as_of)}
+                  {v.note && <> · {v.note}</>}
+                </span>
+                <span class={`lc-right ${hasDelta ? (dpos ? 'pos' : 'neg') : ''}`}>
+                  {hasDelta ? signedPct(deltaPct) : ''}
+                </span>
+              </div>
+              <div class="lc-row lc-foot">
+                <span class="lc-left">Value</span>
+                <span class="lc-right lc-current">{fmtUSD.format(v.value_cents / 100)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     )}
 
@@ -686,54 +749,12 @@ const debugPayload = {
   }
   .debug-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
 
-  /* Mobile: each <tr> becomes a stacked card; each <td> a label/value row.
-     The desktop table markup is untouched — only display is rewired here. */
+  /* Mobile: hide the dense <table> and let the parallel <ul.ledger-cards>
+     render variation-A headline-style cards instead. */
   @media (max-width: 40rem) {
     .stats { grid-template-columns: 1fr 1fr; gap: var(--space-3); }
     .stat-val { font-size: var(--size-lg); }
     .gain-pct { display: block; margin-left: 0; margin-top: 2px; }
-    .note-cell { max-width: none; }
-
-    .ledger-table,
-    .ledger-table thead,
-    .ledger-table tbody,
-    .ledger-table tr { display: block; }
-    .ledger-table thead { display: none; }
-    .ledger-table tr {
-      padding: var(--space-3) 0;
-      border-bottom: 1px solid var(--rule);
-    }
-    .ledger-table tbody tr:last-child { border-bottom: none; }
-    .ledger-table td {
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      column-gap: var(--space-3);
-      align-items: baseline;
-      padding: 2px 0;
-      border-bottom: none;
-      white-space: normal;
-    }
-    .ledger-table td:first-child { padding-left: 0; }
-    .ledger-table td:last-child { padding-right: 0; }
-    .ledger-table td::before {
-      content: attr(data-label);
-      font-size: 0.6875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--fg-muted);
-      font-weight: 500;
-    }
-    .ledger-table .num-col { text-align: right; }
-    .ledger-table .delta-cell { justify-items: end; }
-    /* First cell of each row (Date) reads as a card title. */
-    .ledger-table tr > td:first-child {
-      grid-template-columns: 1fr;
-      padding-bottom: var(--space-1);
-      font-size: var(--size-sm);
-      color: var(--fg);
-    }
-    .ledger-table tr > td:first-child::before { display: none; }
-    /* Hide empty note cells so we don't render an orphan "NOTE" label. */
-    .ledger-table td.note-cell:empty { display: none; }
+    .ledger-table { display: none; }
   }
 </style>

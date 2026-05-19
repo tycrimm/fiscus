@@ -92,6 +92,32 @@ for (let i = 1; i < snapshotsAsc.length; i++) {
   prevByAsOf.set(snapshotsAsc[i].as_of, snapshotsAsc[i - 1].balance_cents);
 }
 
+// Pre-compute row view-models — shared by the desktop <table> and the mobile
+// card list so derived metrics (delta, P/L) only get computed once.
+const holdingsRows = holdings.map((h) => {
+  const hasBasis = h.cost_basis_cents != null;
+  const pl = hasBasis ? h.value_cents - (h.cost_basis_cents as number) : 0;
+  const plPct = hasBasis && (h.cost_basis_cents as number) !== 0
+    ? pl / (h.cost_basis_cents as number)
+    : 0;
+  const plPos = pl >= 0;
+  const hasPL = hasBasis && pl !== 0;
+  return { h, hasBasis, pl, plPct, plPos, hasPL };
+});
+
+const snapshotRows = snapshotsDesc.map((s) => {
+  const prev = prevByAsOf.get(s.as_of);
+  const hasDelta = prev != null;
+  const rawDelta = hasDelta ? s.balance_cents - (prev as number) : 0;
+  // Flip sign so green/red align with net-worth impact on liabilities.
+  const nwDelta = isLiability ? -rawDelta : rawDelta;
+  const dpos = nwDelta >= 0;
+  const deltaPct = hasDelta && (prev as number) !== 0 ? rawDelta / (prev as number) : 0;
+  const nwPct = isLiability ? -deltaPct : deltaPct;
+  const hasNonZeroDelta = hasDelta && rawDelta !== 0;
+  return { s, hasDelta, rawDelta, dpos, nwPct, hasNonZeroDelta };
+});
+
 const debugPayload = {
   generated_at: new Date().toISOString(),
   account,
@@ -176,37 +202,55 @@ const debugPayload = {
             </tr>
           </thead>
           <tbody>
-            {holdings.map((h) => {
-              const hasBasis = h.cost_basis_cents != null;
-              const pl = hasBasis ? h.value_cents - (h.cost_basis_cents as number) : 0;
-              const plPct = hasBasis && (h.cost_basis_cents as number) !== 0
-                ? pl / (h.cost_basis_cents as number)
-                : 0;
-              const plPos = pl >= 0;
-              return (
-                <tr>
-                  <td class="ticker-cell" data-label="Symbol">{h.ticker ?? '—'}</td>
-                  <td class="sec-name" data-label="Security">{h.security_name}</td>
-                  <td class="num-col" data-label="Qty">{fmtQty(h.quantity_text)}</td>
-                  <td class="num-col" data-label="Value">{fmtUSD.format(h.value_cents / 100)}</td>
-                  <td class="num-col muted" data-label="Cost basis">
-                    {hasBasis ? fmtUSD.format((h.cost_basis_cents as number) / 100) : '—'}
-                  </td>
-                  <td class="num-col delta-col" data-label="P / L">
-                    {hasBasis && pl !== 0 ? (
-                      <div class={`delta-cell ${plPos ? 'pos' : 'neg'}`}>
-                        <div>{signedUSD(pl)}</div>
-                        <div class="delta-pct">{signedPct(plPct)}</div>
-                      </div>
-                    ) : (
-                      <span class="muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {holdingsRows.map(({ h, hasBasis, pl, plPct, plPos, hasPL }) => (
+              <tr>
+                <td class="ticker-cell">{h.ticker ?? '—'}</td>
+                <td class="sec-name">{h.security_name}</td>
+                <td class="num-col">{fmtQty(h.quantity_text)}</td>
+                <td class="num-col">{fmtUSD.format(h.value_cents / 100)}</td>
+                <td class="num-col muted">
+                  {hasBasis ? fmtUSD.format((h.cost_basis_cents as number) / 100) : '—'}
+                </td>
+                <td class="num-col delta-col">
+                  {hasPL ? (
+                    <div class={`delta-cell ${plPos ? 'pos' : 'neg'}`}>
+                      <div>{signedUSD(pl)}</div>
+                      <div class="delta-pct">{signedPct(plPct)}</div>
+                    </div>
+                  ) : (
+                    <span class="muted">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+
+        <ul class="ledger-cards">
+          {holdingsRows.map(({ h, hasBasis, pl, plPct, plPos, hasPL }) => (
+            <li class="lc-card">
+              <div class="lc-row lc-head">
+                <span class="lc-left lc-tag">{h.ticker ?? '—'}</span>
+                <span class={`lc-right ${hasPL ? (plPos ? 'pos' : 'neg') : 'muted'}`}>
+                  {hasPL ? signedUSD(pl) : '—'}
+                </span>
+              </div>
+              <div class="lc-row lc-sub">
+                <span class="lc-left">{h.security_name}</span>
+                <span class={`lc-right ${hasPL ? (plPos ? 'pos' : 'neg') : ''}`}>
+                  {hasPL ? signedPct(plPct) : ''}
+                </span>
+              </div>
+              <div class="lc-row lc-foot">
+                <span class="lc-left">
+                  {fmtQty(h.quantity_text)} shares
+                  {hasBasis && <> · basis {fmtUSD.format((h.cost_basis_cents as number) / 100)}</>}
+                </span>
+                <span class="lc-right lc-current">{fmtUSD.format(h.value_cents / 100)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     )}
 
@@ -223,35 +267,48 @@ const debugPayload = {
             </tr>
           </thead>
           <tbody>
-            {snapshotsDesc.map((s) => {
-              const prev = prevByAsOf.get(s.as_of);
-              const hasDelta = prev != null;
-              const rawDelta = hasDelta ? s.balance_cents - (prev as number) : 0;
-              // Flip sign so green/red align with net-worth impact on liabilities.
-              const nwDelta = isLiability ? -rawDelta : rawDelta;
-              const dpos = nwDelta >= 0;
-              const deltaPct = hasDelta && (prev as number) !== 0 ? rawDelta / (prev as number) : 0;
-              const nwPct = isLiability ? -deltaPct : deltaPct;
-              return (
-                <tr>
-                  <td data-label="Date">{fmtDate(s.as_of)}</td>
-                  <td class="src-cell" data-label="Source">{s.source}</td>
-                  <td class="num-col" data-label={isLiability ? 'Balance owed' : 'Balance'}>{fmtUSD.format(s.balance_cents / 100)}</td>
-                  <td class="num-col delta-col" data-label="Δ">
-                    {hasDelta && rawDelta !== 0 ? (
-                      <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
-                        <div>{signedUSD(rawDelta)}</div>
-                        <div class="delta-pct">{signedPct(nwPct)}</div>
-                      </div>
-                    ) : (
-                      <span class="muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {snapshotRows.map(({ s, rawDelta, dpos, nwPct, hasNonZeroDelta }) => (
+              <tr>
+                <td>{fmtDate(s.as_of)}</td>
+                <td class="src-cell">{s.source}</td>
+                <td class="num-col">{fmtUSD.format(s.balance_cents / 100)}</td>
+                <td class="num-col delta-col">
+                  {hasNonZeroDelta ? (
+                    <div class={`delta-cell ${dpos ? 'pos' : 'neg'}`}>
+                      <div>{signedUSD(rawDelta)}</div>
+                      <div class="delta-pct">{signedPct(nwPct)}</div>
+                    </div>
+                  ) : (
+                    <span class="muted">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+
+        <ul class="ledger-cards">
+          {snapshotRows.map(({ s, rawDelta, dpos, nwPct, hasNonZeroDelta }) => (
+            <li class="lc-card">
+              <div class="lc-row lc-head">
+                <span class="lc-left lc-tag">{fmtDate(s.as_of)}</span>
+                <span class={`lc-right ${hasNonZeroDelta ? (dpos ? 'pos' : 'neg') : 'muted'}`}>
+                  {hasNonZeroDelta ? signedUSD(rawDelta) : '—'}
+                </span>
+              </div>
+              <div class="lc-row lc-sub">
+                <span class="lc-left">{s.source}</span>
+                <span class={`lc-right ${hasNonZeroDelta ? (dpos ? 'pos' : 'neg') : ''}`}>
+                  {hasNonZeroDelta ? signedPct(nwPct) : ''}
+                </span>
+              </div>
+              <div class="lc-row lc-foot">
+                <span class="lc-left">{isLiability ? 'Balance owed' : 'Balance'}</span>
+                <span class="lc-right lc-current">{fmtUSD.format(s.balance_cents / 100)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     )}
 
@@ -467,54 +524,12 @@ const debugPayload = {
   }
   .debug-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
 
-  /* Mobile: each <tr> becomes a stacked card; each <td> a label/value row.
-     The desktop table markup is untouched — only display is rewired here. */
+  /* Mobile: hide the dense <table> and let the parallel <ul.ledger-cards>
+     render variation-A headline-style cards instead. */
   @media (max-width: 40rem) {
     .stats { grid-template-columns: 1fr 1fr; gap: var(--space-3); }
     .stat-val { font-size: var(--size-lg); }
     .gain-pct { display: block; margin-left: 0; margin-top: 2px; }
-    .sec-name { white-space: normal; max-width: none; }
-
-    .ledger-table,
-    .ledger-table thead,
-    .ledger-table tbody,
-    .ledger-table tr { display: block; }
-    .ledger-table thead { display: none; }
-    .ledger-table tr {
-      padding: var(--space-3) 0;
-      border-bottom: 1px solid var(--rule);
-    }
-    .ledger-table tbody tr:last-child { border-bottom: none; }
-    .ledger-table td {
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      column-gap: var(--space-3);
-      align-items: baseline;
-      padding: 2px 0;
-      border-bottom: none;
-      white-space: normal;
-    }
-    .ledger-table td:first-child { padding-left: 0; }
-    .ledger-table td:last-child { padding-right: 0; }
-    .ledger-table td::before {
-      content: attr(data-label);
-      font-size: 0.6875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--fg-muted);
-      font-weight: 500;
-    }
-    .ledger-table .num-col { text-align: right; }
-    .ledger-table .delta-cell { justify-items: end; }
-    /* First cell of each row (Symbol) gets larger to read as a card title. */
-    .ledger-table tr > td:first-child {
-      grid-template-columns: 1fr;
-      padding-bottom: var(--space-1);
-    }
-    .ledger-table tr > td:first-child::before { display: none; }
-    .ledger-table tr > td:first-child {
-      font-size: var(--size-sm);
-      color: var(--fg);
-    }
+    .ledger-table { display: none; }
   }
 </style>

@@ -288,3 +288,79 @@ button:hover,
   text-align: center;
   font-size: var(--size-sm);
 }
+
+/* Mobile ledger cards. Rendered alongside the desktop <table> on detail
+   pages; default hidden, swapped in below 40rem (see detail-page styles
+   which hide the <table>). Variation A layout: three rows per card —
+   identifier + outcome (head), context + secondary metric (sub), supporting
+   detail + current value (foot). Right column right-anchors to the card
+   edge so values line up cleanly down the list. */
+.ledger-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: none;
+}
+@media (max-width: 40rem) {
+  .ledger-cards { display: block; }
+}
+.lc-card {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+}
+.lc-card:last-child { border-bottom: none; }
+.lc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: baseline;
+  padding: 1px 0;
+}
+.lc-row .lc-left { min-width: 0; }
+.lc-row .lc-right { white-space: nowrap; text-align: right; }
+.lc-head .lc-left {
+  font-size: var(--size-sm);
+  font-weight: 600;
+  color: var(--fg);
+}
+.lc-head .lc-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lc-head .lc-right {
+  font-size: var(--size-sm);
+  font-weight: 500;
+}
+.lc-sub .lc-left,
+.lc-sub .lc-right {
+  font-size: var(--size-xs);
+  color: var(--fg-muted);
+}
+.lc-foot .lc-left {
+  font-size: var(--size-xs);
+  color: var(--fg-muted);
+}
+.lc-foot .lc-right {
+  font-size: var(--size-sm);
+  font-weight: 500;
+}
+.lc-current { color: var(--fg); }
+/* Override defaults when the right cell carries a state color. */
+.lc-row .lc-right.pos { color: var(--pos); }
+.lc-row .lc-right.neg { color: var(--neg); }
+.lc-row .lc-right.muted { color: var(--fg-muted); font-weight: 400; }
+/* Pending tranches: italicize the foot's current value to signal
+   "committed but not yet funded". */
+.lc-card.pending .lc-head .lc-left,
+.lc-card.pending .lc-foot .lc-current { font-style: italic; color: var(--fg-muted); }
+.lc-card .pending-tag {
+  margin-left: var(--space-2);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  border: 1px solid var(--rule);
+  padding: 0 var(--space-1);
+  font-style: normal;
+}
